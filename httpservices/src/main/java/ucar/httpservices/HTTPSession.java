@@ -33,23 +33,6 @@
 
 package ucar.httpservices;
 
-import org.apache.http.*;
-import org.apache.http.annotation.NotThreadSafe;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.Credentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.entity.DeflateDecompressingEntity;
-import org.apache.http.client.entity.GzipDecompressingEntity;
-import org.apache.http.client.params.AllClientPNames;
-import org.apache.http.conn.scheme.Scheme;
-import org.apache.http.cookie.Cookie;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.*;
-import org.apache.http.impl.conn.PoolingClientConnectionManager;
-import org.apache.http.params.SyncBasicHttpParams;
-import org.apache.http.protocol.*;
-
 import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -60,17 +43,14 @@ import java.util.*;
 import static ucar.httpservices.HTTPAuthScope.*;
 import static org.apache.http.auth.AuthScope.*;
 
-
 /**
  * A session is encapsulated in an instance of the class
  * HTTPSession.  The encapsulation is with respect to a specific url
  * This means that once a session is
  * specified, it is tied permanently to that url.
+ * This class encapsulates an HTTP HttpSession object,
+ * as well as encapsulates an instance of an Apache HttpClient.
  * <p/>
- * <p/>
- * It is important to note that Session objects do NOT correspond
- * with the HttpClient objects of the Apache httpclient library.
- * A Session does, however, encapsulate an instance of an Apache HttpClient.
  * <p/>
  * It is possible to specify a url when invoking, for example,
  * HTTPFactory.Get.  This is because the url argument to the
@@ -132,6 +112,7 @@ public class HTTPSession implements AutoCloseable
     static public final String USER_AGENT = AllClientPNames.USER_AGENT;
     static public final String PROXY = AllClientPNames.DEFAULT_PROXY;
     static public final String COMPRESSION = "COMPRESSION";
+    static public final String COOKIE_STORE = "COOKIE_STORE";
 
     // from: http://en.wikipedia.org/wiki/List_of_HTTP_header_fields
     static final public String HEADER_USERAGENT = "User-Agent";
@@ -151,8 +132,8 @@ public class HTTPSession implements AutoCloseable
     //////////////////////////////////////////////////////////////////////////
     // Type Declarations
 
-    // Provide an alias for HttpParams
-    static class Settings extends SyncBasicHttpParams
+    // Provide a synchronized hash table (because the Apache Sync objects are deprecated)
+    static class Settings extends java.util.HashTable<String,Object>
     {
     }
 
@@ -312,6 +293,7 @@ public class HTTPSession implements AutoCloseable
         setGlobalSoTimeout(DFALTSOTIMEOUT);
         getGlobalProxyD(); // get info from -D if possible
         setGlobalKeyStore();
+	setGlobalCookieStore(new BasicCookieStore());
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -338,12 +320,12 @@ public class HTTPSession implements AutoCloseable
 
     static synchronized public void setGlobalUserAgent(String userAgent)
     {
-        globalsettings.setParameter(USER_AGENT, userAgent);
+        globalsettings.put(USER_AGENT, userAgent);
     }
 
     static synchronized public String getGlobalUserAgent()
     {
-        return (String) globalsettings.getParameter(USER_AGENT);
+        return (String) globalsettings.get(USER_AGENT);
     }
 
     static synchronized public void setGlobalThreadCount(int nthreads)
@@ -365,12 +347,15 @@ public class HTTPSession implements AutoCloseable
 
     static synchronized public List<Cookie> getGlobalCookies()
     {
-        // Must be better way to do this.
-        AbstractHttpClient client = new DefaultHttpClient(connmgr);
-        //coverity[RESOURCE_LEAK]
-        List<Cookie> cookies = client.getCookieStore().getCookies();
-        client = null;
-        return cookies;
+	CookieStore store = (CookieStore)globalsettings.get(COOKIE_STORE);
+        if(store == null)
+	    return new ArrayList<Cookie>();
+	return store.getCookies();
+    }
+
+    static synchronized public void setGlobalCookieStore(CookieStore store)
+    {
+	globalsettings.setParameter(COOKIE_STORE,store);
     }
 
     // Timeouts
@@ -649,9 +634,15 @@ public class HTTPSession implements AutoCloseable
 
     protected HttpContext execcontext = null; // same instance must be used for all methods
 
+CookieStore cookieStore = new BasicCookieStore();
+HttpContext httpContext = new BasicHttpContext();
+httpContext.setAttribute(ClientContext.COOKIE_STORE, cookieStore);
+    protected String sessionid = null;
+
     // cached and recreated as needed
     protected CloseableHttpClient cachedclient = null;
-    protected boolean cachedclientinvalid = true;
+
+    protected boolean cachevalid = false; // true=> not changed since last use
 
     //////////////////////////////////////////////////
     // Constructor(s)
@@ -746,6 +737,20 @@ public class HTTPSession implements AutoCloseable
     public void setMaxRedirects(int n)
     {
         localsettings.setParameter(MAX_REDIRECTS, n);
+    }
+
+    public List<Cookie> getCookies()
+    {
+	CookieStore store = (CookieStore)localsettings.get(COOKIE_STORE);
+        if(store == null)
+	    return new ArrayList<Cookie>();
+	return store.getCookies();
+    }
+
+    public void setCookieStore(CookieStore store)
+    {
+        localsettings.setParameter(COOKIE_STORE, store);
+	updatecontext();
     }
 
     HttpContext
@@ -911,13 +916,31 @@ public class HTTPSession implements AutoCloseable
         ensureHttpClient();
         HttpHost target = requestHost();
         CloseableHttpResponse response = cachedclient.execute(target, this.execcontext);
+	// Retrieve session id, if possible
+        if(sessionid == null) sessionid = getSessionID();
 	return response;
+    }
+
+    protected String getSessionID()
+    {
+	String sid = null;
+	String jsid = null;
+	List<Cookie> cookies = cachedclient.getCookieStore().getCookies();
+	for(Cookie cookie: cookies) {
+	    if(cookie.getName().equalsIgnoreCase("sessionid"))
+		sid = cookie.getValue();
+	    if(cookie.getName().equalsIgnoreCase("jsessionid"))
+		jsid = cookie.getValue();
+	}		    
+	return (sid == null ? jsid : sid);
     }
 
     protected void ensureHttpClient()
     {
-        if(this.cachedclient != null)
+        if(this.cachevalid)
             return;
+	// We need to rebuild the cached client object
+
 /*
     ssl.TrustManagerFactory.algorithm
     javax.net.ssl.trustStoreType
