@@ -41,12 +41,10 @@ import ucar.nc2.constants.CDM;
 import ucar.nc2.constants.CF;
 import ucar.nc2.dataset.CoordinateAxis1D;
 import ucar.nc2.units.SimpleUnit;
-import ucar.nc2.util.URLnaming;
 import ucar.unidata.geoloc.LatLonPointImpl;
 import ucar.unidata.geoloc.LatLonRect;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.*;
 
 /**
@@ -65,6 +63,13 @@ public class ThreddsMetadata implements ThreddsMetadataContainer {
     this.flds = new HashMap<>();
   }
 
+  // make mutable copy
+  public ThreddsMetadata(ThreddsMetadata from) {
+    this.flds = new HashMap<>();
+    for (Map.Entry<String, Object> entry : from.flds.entrySet()) // bypass immutable
+      this.flds.put(entry.getKey(), entry.getValue());
+  }
+
   // do not use after building
   public Map<String, Object> getFlds() {
     if (immutable) throw new UnsupportedOperationException();
@@ -72,7 +77,8 @@ public class ThreddsMetadata implements ThreddsMetadataContainer {
   }
 
   public void set(String fldName, Object fldValue) {
-    if (immutable) throw new UnsupportedOperationException();
+    if (immutable)
+      throw new UnsupportedOperationException();
     if (fldValue != null)
       flds.put( fldName, fldValue);
     else
@@ -86,6 +92,10 @@ public class ThreddsMetadata implements ThreddsMetadataContainer {
 
   public void finish() {
     immutable = true;
+  }
+
+  public boolean isImmutable() {
+    return immutable;
   }
 
   @Override

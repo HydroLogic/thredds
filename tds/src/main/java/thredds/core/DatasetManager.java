@@ -38,14 +38,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import thredds.client.catalog.*;
 import thredds.featurecollection.FeatureCollectionCache;
-import thredds.featurecollection.FeatureCollectionType;
 import thredds.featurecollection.InvDatasetFeatureCollection;
 import thredds.server.admin.DebugCommands;
 import thredds.server.catalog.DatasetScan;
 import thredds.server.catalog.FeatureCollectionRef;
 import thredds.servlet.DatasetSource;
 import thredds.servlet.ServletUtil;
-import thredds.servlet.restrict.RestrictedDatasetServlet;
+import thredds.servlet.restrict.Authorizer;
+import thredds.servlet.restrict.RestrictedAccessController;
 import thredds.util.TdsPathUtils;
 
 import ucar.nc2.NetcdfFile;
@@ -85,6 +85,9 @@ public class DatasetManager implements InitializingBean  {
   @Autowired
   FeatureCollectionCache featureCollectionCache;
 
+  @Autowired
+  Authorizer restrictedDatasetAuthorizer;
+
   // InvDataset (not DatasetScan, DatasetFmrc) that have an NcML element in it. key is the request Path
   private Map<String, Dataset> ncmlDatasetHash = new HashMap<>();
 
@@ -108,7 +111,6 @@ public class DatasetManager implements InitializingBean  {
     resourceControlHash = new HashMap<>();
     resourceControlMatcher = new PathMatcher<>();
     sourceList = new ArrayList<>();
-
     hasResourceControl = false;
   }
 
@@ -329,6 +331,11 @@ public class DatasetManager implements InitializingBean  {
     }
   }
 
+  public InvDatasetFeatureCollection openFeatureCollection(FeatureCollectionRef ftCollection) throws IOException {
+      return featureCollectionCache.get(ftCollection);
+  }
+
+
   /**
    * Open a file as a GridDataset, using getNetcdfFile(), so that it gets wrapped in NcML if needed.
    *
@@ -463,7 +470,7 @@ public class DatasetManager implements InitializingBean  {
               + ServletUtil.showRequestHeaders(req) + ServletUtil.showSecurity(req, rc));
 
       try {
-        if (!RestrictedDatasetServlet.authorize(req, res, rc)) {
+        if (!restrictedDatasetAuthorizer.authorize(req, res, rc)) {
           return false;
         }
       } catch (Exception e) {
