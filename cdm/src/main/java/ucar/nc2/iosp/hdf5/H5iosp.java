@@ -32,7 +32,7 @@
  */
 package ucar.nc2.iosp.hdf5;
 
-import thredds.catalog.DataFormatType;
+import ucar.nc2.constants.DataFormatType;
 import ucar.ma2.*;
 
 import ucar.nc2.constants.CDM;
@@ -43,9 +43,7 @@ import ucar.nc2.iosp.hdf4.HdfEos;
 import ucar.nc2.iosp.hdf4.H4header;
 import ucar.nc2.*;
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.ByteArrayOutputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Formatter;
@@ -66,7 +64,6 @@ public class H5iosp extends AbstractIOServiceProvider {
   static boolean debugHeap = false;
   static boolean debugFilter = false;
   static boolean debugRead = false;
-  static boolean debugString = false;
   static boolean debugFilterIndexer = false;
   static boolean debugChunkIndexer = false;
   static boolean debugVlen = false;
@@ -95,8 +92,8 @@ public class H5iosp extends AbstractIOServiceProvider {
 
   public String getFileTypeId() {
     if (isEos) return "HDF5-EOS";
-    if (headerParser.isNetcdf4()) return DataFormatType.NETCDF4.toString();
-    return DataFormatType.HDF5.toString();
+    if (headerParser.isNetcdf4()) return DataFormatType.NETCDF4.getDescription();
+    return DataFormatType.HDF5.getDescription();
   }
 
   public String getFileTypeDescription() {
@@ -124,7 +121,6 @@ public class H5iosp extends AbstractIOServiceProvider {
   // reading
 
   public void open(RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile, ucar.nc2.util.CancelTask cancelTask) throws IOException {
-
     super.open(raf, ncfile, cancelTask);
     headerParser = new H5header(this.raf, ncfile, this);
     headerParser.read(null);
@@ -303,7 +299,7 @@ public class H5iosp extends AbstractIOServiceProvider {
           System.out.println(" readStructure " + v.getFullName() + " chunk= " + chunk + " index.getElemSize= " + layout.getElemSize());
         // copy bytes directly into the underlying byte[] LOOK : assumes contiguous layout ??
         raf.seek(chunk.getSrcPos());
-        raf.read(byteArray, (int) chunk.getDestElem() * recsize, chunk.getNelems() * recsize);
+        raf.readFully(byteArray, (int) chunk.getDestElem() * recsize, chunk.getNelems() * recsize);
       }
 
       // place data into an ArrayStructureBB
@@ -512,7 +508,7 @@ public class H5iosp extends AbstractIOServiceProvider {
         for (int i = 0; i < chunk.getNelems(); i++) {
           byte[] pa = new byte[recsize];
           raf.seek(chunk.getSrcPos() + i * recsize);
-          raf.read(pa, 0, recsize);
+          raf.readFully(pa, 0, recsize);
           opArray.setObject(count++, ByteBuffer.wrap(pa));
         }
       }
@@ -569,23 +565,21 @@ public class H5iosp extends AbstractIOServiceProvider {
 
   public String getDetailInfo() {
     Formatter f = new Formatter();
-    ByteArrayOutputStream ff = new ByteArrayOutputStream(100 * 1000);
+    ByteArrayOutputStream os = new ByteArrayOutputStream(100 * 1000);
+    PrintWriter pw = new PrintWriter( new OutputStreamWriter(os, CDM.utf8Charset));
+
     try {
-      NetcdfFile ncfile = new FakeNetcdfFile();
+      NetcdfFile ncfile = new NetcdfFileSubclass();
       H5header detailParser = new H5header(raf, ncfile, this);
-      detailParser.read(new PrintStream(ff));
-      f.format("%s",super.getDetailInfo());
-      f.format("%s",ff.toString(CDM.UTF8));
+      detailParser.read(pw);
+      f.format("%s", super.getDetailInfo());
+      f.format("%s", os.toString(CDM.UTF8));
 
     } catch (IOException e) {
       e.printStackTrace();
-      e.printStackTrace(new PrintStream(ff));
     }
 
     return f.toString();
-  }
-
-  static private class FakeNetcdfFile extends NetcdfFile {
   }
 
   // debug
@@ -599,9 +593,8 @@ public class H5iosp extends AbstractIOServiceProvider {
       return headerParser;
 
     if (message.toString().equals("headerEmpty")) {
-      NetcdfFile ncfile = new FakeNetcdfFile();
-      H5header headerEmpty = new H5header(raf, ncfile, this);
-      return headerEmpty;
+      NetcdfFile ncfile = new NetcdfFileSubclass();
+      return new H5header(raf, ncfile, this);
     }
 
     return super.sendIospMessage(message);

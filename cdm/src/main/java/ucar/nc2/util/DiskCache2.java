@@ -35,12 +35,10 @@ package ucar.nc2.util;
 import ucar.unidata.util.StringUtil2;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.net.URLDecoder;
 
@@ -66,6 +64,8 @@ public class DiskCache2 {
     NestedDirectory,
     NestedTruncate }
 
+  private static org.slf4j.Logger cacheLog = org.slf4j.LoggerFactory.getLogger("cacheLogger");
+
   private CachePathPolicy cachePathPolicy = CachePathPolicy.NestedDirectory;
   private boolean alwaysUseCache = false;
   private boolean neverUseCache = false;
@@ -74,7 +74,6 @@ public class DiskCache2 {
   private String root;
   private int persistMinutes, scourEveryMinutes;
   private Timer timer;
-  private org.slf4j.Logger cacheLog = org.slf4j.LoggerFactory.getLogger("cacheLogger");
   private boolean fail = false;
 
   /**
@@ -113,9 +112,11 @@ public class DiskCache2 {
   /**
    * Create a cache on disk. Use default policy (CachePathPolicy.OneDirectory)
    * @param root the root directory of the cache. Must be writeable.
-   * @param reletiveToHome if the root directory is reletive to the cache home directory.
+   * @param reletiveToHome if the root directory is relative to the cache
+   *                       home directory.
    * @param persistMinutes  a file is deleted if its last modified time is greater than persistMinutes
-   * @param scourEveryMinutes how often to run the scour process. If <= 0, dont scour.
+   * @param scourEveryMinutes how often to run the scour process. If <= 0,
+   *                          don't scour.
    */
   public DiskCache2(String root, boolean reletiveToHome, int persistMinutes, int scourEveryMinutes) {
     this.persistMinutes = persistMinutes;
@@ -173,7 +174,9 @@ public class DiskCache2 {
     root = StringUtil2.replace(cacheDir, '\\', "/"); // no nasty backslash
 
     File dir = new File(root);
-    dir.mkdirs();
+    if (!dir.mkdirs()) {
+      // ok
+    }
     if (!dir.exists()) {
       fail = true;
       cacheLog.error("DiskCache2 failed to create directory "+root);
@@ -212,7 +215,8 @@ public class DiskCache2 {
 
     if (cachePathPolicy == CachePathPolicy.NestedDirectory) {
       File dir = f.getParentFile();
-      dir.mkdirs();
+      boolean ret = dir.mkdirs();
+      if (!ret) cacheLog.warn("Error creating dir: " + dir);
     }
 
     return f;
@@ -275,6 +279,8 @@ public class DiskCache2 {
   public File getExistingFileOrCache(String fileLocation) {
     File f = new File(fileLocation);
     if (f.exists()) return f;
+
+    if (neverUseCache) return null;
 
     File fc = new File(makeCachePath(fileLocation));
     if (fc.exists()) return fc;
@@ -409,8 +415,14 @@ public class DiskCache2 {
     if (cachePathPolicy != CachePathPolicy.OneDirectory) {
       File file = new File(root + cachePath);
       File parent = file.getParentFile();
-      if (!parent.exists())
-        parent.mkdirs();
+      if (!parent.exists()) {
+        if (root == null) { // LOOK shouldnt happen, remove soon
+          System.out.printf("mkdir4 %s%n", parent.getPath());
+          new Throwable().printStackTrace();
+        }
+        boolean ret = parent.mkdirs();
+        if (!ret) cacheLog.warn("Error creating parent: " + parent);
+      }
     }
 
     return root + cachePath;
@@ -425,16 +437,17 @@ public class DiskCache2 {
     pw.println("Size   LastModified       Filename");
     File dir = new File(root);
     File[] files = dir.listFiles();
-    for (File file : files) {
-      String org = null;
-      try {
-        org = URLDecoder.decode(file.getName(), "UTF8");
-      } catch (UnsupportedEncodingException e) {
-        e.printStackTrace();
-      }
+    if (files != null)
+      for (File file : files) {
+        String org = null;
+        try {
+          org = URLDecoder.decode(file.getName(), "UTF8");
+        } catch (UnsupportedEncodingException e) {
+          e.printStackTrace();
+        }
 
-      pw.println(" " + file.length() + " " + new Date(file.lastModified()) + " " + org);
-    }
+        pw.println(" " + file.length() + " " + new Date(file.lastModified()) + " " + org);
+      }
   }
 
   /**
@@ -455,9 +468,9 @@ public class DiskCache2 {
       long duration = now - dir.lastModified();
       duration /= 1000 * 60; // minutes
       if (duration > persistMinutes) {
-        dir.delete();
+        boolean ret = dir.delete();
         if (sbuff != null)
-          sbuff.append(" deleted ").append(dir.getPath()).append(" last= ").append(new Date(dir.lastModified())).append("\n");
+          sbuff.append(" deleted ").append(ret).append(dir.getPath()).append(" last= ").append(new Date(dir.lastModified())).append("\n");
       }
       return;
     }
@@ -470,7 +483,8 @@ public class DiskCache2 {
         long duration = now - file.lastModified();
         duration /= 1000 * 60; // minutes
         if (duration > persistMinutes) {
-          file.delete();
+          boolean ret = file.delete();
+          // assert ret;
           if (sbuff != null)
             sbuff.append(" deleted ").append(file.getPath()).append(" last= ").append(new Date(file.lastModified())).append("\n");
         }
@@ -505,9 +519,10 @@ public class DiskCache2 {
     return sb.toString();
   }
 
-  /** debug */
+  /* debug
   static void make(DiskCache2 dc, String filename) throws IOException {
     File want = dc.getCacheFile(filename);
+    if (want == null) return;
     System.out.println("make=" + want.getPath() + "; exists = " + want.exists());
     if (!want.exists())
       want.createNewFile();
@@ -526,7 +541,7 @@ public class DiskCache2 {
     System.out.printf("%s %s canWrite %s%n", isWriteable, isWriteable2, filename);
   }
 
-  /** debug */
+  /* debug
   static public void main(String[] args) throws IOException {
     DiskCache2 dc = new DiskCache2("C:/TEMP/test/", false, 0, 0);
     dc.setRootDirectory("C:/temp/chill/");
@@ -540,6 +555,6 @@ public class DiskCache2 {
     StringBuilder sbuff = new StringBuilder();
     dc.cleanCache(new File( dc.getRootDirectory()), sbuff, true);
     System.out.println(sbuff);
-  }
+  }  */
 
 }

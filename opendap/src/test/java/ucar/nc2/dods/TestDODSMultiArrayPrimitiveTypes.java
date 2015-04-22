@@ -32,8 +32,6 @@
  */
 package ucar.nc2.dods;
 
-import junit.framework.*;
-import org.junit.*;
 import org.junit.Test;
 import ucar.ma2.*;
 import ucar.nc2.*;

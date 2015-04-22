@@ -43,13 +43,13 @@ import javax.swing.*;
 
 // Import the JFreeChart classes
 import org.jfree.chart.*;
-import org.jfree.chart.title.LegendTitle;
 import org.jfree.chart.axis.*;
 import org.jfree.chart.plot.*;
 import org.jfree.chart.renderer.xy.*;
 import org.jfree.data.time.*;
 import org.jfree.ui.*;
 import org.jfree.util.UnitType;
+import ucar.nc2.constants.CDM;
 
 /**
  * Class Description.
@@ -63,12 +63,6 @@ public class Chart extends JPanel {
   private TimeSeriesCollection dataset = new TimeSeriesCollection();
   private TimeSeriesCollection datasetOpenClose = new TimeSeriesCollection();
   private TimeSeriesCollection datasetHighLow = new TimeSeriesCollection();
-
-  // Create a chart
-  private JFreeChart chart;
-
-  // Create a panels that can show our chart
-  private ChartPanel panel;
 
   private String stockSymbol;
 
@@ -111,10 +105,11 @@ public class Chart extends JPanel {
       TimeSeries close = new TimeSeries("Close Price", Day.class);
       TimeSeries high = new TimeSeries("High", Day.class);
       TimeSeries low = new TimeSeries("Low", Day.class);
-      TimeSeries volume = new TimeSeries("Volume", Day.class);
 
-      try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
-        String key = br.readLine();
+      try (FileInputStream fin = new FileInputStream(filename)) {
+        BufferedReader br = new BufferedReader(new InputStreamReader(fin, CDM.utf8Charset));
+
+        br.readLine(); // read key
         String line = br.readLine();
         while (line != null && !line.startsWith("<!--")) {
           StringTokenizer st = new StringTokenizer(line, ",", false);
@@ -123,7 +118,7 @@ public class Chart extends JPanel {
           double highValue = Double.parseDouble(st.nextToken());
           double lowValue = Double.parseDouble(st.nextToken());
           double closeValue = Double.parseDouble(st.nextToken());
-          long volumeValue = Long.parseLong(st.nextToken());
+          st.nextToken(); // skip volume value
 
           // Add this value to our series'
           open.add(day, openValue);
@@ -156,7 +151,8 @@ public class Chart extends JPanel {
         this.add(new ChartPanel(openCloseChart));
         this.add(new ChartPanel(highLowChart));
         this.add(new ChartPanel(highLowDifChart));
-      } catch (Exception e) {
+
+      } catch (IOException e) {
         e.printStackTrace();
       }
   }
@@ -173,7 +169,7 @@ public class Chart extends JPanel {
     );
 
     // Display each series in the chart with its point shape in the legend
-    LegendTitle sl = chart.getLegend();
+    chart.getLegend();
     //sl.setDisplaySeriesShapes(true);
 
     // Setup the appearance of the chart
@@ -258,6 +254,6 @@ public class Chart extends JPanel {
     frame.getContentPane().add(shc, BorderLayout.CENTER);
     frame.setSize(640, 480);
     frame.setVisible(true);
-    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
   }
 }

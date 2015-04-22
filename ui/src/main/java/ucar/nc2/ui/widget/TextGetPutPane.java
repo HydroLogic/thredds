@@ -33,21 +33,27 @@
 
 package ucar.nc2.ui.widget;
 
-import thredds.catalog.*;
-//import thredds.catalog.query.*;
-
-import ucar.nc2.util.net.HttpClientManager;
+import thredds.client.catalog.Catalog;
+import thredds.client.catalog.builder.CatalogBuilder;
+import thredds.client.catalog.tools.CatalogXmlWriter;
+import ucar.nc2.constants.CDM;
 import ucar.nc2.util.IO;
+import ucar.nc2.util.net.HttpClientManager;
 import ucar.util.prefs.PreferencesExt;
-
-import java.awt.*;
-import java.awt.event.*;
-import java.io.*;
-import java.net.*;
-import java.util.*;
 
 import javax.swing.*;
 import javax.swing.event.EventListenerList;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+
+//import thredds.catalog.query.*;
 
 /**
  * A text widget that does get and put to a web URL.
@@ -203,7 +209,7 @@ public class TextGetPutPane extends TextHistoryPane {
       pm.start(this, "Open URL " + urlString, 10);
     }
 
-    public void setCatalog(String urlString, InvCatalogImpl cat) throws IOException {
+    public void setCatalog(String urlString, Catalog cat) throws IOException {
       // add URL to combobox
       ArrayList list = getList();
       if (!list.contains(urlString))
@@ -212,11 +218,11 @@ public class TextGetPutPane extends TextHistoryPane {
 
       // write catalog to text
       ByteArrayOutputStream os = new ByteArrayOutputStream(20000);
-      cat.writeXML(os, true);
-      ta.setText(os.toString());
+      CatalogXmlWriter writer = new CatalogXmlWriter();
+      writer.writeXML(cat, os, false);
+      ta.setText(os.toString(CDM.UTF8));
     }
 
-    private InvCatalogFactory catFactory = null;
    //private DqcFactory dqcFactory = null;
     void validate(String urlString) {
       if (urlString == null) return;
@@ -232,29 +238,21 @@ public class TextGetPutPane extends TextHistoryPane {
       String contents = getText();
       //boolean isCatalog = contents.indexOf("queryCapability") < 0;
 
-      ByteArrayInputStream is = new ByteArrayInputStream(contents.getBytes());
+      ByteArrayInputStream is = new ByteArrayInputStream(contents.getBytes(CDM.utf8Charset));
 
-      //if (isCatalog) {
-        if (catFactory == null) catFactory = InvCatalogFactory.getDefaultFactory(true);
-        InvCatalogImpl catalog = catFactory.readXML(is, uri);
-        StringBuilder buff = new StringBuilder();
-        boolean check = catalog.check(buff);
-        javax.swing.JOptionPane.showMessageDialog(this,
-           "Catalog Validation = " + check + "\n" +  buff.toString());
+      try {
+        CatalogBuilder catFactory = new CatalogBuilder();
+        Catalog cat = catFactory.buildFromLocation(urlString, null);
+        boolean isValid = !catFactory.hasFatalError();
 
-      /* }  else {
-        try {
-          if (dqcFactory == null)
-            dqcFactory = new DqcFactory(true);
-          QueryCapability dqc = dqcFactory.readXML(is, uri);
-          javax.swing.JOptionPane.showMessageDialog(this,
-             "DQC Errors = \n" +dqc.getErrorMessages());
-        }
-        catch (IOException ioe) {
-          javax.swing.JOptionPane.showMessageDialog(this,
-             "IO Error = " +ioe);
-        }
-      } */
+       javax.swing.JOptionPane.showMessageDialog(this,
+          "Catalog Validation = " + isValid + "\n" +  catFactory.getErrorMessage());
+
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+
+
     }
 
     void putURL(String uriString) throws IOException {
@@ -317,7 +315,7 @@ public class TextGetPutPane extends TextHistoryPane {
       ta.setText(text);
     }
 
-  private class GetContentsTask extends ProgressMonitorTask {
+  private static class GetContentsTask extends ProgressMonitorTask {
     String urlString;
     String contents;
 

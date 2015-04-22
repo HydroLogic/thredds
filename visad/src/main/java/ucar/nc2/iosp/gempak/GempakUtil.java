@@ -1,41 +1,40 @@
 /*
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- *  * Copyright 1998-2013 University Corporation for Atmospheric Research/Unidata
- *  *
- *  *  Portions of this software were developed by the Unidata Program at the
- *  *  University Corporation for Atmospheric Research.
- *  *
- *  *  Access and use of this software shall impose the following obligations
- *  *  and understandings on the user. The user is granted the right, without
- *  *  any fee or cost, to use, copy, modify, alter, enhance and distribute
- *  *  this software, and any derivative works thereof, and its supporting
- *  *  documentation for any purpose whatsoever, provided that this entire
- *  *  notice appears in all copies of the software, derivative works and
- *  *  supporting documentation.  Further, UCAR requests that the user credit
- *  *  UCAR/Unidata in any publications that result from the use of this
- *  *  software or in any product that includes this software. The names UCAR
- *  *  and/or Unidata, however, may not be used in any advertising or publicity
- *  *  to endorse or promote any products or commercial entity unless specific
- *  *  written permission is obtained from UCAR/Unidata. The user also
- *  *  understands that UCAR/Unidata is not obligated to provide the user with
- *  *  any support, consulting, training or assistance of any kind with regard
- *  *  to the use, operation and performance of this software nor to provide
- *  *  the user with any updates, revisions, new versions or "bug fixes."
- *  *
- *  *  THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- *  *  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- *  *  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- *  *  DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- *  *  INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- *  *  FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- *  *  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- *  *  WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 
 package ucar.nc2.iosp.gempak;
 
+import ucar.nc2.constants.CDM;
 import ucar.unidata.util.StringUtil2;
 
 
@@ -106,7 +105,7 @@ public final class GempakUtil {
 
         //Check for the blank time which may be found.
 
-        if ((intdtf[0] == 0) && (intdtf[2] == 0) && (intdtf[2] == 0)) {
+        if ((intdtf[0] == 0) && (intdtf[1] == 0) && (intdtf[2] == 0)) {
             return gdattim;
         }
 
@@ -214,9 +213,7 @@ public final class GempakUtil {
         String dattim;
         String date, time;
 
-        dattim = "";
-
-        //   Put array values into variables.                                
+        //   Put array values into variables.
 
         int iyear  = idtarr[0];
         int imonth = idtarr[1];
@@ -226,7 +223,7 @@ public final class GempakUtil {
 
         //  Check for leap year.
 
-        int ndays = TI_DAYM(iyear, imonth);
+        //int ndays = TI_DAYM(iyear, imonth);
         iyear = iyear % 100;
 
         //  Check that each of these values is valid.
@@ -317,8 +314,8 @@ public final class GempakUtil {
         bval[0] = (byte) ((value & 0xff000000) >>> 24);
         bval[1] = (byte) ((value & 0x00ff0000) >>> 16);
         bval[2] = (byte) ((value & 0x0000ff00) >>> 8);
-        bval[3] = (byte) ((value & 0x000000ff) >>> 0);
-        return new String(bval);
+        bval[3] = (byte) ((value & 0x000000ff));
+        return new String(bval, CDM.utf8Charset);
     }
 
     /**
@@ -330,9 +327,9 @@ public final class GempakUtil {
      */
     public static String ST_ITOC(int[] values) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < values.length; i++) {
-            sb.append(ST_ITOC(values[i]));
-        }
+      for (int value : values) {
+        sb.append(ST_ITOC(value));
+      }
         return sb.toString();
     }
 

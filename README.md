@@ -1,5 +1,5 @@
 ![THREDDS icon](http://www.unidata.ucar.edu/img/v3/logos/thredds-75x75.png)
-[![Travis Build Status](https://secure.travis-ci.org/Unidata/thredds.svg?branch=4.5.2)](http://travis-ci.org/Unidata/thredds)
+[![Travis Build Status](https://secure.travis-ci.org/Unidata/thredds.svg?branch=4.6.0)](http://travis-ci.org/Unidata/thredds)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/388/badge.svg)](https://scan.coverity.com/projects/388)
 
 # Unidata's THREDDS Project
@@ -31,9 +31,9 @@ are available from Unidata's Maven repositories
 
 Copyright and licensing information can be found here
 
-* http://www.unidata.ucar.edu/software/netcdf/copyright.html  (???????)
+* http://www.unidata.ucar.edu/software/netcdf/copyright.html
 
-as well as in the COPYRIGHT file accompanying the software. (??????)
+as well as in the LICENSE.txt file accompanying the software.
 
 More details on each of these can be found below.
 

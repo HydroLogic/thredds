@@ -1,0 +1,13 @@
+apply plugin: 'war'
+
+dependencies {
+    compile project(':dap4:d4core')
+    compile project(':dap4:d4shared')
+    compile project(':dap4:d4cdmshared')
+    compile project(':netcdf4')
+    compile project(':cdm')
+
+    providedCompile libraries["javax.servlet-api"]
+    compile libraries["jcip-annotations"]
+    compile libraries["slf4j-api"]
+}

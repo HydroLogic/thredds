@@ -1,14 +1,27 @@
+language: java
+sudo: false
+
 jdk:
   - oraclejdk7
   - oraclejdk8
   - openjdk7
 
-install: mvn install -DskipTests=true
-script: mvn test
+env:
+  global:
+    - MAVEN_OPTS="-Djna.library.path=${TRAVIS_BUILD_DIR}/travis -DskipTests=false -DfailIfNoTests=false"
 
-matrix:
-  allow_failures:
-    - jdk: oraclejdk8
+before_install:
+  - cp ${TRAVIS_BUILD_DIR}/travis/settings.xml ${HOME}/.m2
+
+install:
+  - mvn install -DskipTests=true
+
+script:
+  - cd cdm && mvn test ${MAVEN_OPTS}
+  - cd ../udunits && mvn test ${MAVEN_OPTS}
+  - cd ../ui && mvn test ${MAVEN_OPTS}
+  - cd ../waterml && mvn test ${MAVEN_OPTS}
+    #- cd ../dap4/d4tests && mvn test ${MAVEN_OPTS}
 
 cache:
   directories:

@@ -52,7 +52,7 @@ public class TdsPathUtils {
       dataPath = req.getServletPath();
     }
     if (dataPath == null)  // not sure if this is possible
-      return null;
+      return "";
 
     // removePrefix or "/"+removePrefix
     if (removePrefix != null) {
@@ -64,10 +64,14 @@ public class TdsPathUtils {
         if (dataPath.startsWith(removePrefix))
           dataPath = dataPath.substring(removePrefix.length());
       }
+
     }
 
     if (dataPath.startsWith("/"))
       dataPath = dataPath.substring(1);
+
+    if (dataPath.contains(".."))  // LOOK what about escapes ??
+      throw new IllegalArgumentException("path cannot contain '..'");
 
     return dataPath;
   }

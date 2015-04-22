@@ -32,6 +32,7 @@
  */
 package ucar.nc2.dods;
 
+import net.jcip.annotations.NotThreadSafe;
 import ucar.nc2.constants.CF;
 import ucar.nc2.util.EscapeStrings;
 import ucar.ma2.*;
@@ -57,7 +58,7 @@ import java.nio.channels.WritableByteChannel;
  * @author caron
  * @see ucar.nc2.NetcdfFile
  */
-
+@NotThreadSafe
 public class DODSNetcdfFile extends ucar.nc2.NetcdfFile
 {
     // temporary flag to control usegroup changes
@@ -363,7 +364,7 @@ public class DODSNetcdfFile extends ucar.nc2.NetcdfFile
                 if ((dodsVar.isCoordinateVariable() && size < preloadCoordVarSize) || dodsVar.isCaching() || dodsVar.getDataType() == DataType.STRING) {
                     dodsVar.setCaching(true);
                     preloadList.add(dodsVar);
-                    if (debugPreload) System.out.println("  preload" + dodsVar);
+                    if (debugPreload) System.out.printf("  preload (%6d) %s%n", size, dodsVar.getFullName());
                 }
             }
             if (cancelTask != null && cancelTask.isCancel()) return;
@@ -380,16 +381,14 @@ public class DODSNetcdfFile extends ucar.nc2.NetcdfFile
     @Override
     public synchronized void close() throws java.io.IOException
     {
-        if (null != dodsConnection)
-            dodsConnection.closeSession();
+      if (cache != null) {
+        if (cache.release(this)) return;
+      }
 
-        if (cache != null) {
-            //unlocked = true;
-            cache.release(this);
-
-        } else {
-            dodsConnection = null;
-        }
+      if (null != dodsConnection) {
+          dodsConnection.closeSession();
+          dodsConnection = null;
+      }
 
     }
 
@@ -533,10 +532,12 @@ public class DODSNetcdfFile extends ucar.nc2.NetcdfFile
         }
 
         // loop over attribute tables, collect global attributes
-        java.util.Enumeration tableNames = das.getNames();
+        Enumeration tableNames = das.getNames();
         while (tableNames.hasMoreElements()) {
             String tableName = (String) tableNames.nextElement();
             AttributeTable attTable = das.getAttributeTableN(tableName);
+            if(attTable == null)
+                continue; // should probably never happen
 
             /* if (tableName.equals("NC_GLOBAL") || tableName.equals("HDF_GLOBAL")) {
         java.util.Enumeration attNames = attTable.getNames();
@@ -551,7 +552,7 @@ public class DODSNetcdfFile extends ucar.nc2.NetcdfFile
           } else */
 
             if (tableName.equals("DODS_EXTRA")) {
-                java.util.Enumeration attNames = attTable.getNames();
+                Enumeration attNames = attTable.getNames();
                 while (attNames.hasMoreElements()) {
                     String attName = (String) attNames.nextElement();
                     if (attName.equals("Unlimited_Dimension")) {
@@ -563,7 +564,7 @@ public class DODSNetcdfFile extends ucar.nc2.NetcdfFile
                 }
 
             } else if (tableName.equals("EXTRA_DIMENSION")) {
-                java.util.Enumeration attNames = attTable.getNames();
+                Enumeration attNames = attTable.getNames();
                 while (attNames.hasMoreElements()) {
                     String attName = (String) attNames.nextElement();
                     opendap.dap.Attribute att = attTable.getAttribute(attName);
@@ -739,7 +740,7 @@ if(OLDGROUPCODE) {
         // fixup
         if (pieces.prefix != null && pieces.prefix.length() == 0) pieces.prefix = null;
         if (pieces.var != null && pieces.var.length() == 0) pieces.var = null;
-        if (pieces.name != null && pieces.name.length() == 0) pieces.name = null;
+        if (pieces.name.length() == 0) pieces.name = null;
         return pieces;
     }
 
@@ -849,7 +850,7 @@ if(OLDGROUPCODE) {
                     } else if (gi >= 0 && ai >= 0) {
                         String apath = arrayname.substring(0, ai);
                         String gpath = gridname.substring(0, gi);
-                        if (gpath != apath) {// choose gridpath over the array path
+                        if (!gpath.equals(apath)) {// choose gridpath over the array path
                             String arraysuffix = arrayname.substring(gi + 1, arrayname.length());
                             arrayname = gpath + "/" + arraysuffix;
                             array.getBaseType().setClearName(arrayname);
@@ -954,9 +955,10 @@ if(OLDGROUPCODE) {
                         mapV = addVariable(parentGroup, parentStructure, map);
                         makeCoordinateVariable(parentGroup, mapV, map.data);
 
-                    } else if (!mapV.isCoordinateVariable()) { // workaround for Grid HDF4 wierdness (see note 1 below)
-                        makeCoordinateVariable(parentGroup, mapV, map.data);
                     }
+                    // else if (!mapV.isCoordinateVariable()) { // workaround for Grid HDF4 wierdness (see note 1 below)
+                    //    makeCoordinateVariable(parentGroup, mapV, map.data);
+                    // }
                 }
 
                 return new DODSGrid(this, parentGroup, parentStructure, dodsShortName, dodsV);
@@ -1226,7 +1228,6 @@ if(OLDGROUPCODE) {
             } else { // see if shared
                 if (RC.getUseGroups()) {
                     if (name.indexOf('/') >= 0) {// place dimension in proper group
-                        int index = name.indexOf('/');
                         group = group.makeRelativeGroup(this, name, true);
                         // change our name
                         name = name.substring(name.lastIndexOf('/') + 1);
@@ -1482,8 +1483,10 @@ if(OLDGROUPCODE) {
 
         if (!CE.startsWith("?"))
             CE = "?" + CE;
-        DataDDS data = dodsConnection.getData(CE, null);
-
+        DataDDS data;
+        synchronized(this) {
+            data = dodsConnection.getData(CE, null);
+        }
         if (debugTime)
             System.out.println("DODSNetcdfFile.readDataDDSfromServer took = " + (System.currentTimeMillis() - start) / 1000.0);
 
@@ -2306,12 +2309,12 @@ if(OLDGROUPCODE) {
         f.format("DDS = %n");
         ByteArrayOutputStream buffOS = new ByteArrayOutputStream(8000);
         dds.print(buffOS);
-        f.format("%s%n", buffOS.toString());
+        f.format("%s%n", new String(buffOS.toByteArray(),Util.UTF8));
 
         f.format("%nDAS = %n");
         buffOS = new ByteArrayOutputStream(8000);
         das.print(buffOS);
-        f.format("%s%n", buffOS.toString());
+        f.format("%s%n", new String(buffOS.toByteArray(),Util.UTF8));
     }
 
     public String getFileTypeId()

@@ -46,7 +46,7 @@ import java.io.IOException;
  */
 @Immutable
 public class Grib2SectionBitMap {
-  static private org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(Grib2SectionBitMap.class);
+  static private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(Grib2SectionBitMap.class);
 
   private final long startingPosition;
   private final int bitMapIndicator;
@@ -77,6 +77,18 @@ public class Grib2SectionBitMap {
     this.bitMapIndicator = bitMapIndicator;
   }
 
+  int getLength(RandomAccessFile raf) throws IOException {
+    raf.seek(startingPosition);
+    return GribNumbers.int4(raf);
+  }
+
+  /*
+  Code Table Code table 6.0 - Bit map indicator (6.0)
+      0: A bit map applies to this product and is specified in this Section
+     -1: A bit map predetermined by the originating/generating centre applies to this product and is not specified in this Section
+    254: A bit map defined previously in the same "GRIB" message applies to this product
+    255: A bit map does not apply to this product
+   */
   public int getBitMapIndicator() {
     return bitMapIndicator;
   }

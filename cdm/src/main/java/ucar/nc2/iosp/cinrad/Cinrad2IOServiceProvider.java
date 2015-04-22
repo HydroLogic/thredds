@@ -72,7 +72,6 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
     }
   }
 
-
   public boolean isValidFile( RandomAccessFile raf) {
       int data_msecs = 0;
       short data_julian_date = 0;
@@ -90,6 +89,7 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
           data_msecs    = bytesToInt(b4, true);
           byte [] b2 =  raf.readBytes(2);
           data_julian_date  = (short)bytesToShort(b2, true);
+          if (data_msecs > 86400000) return false;
           java.util.Date dd =Cinrad2Record.getDate(data_julian_date,data_msecs);
 
           Calendar cal = new GregorianCalendar(new SimpleTimeZone(0, "GMT"));
@@ -158,6 +158,7 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
 
     volScan = new Cinrad2VolumeScan( raf, cancelTask); // raf may change if uncompressed
     this.raf = volScan.raf;
+    this.location = volScan.raf.getLocation();
 
     if (volScan.hasDifferentDopplarResolutions())
       throw new IllegalStateException("volScan.hasDifferentDopplarResolutions");
@@ -436,10 +437,13 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
       List scanGroup = (List) groups.get(i);
       int nradials = scanGroup.size();
 
-      Cinrad2Record first = null;
+      boolean needFirst = true;
       for (int j = 0; j < nradials; j++) {
         Cinrad2Record r =  (Cinrad2Record) scanGroup.get(j);
-        if (first == null) first = r;
+        if (needFirst) {
+            ngatesIter.setIntNext(r.getGateCount(datatype));
+            needFirst = false;
+        }
 
         timeDataIter.setIntNext( r.data_msecs);
         elevDataIter.setFloatNext( r.getElevation());
@@ -456,7 +460,6 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
       }
 
       nradialsIter.setIntNext( nradials);
-      ngatesIter.setIntNext( first.getGateCount( datatype));
     }
 
     time.setCachedData( timeData, false);
@@ -505,10 +508,14 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
       List scanGroup = (List) groups.get(scan);
       int nradials = scanGroup.size();
 
-      Cinrad2Record first = null;
+      boolean needFirst = true;
       for (int j = 0; j < nradials; j++) {
         Cinrad2Record r =  (Cinrad2Record) scanGroup.get(j);
-        if (first == null) first = r;
+        if (needFirst)
+        {
+            ngatesIter.setIntNext(r.getGateCount(datatype));
+            needFirst = false;
+        }
 
         int radial = r.radial_num-1;
         timeData.setInt( timeIndex.set(scan, radial), r.data_msecs);
@@ -520,7 +527,6 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
       }
 
       nradialsIter.setIntNext( nradials);
-      ngatesIter.setIntNext( first.getGateCount( datatype));
     } }catch(java.lang.ArrayIndexOutOfBoundsException  ae) {
           logger.debug("Cinrad2IOSP.uncompress ", ae);
     }
@@ -565,7 +571,7 @@ public class Cinrad2IOServiceProvider extends AbstractIOServiceProvider {
     r.readData(this.raf, datatype, gateRange, ii);
   }
 
-  private class Vgroup {
+  private static class Vgroup {
     Cinrad2Record[][] map;
     int datatype;
 

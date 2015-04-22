@@ -36,6 +36,8 @@ import ucar.nc2.constants.CF;
 import ucar.nc2.util.Misc;
 import ucar.unidata.geoloc.*;
 
+import java.io.Serializable;
+
 /**
  * Universal Transverse Mercator.
  * Ellipsoidal earth.
@@ -59,21 +61,49 @@ public class UtmProjection extends ProjectionImpl {
   private final Utm_To_Gdc_Converter convert2latlon;
   private final Gdc_To_Utm_Converter convert2xy;
 
-  private static class SaveParams {
-    double a;
-    double f;
+  private static class SaveParams implements Serializable {
+    final double a;
+    final double f;
+    final int zone;
+    final boolean isNorth;
 
-    SaveParams(double a, double f) {
+    private SaveParams(double a, double f, int zone, boolean isNorth) {
       this.a = a;
       this.f = f;
+      this.zone = zone;
+      this.isNorth = isNorth;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      SaveParams that = (SaveParams) o;
+      if (Double.compare(that.a, a) != 0) return false;
+      if (Double.compare(that.f, f) != 0) return false;
+      if (isNorth != that.isNorth) return false;
+      return zone == that.zone;
+    }
+
+    @Override
+    public int hashCode() {
+      int result;
+      long temp;
+      temp = Double.doubleToLongBits(a);
+      result = (int) (temp ^ (temp >>> 32));
+      temp = Double.doubleToLongBits(f);
+      result = 31 * result + (int) (temp ^ (temp >>> 32));
+      result = 31 * result + zone;
+      result = 31 * result + (isNorth ? 1 : 0);
+      return result;
     }
   }
 
-  private SaveParams save = null; // needed for constructCopy
+  private final SaveParams saveParams; // needed for constructCopy
 
   @Override
   public ProjectionImpl constructCopy() {
-    ProjectionImpl result = (save == null) ? new UtmProjection(getZone(), isNorth()) : new UtmProjection(save.a, save.f, getZone(), isNorth());
+    ProjectionImpl result = (saveParams == null) ? new UtmProjection(getZone(), isNorth()) : new UtmProjection(saveParams.a, saveParams.f, getZone(), isNorth());
     result.setDefaultMapArea(defaultMapArea);
     result.setName(name);
     return result;
@@ -96,6 +126,7 @@ public class UtmProjection extends ProjectionImpl {
     super("UtmProjection", false);
     convert2latlon = new Utm_To_Gdc_Converter(zone, isNorth);
     convert2xy = new Gdc_To_Utm_Converter(zone, isNorth);
+    saveParams = new SaveParams(convert2latlon.getA(), 1/convert2latlon.getF(), zone, isNorth);
 
     addParameter(CF.GRID_MAPPING_NAME, GRID_MAPPING_NAME);
     addParameter(CF.SEMI_MAJOR_AXIS, convert2latlon.getA());
@@ -113,7 +144,7 @@ public class UtmProjection extends ProjectionImpl {
    */
   public UtmProjection(double a, double f, int zone, boolean isNorth) {
     super("UtmProjection", false);
-    save = new SaveParams(a, f);
+    saveParams = new SaveParams(a, f, zone, isNorth);
 
     convert2latlon = new Utm_To_Gdc_Converter(a, f, zone, isNorth);
     convert2xy = new Gdc_To_Utm_Converter(a, f, zone, isNorth);
@@ -179,12 +210,25 @@ public class UtmProjection extends ProjectionImpl {
     return false;
   }
 
-  /**
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    UtmProjection that = (UtmProjection) o;
+    return saveParams.equals(that.saveParams);
+  }
+
+  @Override
+  public int hashCode() {
+    return saveParams.hashCode();
+  }
+
+  /*
    * Returns true if this represents the same Projection as proj.
    *
    * @param proj projection in question
    * @return true if this represents the same Projection as proj.
-   */
+   *
   public boolean equals(Object proj) {
     if (!(proj instanceof UtmProjection)) {
       return false;
@@ -195,7 +239,9 @@ public class UtmProjection extends ProjectionImpl {
     if (this.getDefaultMapArea() != null && !this.defaultMapArea.equals(op.defaultMapArea)) return false;
 
     return op.getZone() == getZone();
-  }
+  }  */
+
+
 
 
   /**
@@ -311,7 +357,7 @@ them on a map.
    */
   public static void main(String arg[]) {
     UtmProjection utm = new UtmProjection(17, true);
-    LatLonPointImpl ll = utm.projToLatLon(577.8000000000001, 2951.8);
+    LatLonPoint ll = utm.projToLatLon(577.8000000000001, 2951.8);
     System.out.printf("%15.12f %15.12f%n", ll.getLatitude(), ll.getLongitude());
     assert Misc.closeEnough(ll.getLongitude(), -80.21802662821469, 1.0e-8);
     assert Misc.closeEnough(ll.getLatitude(), 26.685132668190793, 1.0e-8);

@@ -32,23 +32,25 @@
  */
 package ucar.nc2.ncml;
 
-import junit.framework.TestCase;
-
-import java.io.IOException;
-import java.io.File;
-import java.io.StringReader;
-
-import ucar.ma2.*;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import ucar.ma2.Array;
+import ucar.ma2.DataType;
+import ucar.ma2.IndexIterator;
+import ucar.ma2.InvalidRangeException;
 import ucar.nc2.*;
 import ucar.nc2.util.Misc;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
-public class TestOffAggForecastModel extends TestCase {
-  private int nruns = 14;
+import java.io.File;
+import java.io.IOException;
+import java.io.StringReader;
+
+@Category(NeedsCdmUnitTest.class)
+public class TestOffAggForecastModel {
+  private int nruns = 15;
   private int nfore = 11;
-  public TestOffAggForecastModel( String name) {
-    super(name);
-  }
 
   static String dataDir = TestDir.cdmUnitTestDir + "ncml/nc/ncmodels/";
   static String ncml =
@@ -59,6 +61,7 @@ public class TestOffAggForecastModel extends TestCase {
     "  </aggregation>\n" +
     "</netcdf>";
 
+  @Test
   public void testForecastModel() throws IOException, InvalidRangeException {
     String filename = "file:./"+TestDir.cdmUnitTestDir + "ncml/offsite/aggForecastModel.xml";
     System.out.println(" TestOffAggForecastModel.testForecastModel=\n"+ ncml);
@@ -73,13 +76,15 @@ public class TestOffAggForecastModel extends TestCase {
     ncfile.close();
   }
 
-  public void utestForecastModelExtend() throws IOException, InvalidRangeException {
+  @Test
+  public void testForecastModelExtend() throws IOException, InvalidRangeException {
     String filename = "file:./"+TestDir.cdmUnitTestDir + "ncml/offsite/aggForecastModel.xml";
     String newModel = dataDir + "NAM_CONUS_80km_20051212_1200.nc";
     String newModelsave = dataDir + "NAM_CONUS_80km_20051212_1200.nc.save";
     File newModelFile = new File(newModel);
     File newModelFileSave = new File(newModelsave);
 
+    // remove one of the files from the scan
     if (newModelFile.exists() && !newModelFileSave.exists()) {
       boolean ok = newModelFile.renameTo(newModelFileSave);
       if (!ok) throw new IOException("cant rename file "+newModelFile);
@@ -93,28 +98,31 @@ public class TestOffAggForecastModel extends TestCase {
     }
 
     System.out.println(" TestOffAggForecastModel.testForecastModel=\n"+ ncml);
-    NetcdfFile ncfile = NcMLReader.readNcML(new StringReader(ncml), filename, null);
-    System.out.println(" TestAggForecastModel.open "+ filename);
+    try (NetcdfFile ncfile = NcMLReader.readNcML(new StringReader(ncml), filename, null)) {
+      System.out.println(" TestAggForecastModel.open " + filename);
 
-    testDimensions(ncfile, nruns-1);
-    testCoordVar(ncfile);
-    testAggCoordVar(ncfile, nruns-1);
-    testReadData(ncfile, nruns-1, nfore);
-    testReadSlice(ncfile);
+      testDimensions(ncfile, nruns - 1);
+      testCoordVar(ncfile);
+      testAggCoordVar(ncfile, nruns - 1);
+      testReadData(ncfile, nruns - 1, nfore);
+      testReadSlice(ncfile);
+    }
 
     // new file arrives
     boolean ok = newModelFileSave.renameTo(newModelFile);
-    if (!ok) throw new IOException("cant rename file");
+    if (!ok)
+      throw new IOException("cant rename file");
 
-    ncfile.syncExtend();
+    try (NetcdfFile ncfile = NcMLReader.readNcML(new StringReader(ncml), filename, null)) {
+      System.out.println(" TestAggForecastModel.open " + filename);
 
-    testDimensions(ncfile, nruns);
-    testCoordVar(ncfile);
-    testAggCoordVar(ncfile, nruns);
-    testReadData(ncfile, nruns, nfore);
-    testReadSlice(ncfile);
+      testDimensions(ncfile, nruns);
+      testCoordVar(ncfile);
+      testAggCoordVar(ncfile, nruns);
+      testReadData(ncfile, nruns, nfore);
+      testReadSlice(ncfile);
+    }
 
-    ncfile.close();
   }
 
   public void testDimensions(NetcdfFile ncfile, int nagg) {

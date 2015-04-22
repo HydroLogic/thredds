@@ -245,6 +245,7 @@ public class CFGridWriter {
 
       GridDatatype grid = gds.findGridDatatype(gridName);
       GridCoordSystem gcsOrg = grid.getCoordinateSystem();
+      LatLonRect gridBB = gcsOrg.getLatLonBoundingBox();
       CoordinateAxis1DTime timeAxis = gcsOrg.getTimeAxis1D();
       CoordinateAxis1D vertAxis = gcsOrg.getVerticalAxis();
       boolean global = gcsOrg.isGlobalLon();
@@ -255,11 +256,17 @@ public class CFGridWriter {
 
       if ((null != timeRange) || (zRangeUse != null) || (llbb != null) || (horizStride > 1)) {
         grid = grid.makeSubset(timeRange, zRangeUse, llbb, 1, horizStride, horizStride);
-        LatLonRect gridBB = grid.getCoordinateSystem().getLatLonBoundingBox();
+        LatLonRect subsetGridBB = grid.getCoordinateSystem().getLatLonBoundingBox();
         if (resultBB == null)
-          resultBB = gridBB;
+          resultBB = subsetGridBB;
         else
+          resultBB.extend(subsetGridBB);
+      } else {
+        if (resultBB == null) {
+          resultBB = gridBB;
+        } else {
           resultBB.extend(gridBB);
+        }
       }
 
       Variable gridV = grid.getVariable();
@@ -446,8 +453,8 @@ public class CFGridWriter {
     //NetcdfFileWriter writer = NetcdfFileWriter.createNew(version, location, null);
     NetcdfFileWriter writer = NetcdfFileWriter.createNew(version, location, chunking);
     writer.setLargeFile(isLargeFile);
-
-    writeGlobalAttributes(writer, gds, resultBB);
+    if (resultBB != null)
+      writeGlobalAttributes(writer, gds, resultBB);
 
     // use fileWriter to copy the variables
     FileWriter2 fileWriter = new FileWriter2(writer);
@@ -739,7 +746,7 @@ public class CFGridWriter {
 
     writer.addGroupAttribute(null, new Attribute("History",
             "Translated to CF-1.0 Conventions by Netcdf-Java CDM (CFGridWriter)\n" +
-                    "Original Dataset = " + gds.getLocationURI() + "; Translation Date = " + CalendarDate.present()));
+                    "Original Dataset = " + gds.getLocation() + "; Translation Date = " + CalendarDate.present()));
 
     // this will replace any existing
     writer.addGroupAttribute(null, new Attribute(ACDD.LAT_MIN, llbb.getLatMin()));
@@ -756,7 +763,7 @@ public class CFGridWriter {
       GridDatatype grid = gds.findGridDatatype(gridName);
       Variable newV = writer.findVariable(gridName);
       if (newV == null) {
-        log.warn("NetcdfCFWriter cant find " + gridName + " in gds " + gds.getLocationURI());
+        log.warn("NetcdfCFWriter cant find " + gridName + " in gds " + gds.getLocation());
         continue;
       }
 

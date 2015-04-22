@@ -33,15 +33,17 @@
 package ucar.nc2.ncml;
 
 import junit.framework.TestCase;
-
-import java.io.IOException;
-
+import org.junit.experimental.categories.Category;
 import ucar.ma2.*;
 import ucar.nc2.*;
 import ucar.nc2.units.DateFormatter;
 import ucar.nc2.util.Misc;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
+import java.io.IOException;
+
+@Category(NeedsCdmUnitTest.class)
 public class TestOffAggFmrcNetcdf extends TestCase {
 
   public TestOffAggFmrcNetcdf( String name) {
@@ -54,7 +56,7 @@ public class TestOffAggFmrcNetcdf extends TestCase {
     NetcdfFile ncfile = NcMLReader.readNcML(filename, null);
     System.out.println(" TestAggForecastModel.open "+ filename);
 
-    int nagg = 14;
+    int nagg = 15;
 
     testDimensions(ncfile, nagg);
     testYCoordVar(ncfile);
@@ -186,8 +188,9 @@ public class TestOffAggFmrcNetcdf extends TestCase {
       {120.0, 126.0, 132.0, 138.0, 144.0, 150.0, 156.0, 162.0, 168.0, 174.0, 180.0},
       {132.0, 138.0, 144.0, 150.0, 156.0, 162.0, 168.0, 174.0, 180.0, 186.0, 192.0},
       {144.0, 150.0, 156.0, 162.0, 168.0, 174.0, 180.0, 186.0, 192.0, 198.0, 204.0},
-      {156.0, 162.0, 168.0, 174.0, 180.0, 186.0, 192.0, 198.0, 204.0, 210.0, 216.0}
-  };
+      {156.0, 162.0, 168.0, 174.0, 180.0, 186.0, 192.0, 198.0, 204.0, 210.0, 216.0},
+            {168.0, 174.0, 180.0, 186.0, 192.0, 198.0, 204.0, 210.0, 216.0, 222.0, 228.0}
+    };
 
     Index ima = data.getIndex();
     for (int i=0; i < nagg; i++)

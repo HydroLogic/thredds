@@ -38,6 +38,7 @@ import java.io.IOException;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -54,6 +55,7 @@ import thredds.mock.params.GridPathParams;
 import thredds.mock.web.MockTdsContextLoader;
 import ucar.nc2.NetcdfFile;
 import ucar.nc2.dataset.NetcdfDataset;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 
 /**
  * @author mhermida
@@ -61,7 +63,8 @@ import ucar.nc2.dataset.NetcdfDataset;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @WebAppConfiguration
-@ContextConfiguration(locations = { "/WEB-INF/applicationContext-tdsConfig.xml" }, loader = MockTdsContextLoader.class)
+@ContextConfiguration(locations = { "/WEB-INF/applicationContext.xml" }, loader = MockTdsContextLoader.class)
+@Category(NeedsCdmUnitTest.class)
 public class AllVariablesSubsettingTest {
 
 	@Autowired
@@ -87,7 +90,7 @@ public class AllVariablesSubsettingTest {
 		//NetcdfFile nf = NetcdfFile.openInMemory("test_data.ncs", response.getContentAsByteArray() );
 		NetcdfFile nf = NetcdfFile.openInMemory("test_data.ncs", mvc.getResponse().getContentAsByteArray() );
 		
-		ucar.nc2.dt.grid.GridDataset gdsDataset =new ucar.nc2.dt.grid.GridDataset(new NetcdfDataset(nf));		
+		ucar.nc2.dt.grid.GridDataset gdsDataset = new ucar.nc2.dt.grid.GridDataset(new NetcdfDataset(nf));
 		assertTrue( gdsDataset.getCalendarDateRange().isPoint());
 		assertEquals(7, gdsDataset.getDataVariables().size());
 		

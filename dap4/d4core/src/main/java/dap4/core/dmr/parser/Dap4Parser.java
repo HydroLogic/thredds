@@ -30,7 +30,7 @@ public class Dap4Parser extends Dap4ParserBody
 
     protected ErrorResponse errorresponse = null;
 
-    protected Stack<DapNode> scopestack = new Stack<DapNode>();
+    protected Deque<DapNode> scopestack = new ArrayDeque<DapNode>();
 
     protected DapDataset root = null; // of the parse
 
@@ -123,8 +123,9 @@ public class Dap4Parser extends Dap4ParserBody
     DapNode
     searchScope(DapSort... sort)
     {
-        for(int i = scopestack.size() - 1;i >= 0;i--) {
-            DapNode node = scopestack.get(i);
+        Iterator it = scopestack.iterator();
+        while(it.hasNext()) {
+            DapNode node = (DapNode) it.next();
             for(int j = 0;j < sort.length;j++) {
                 if(node.getSort() == sort[j])
                     return node;
@@ -297,7 +298,6 @@ public class Dap4Parser extends Dap4ParserBody
     createvalue(SaxEvent value, DapAttribute parent)
         throws DapException
     {
-        DapType basetype = parent.getBaseType();
         List<String> textlist = null;
         if(value.eventtype == SaxEventType.CHARACTERS) {
             textlist = ParseUtil.collectValues(value.text);
@@ -305,9 +305,10 @@ public class Dap4Parser extends Dap4ParserBody
             textlist = new ArrayList<String>();
             textlist.add(value.value);
         }
-        for(String v : textlist) {
-            parent.addValue(v);
-        }
+        if(textlist != null)
+            for(String v : textlist) {
+                parent.addValue(v);
+            }
     }
 
     DapAttribute
@@ -406,10 +407,10 @@ public class Dap4Parser extends Dap4ParserBody
         throws ParseException
     {
         if(debug) report("leavedataset");
-        assert (scopestack.peek().getSort() == DapSort.DATASET);
+        assert (scopestack.peek() != null && scopestack.peek().getSort() == DapSort.DATASET);
         this.root.sort();
         scopestack.pop();
-        if(!scopestack.empty())
+        if(!scopestack.isEmpty())
             throw new ParseException("Dataset: nested dataset");
         this.root.finish();
     }
@@ -636,11 +637,18 @@ public class Dap4Parser extends Dap4ParserBody
             else if(isempty(nameorsize))
                 throw new ParseException("Dimref: Empty dimension size");
             if(isname) {
+                DapGroup dg = var.getGroup();
+                if(dg == null)
+                    throw new ParseException("Internal error: variable has no containing group");
                 if(isdatadmr) {
                     // We need to look in the underlying full dmr to locate the dimension
                     dim = (DapDimension) var.getGroup().findByFQN(nameorsize.value, DapSort.DIMENSION);
-                } else
-                    dim = (DapDimension) var.getGroup().findByFQN(nameorsize.value, DapSort.DIMENSION);
+                } else {
+                    DapGroup grp = var.getGroup();
+                    if(grp == null)
+                        throw new ParseException("Variable has no group");
+                    dim = (DapDimension) grp.findByFQN(nameorsize.value, DapSort.DIMENSION);
+                }
             } else {// Size only is given; presume a number; create unique anonymous dimension
                 String ssize = nameorsize.value.trim();
                 if(ssize.equals("*"))
@@ -709,6 +717,8 @@ public class Dap4Parser extends Dap4ParserBody
                 var.setBaseType(basetype);
                 // Look at the parent scope
                 DapNode parent = scopestack.peek();
+                if(parent == null)
+                    throw new ParseException("Variable has no parent");
                 switch (parent.getSort()) {
                 case DATASET:
                 case GROUP:
@@ -749,14 +759,10 @@ public class Dap4Parser extends Dap4ParserBody
     void leavevariable()
         throws ParseException
     {
-        try {
-            DapVariable var = getVariableScope();
-            //if(isdatadmr)
-            //    validateVar(var);
-            scopestack.pop();
-        } catch (DapException de) {
-            throw new ParseException(de);
-        }
+        //DapVariable var = getVariableScope();
+        //if(isdatadmr)
+        //    validateVar(var);
+        scopestack.pop();
     }
 
     void
@@ -810,6 +816,8 @@ public class Dap4Parser extends Dap4ParserBody
                 var.setBaseType(target);
                 // Look at the parent scope
                 DapNode parent = scopestack.peek();
+                if(parent == null)
+                    throw new ParseException("Variable has no parent");
                 switch (parent.getSort()) {
                 case DATASET:
                 case GROUP:
@@ -875,6 +883,8 @@ public class Dap4Parser extends Dap4ParserBody
         try {
             // Pull the top variable scope
             DapVariable parent = (DapVariable) searchScope(DapSort.ATOMICVARIABLE, DapSort.STRUCTURE, DapSort.SEQUENCE);
+            if(parent == null)
+                throw new ParseException("Variable has no parent: " + var);
             parent.addMap(map);
         } catch (DapException de) {
             throw new ParseException(de);
@@ -927,6 +937,8 @@ public class Dap4Parser extends Dap4ParserBody
                 var.setBaseType(DapType.STRUCT);
                 // Look at the parent scope
                 DapNode parent = scopestack.peek();
+                if(parent == null)
+                    throw new ParseException("Variable has no parent");
                 switch (parent.getSort()) {
                 case DATASET:
                 case GROUP:
@@ -994,6 +1006,8 @@ public class Dap4Parser extends Dap4ParserBody
                 var.setBaseType(DapType.SEQ);
                 // Look at the parent scope
                 DapNode parent = scopestack.peek();
+                if(parent == null)
+                    throw new ParseException("Variable has no parent");
                 switch (parent.getSort()) {
                 case DATASET:
                 case GROUP:

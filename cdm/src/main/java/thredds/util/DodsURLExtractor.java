@@ -35,6 +35,8 @@
 
 package thredds.util;
 
+import ucar.nc2.constants.CDM;
+
 import javax.swing.text.AttributeSet;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.html.HTML;
@@ -75,7 +77,7 @@ public class DodsURLExtractor {
 
     baseURL = new URL(url);
     InputStream in = baseURL.openStream();
-    InputStreamReader r = new InputStreamReader(filterTag(in));
+    InputStreamReader r = new InputStreamReader(filterTag(in), CDM.UTF8);
     HTMLEditorKit.ParserCallback callback = new CallerBacker();
 
     urlList = new ArrayList();
@@ -94,7 +96,7 @@ public class DodsURLExtractor {
 
     baseURL = new URL(url);
     InputStream in = baseURL.openStream();
-    InputStreamReader r = new InputStreamReader(filterTag(in));
+    InputStreamReader r = new InputStreamReader(filterTag(in), CDM.UTF8);
     HTMLEditorKit.ParserCallback callback = new CallerBacker();
 
     textBuffer = new StringBuffer(3000);
@@ -108,16 +110,16 @@ public class DodsURLExtractor {
 
   // workaround for HTMLEditorKit.Parser, cant deal with "content-encoding"
   private InputStream filterTag(InputStream in) throws IOException {
-    BufferedReader buffIn = new BufferedReader(new InputStreamReader(in));
+    BufferedReader buffIn = new BufferedReader(new InputStreamReader(in, CDM.UTF8));
     ByteArrayOutputStream bos = new ByteArrayOutputStream(10000);
 
     String line = buffIn.readLine();
     while (line != null) {
       String lline = line.toLowerCase();
-      if (0 <= lline.indexOf("<meta "))  // skip meta tags
+      if (lline.contains("<meta "))  // skip meta tags
         continue;
       //System.out.println("--"+line);
-      bos.write(line.getBytes());
+      bos.write(line.getBytes(CDM.utf8Charset));
       line = buffIn.readLine();
     }
     buffIn.close();
@@ -195,7 +197,7 @@ public class DodsURLExtractor {
 
   } // Callerbacker
 
-  private class ParserGetter extends HTMLEditorKit {
+  private static class ParserGetter extends HTMLEditorKit {
     // purely to make this method public
     public HTMLEditorKit.Parser getParser() {
       return super.getParser();

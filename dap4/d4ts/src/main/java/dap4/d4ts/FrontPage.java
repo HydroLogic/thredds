@@ -4,12 +4,12 @@
 package dap4.d4ts;
 
 import dap4.core.util.DapException;
-import dap4.dap4shared.XURI;
-import dap4.servlet.*;
+import dap4.core.util.DapUtil;
+import dap4.servlet.DapLog;
+import dap4.servlet.ServletInfo;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -66,23 +66,21 @@ public class FrontPage
 
     protected List<FileSource> activesources;
 
-    protected URLMap urlmap = null;
-
     protected ServletInfo svcinfo = null;
+    protected String root = null; // root path to the displayed files
 
     //////////////////////////////////////////////////
     // Constructor(s)
 
     /**
-     * @param root   the file directory root
-     * @param urlmap
+     * @param root the file directory root
      * @throws DapException
      */
-    public FrontPage(String root, URLMap urlmap, ServletInfo svcinfo)
+    public FrontPage(String root, ServletInfo svcinfo)
             throws DapException
     {
-        this.urlmap = urlmap;
         this.svcinfo = svcinfo;
+        this.root = DapUtil.canonicalpath(root);
         // Construct the list of usable files
         activesources = getFileList(root);
     }
@@ -148,12 +146,15 @@ public class FrontPage
                 String name = file.getName();
                 String absname;
                 try {
-                    absname = file.getCanonicalPath();
+                    absname = DapUtil.canonicalpath(file.getCanonicalPath());
                 } catch (IOException ioe) {
                     throw new DapException(ioe);
                 }
-                URLMap.Result result = urlmap.mapPath(absname);
-                String urlpath = this.svcinfo.getServer() + result.prefix + "/" + result.suffix; // append remainder not used by mappath
+                absname = DapUtil.canonicalpath(file.getAbsolutePath());
+                if(!absname.startsWith(this.root))
+                    throw new DapException("Malformed file name: " + absname);
+                String datasetname = DapUtil.denullify(absname.substring(this.root.length()));
+                String urlpath = this.svcinfo.getServer() + "/" + this.svcinfo.getServletname() + datasetname; // append remainder not used by mappath
                 String line = String.format(HTML_FORMAT, name, urlpath, urlpath, urlpath, urlpath);
                 html.append(line);
             }
@@ -171,7 +172,7 @@ public class FrontPage
 
     static final String HTML_HEADER1 = "<h1>DAP4 Test Files</h1>\n";
     static final String HTML_HEADER2 = "<h2>http://" + dap4TestServer + "/d4ts/</h2>\n<hr>\n";
-    static final String HTML_HEADER3 = "<h3>%s Based Test Files</h3>\n";
+    static final String HTML_HEADER3 = "<h3>%s Based Test Files</h3>%n";
 
     static final String TABLE_HEADER = "<table>\n";
     static final String TABLE_FOOTER = "</table>\n";
@@ -179,13 +180,13 @@ public class FrontPage
     static final String HTML_FOOTER = "<hr>\n</html>\n";
 
     static final String HTML_FORMAT =
-            "<tr>\n"
-                    + "<td halign='right'><b>%s:</b></td>\n"
-                    + "<td halign='center'><a href='%s.dmr.txt'> DMR (TEXT) </a></div></td>\n"
-                    + "<td halign='center'><a href='%s.dmr'> DMR (XML) </a></div></td>\n"
-                    + "<td halign='center'><a href='%s.dap'> DAP </a></div></td>\n"
-                    + "<td halign='center'><a href='%s.dsr'> DSR </a></div></td>\n"
-                    + "</tr>\n";
+            "<tr>%n"
+                    + "<td halign='right'><b>%s:</b></td>%n"
+                    + "<td halign='center'><a href='%s.dmr.txt'> DMR (TEXT) </a></div></td>%n"
+                    + "<td halign='center'><a href='%s.dmr'> DMR (XML) </a></div></td>%n"
+                    + "<td halign='center'><a href='%s.dap'> DAP </a></div></td>%n"
+                    + "<td halign='center'><a href='%s.dsr'> DSR </a></div></td>%n"
+                    + "</tr>%n";
 }
 
 

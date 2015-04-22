@@ -36,22 +36,21 @@
 
 package ucar.nc2.ui.dialog;
 
-import java.awt.*;
-import java.awt.event.*;
 import javax.swing.*;
-import javax.swing.border.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 
 /**
  * @author John Caron
  */
 public class BufrBCompare extends JDialog {
 
-  public class Data {
-    public String name;
+  public static class Data {
     public boolean compareNames, compareUnits;
 
-    private Data(String name, boolean compareNames, boolean compareUnits) {
-      this.name = name;
+    private Data(boolean compareNames, boolean compareUnits) {
       this.compareNames = compareNames;
       this.compareUnits = compareUnits;
     }
@@ -63,7 +62,7 @@ public class BufrBCompare extends JDialog {
   }
 
   private void okButtonActionPerformed(ActionEvent e) {
-    Data data =  new Data((String) standard.getSelectedValue(), compareNames.isSelected(), compareUnits.isSelected() );
+    Data data =  new Data(compareNames.isSelected(), compareUnits.isSelected() );
     firePropertyChange("OK", null, data);
     setVisible(false);
   }

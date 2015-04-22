@@ -120,7 +120,7 @@ public class GribVariableRenamer {
 
     // not unique - match against NCEP dataset
     if (mbean != null) {
-      String dataset = extractDatasetFromLocation(gds.getLocationURI());
+      String dataset = extractDatasetFromLocation(gds.getLocation());
       if (dataset != null) {
         for (VariableRenamerBean r : mbean.newVars) {
           if (r.getDatasetType().equals(dataset) && contains(gds, r.newName)) result.add(r.newName);
@@ -365,7 +365,7 @@ public class GribVariableRenamer {
     return map;
   }
   @Deprecated
-  private class Renamer {
+  private static class Renamer {
     String oldName, newName; // newName exists when theres only one
     List<VariableRenamerBean> newVars = new ArrayList<VariableRenamerBean>();
     HashMap<String, VariableRenamerBean> newVarsMap = new HashMap<String, VariableRenamerBean>();

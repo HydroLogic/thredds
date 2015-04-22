@@ -73,12 +73,12 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
       if (!xg.isRoot()) {
         // Get the list of parent groups
         List<Group> path = Group.collectPath(xg);
-        StringBuilder dapname = new StringBuilder();
+        Formatter dapname = new Formatter();
         for (int i = 1; i < path.size(); i++) {   // start at 1 to skip root group
           Group g = path.get(i);
-          dapname.append("/" + g.getShortName());
+          dapname.format("/%s", g.getShortName());
         }
-        dapname.append("/" + name);
+        dapname.format("/%s", name);
         name = dapname.toString();
       }
     }
@@ -104,7 +104,7 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
   protected boolean isVariableLength = false;
   protected boolean isMetadata = false;
 
-  protected Cache cache = new Cache();
+  protected Cache cache = new Cache();           // cache cannot be null
   protected int sizeToCache = -1; // bytes
 
   protected ProxyReader proxyReader = this;
@@ -118,6 +118,7 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
 
   /**
    * Get the shape: length of Variable in each dimension.
+   * A scalar (rank 0) will have an int[0] shape.
    *
    * @return int array whose length is the rank of this Variable
    *         and whose values equal the length of that Dimension.
@@ -126,6 +127,13 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
     int[] result = new int[shape.length];  // optimization over clone()
     System.arraycopy(shape, 0, result, 0, shape.length);
     return result;
+  }
+
+  // if scalar, return int[1], else return getShape()
+  public int[] getShapeNotScalar() {
+    if (isScalar())
+      return new int[]{1};
+    return getShape();
   }
 
   /**
@@ -189,6 +197,8 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
       g = ncfile.getRootGroup();
       super.setParentGroup(g);
     }
+
+    assert g != null;
     return g;
   }
 
@@ -633,8 +643,8 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
     if (origin == null)
       return read(new Section(shape));
 
-    if (shape == null) // LOOK not very useful, origin must be 0 to be valid
-      return read(new Section(origin, shape));
+    if (shape == null)
+      return read(new Section(origin, this.shape));
 
     return read(new Section(origin, shape));
   }
@@ -804,7 +814,7 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
   }
 
   protected Array getScalarData() throws IOException {
-    Array scalarData = (cache != null && cache.data != null) ? cache.data : read();
+    Array scalarData = (cache.data != null) ? cache.data : read();
     scalarData = scalarData.reduce();
 
     if ((scalarData.getRank() == 0) || ((scalarData.getRank() == 1) && dataType == DataType.CHAR))
@@ -821,7 +831,7 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
   protected Array _read() throws IOException {
     // caching overrides the proxyReader
     // check if already cached
-    if (cache != null && cache.data != null) {
+    if (cache.data != null) {
       if (debugCaching) System.out.println("got data from cache " + getFullName());
       return cache.data.copy();
     }
@@ -1124,19 +1134,19 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
    */
   @Override
   public int hashCode() {
-      if (hashCode == 0) {
-        int result = 17;
-        result = 37 * result + getShortName().hashCode();
-        if (isScalar()) result++;
-        result = 37 * result + getDataType().hashCode();
-        result = 37 * result + getParentGroup().hashCode();
-        if (getParentStructure() != null)
-          result = 37 * result + getParentStructure().hashCode();
-        if (isVariableLength) result++;
-        result = 37 * result + dimensions.hashCode();
-        hashCode = result;
-      }
-      return hashCode;
+    if (hashCode == 0) {
+      int result = 17;
+      result = 37 * result + getShortName().hashCode();
+      if (isScalar()) result++;
+      result = 37 * result + getDataType().hashCode();
+      result = 37 * result + getParentGroup().hashCode();
+      if (getParentStructure() != null)
+        result = 37 * result + getParentStructure().hashCode();
+      if (isVariableLength) result++;
+      result = 37 * result + dimensions.hashCode();
+      hashCode = result;
+    }
+    return hashCode;
   }
 
   public void hashCodeShow(Indent indent) {
@@ -1449,7 +1459,8 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
     if (immutable) throw new IllegalStateException("Cant modify");
     this.dimensions = new ArrayList<>();
     for (int i = 0; i < shape.length; i++) {
-      if ((shape[i] < 1) && (shape[i] != -1)) throw new InvalidRangeException("shape[" + i + "]=" + shape[i] + " must be > 0");
+      if ((shape[i] < 1) && (shape[i] != -1))
+        throw new InvalidRangeException("shape[" + i + "]=" + shape[i] + " must be > 0");
       Dimension anon;
       if (shape[i] == -1) {
         anon = Dimension.VLEN;
@@ -1580,6 +1591,7 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
   public boolean isCaching() {
     if (!this.cache.cachingSet) {
       cache.isCaching = !isVariableLength && (getSize() * getElementSize() < getSizeToCache());
+      if (debugCaching) System.out.printf("  cache %s %s %d < %d%n", getFullName(), cache.isCaching, getSize() * getElementSize(), getSizeToCache());
       this.cache.cachingSet = true;
     }
     return cache.isCaching;
@@ -1630,7 +1642,7 @@ public class Variable extends CDMNode implements VariableIF, ProxyReader, Attrib
    * @return true if data is read and cached
    */
   public boolean hasCachedData() {
-    return (cache != null) && (null != cache.data);
+    return (null != cache.data);
   }
 
   // this indirection allows us to share the cache among the variable's sections and copies

@@ -109,7 +109,7 @@ public class Level2VolumeScan {
   private List<List<Level2Record>> diffPhaseHighResGroups;
   private List<List<Level2Record>> coefficientHighResGroups;
 
-  private boolean showMessages = false, showData = false, debugScans = false, debugGroups2 = false, debugRadials = false, debugStats = false;
+  private boolean showMessages = false, showData = false, debugScans = false, debugGroups2 = false, debugRadials = false;
   private boolean runCheck = false;
 
   Level2VolumeScan(RandomAccessFile orgRaf, CancelTask cancelTask) throws IOException {
@@ -150,20 +150,17 @@ public class Level2VolumeScan {
       raf.skipBytes(4);
       String BZ = raf.readString(2);
       if (BZ.equals("BZ")) {
-        RandomAccessFile uraf;
+        RandomAccessFile uraf = null;
         File uncompressedFile = DiskCache.getFileStandardPolicy(raf.getLocation() + ".uncompress");
 
         if (uncompressedFile.exists() && uncompressedFile.length() > 0) {
           // see if its locked - another thread is writing it
-          FileInputStream fstream = null;
-          FileLock lock = null;
-          try {
-            fstream = new FileInputStream(uncompressedFile);
+          try (FileInputStream fstream = new FileInputStream(uncompressedFile)) {
             //lock = fstream.getChannel().lock(0, 1, true); // wait till its unlocked
 
             while (true) { // loop waiting for the lock
               try {
-                lock = fstream.getChannel().lock(0, 1, true); // wait till its unlocked
+                fstream.getChannel().lock(0, 1, true); // wait till its unlocked
                 break;
 
               } catch (OverlappingFileLockException oe) { // not sure why lock() doesnt block
@@ -175,16 +172,18 @@ public class Level2VolumeScan {
               }
             }
 
-          } finally {
-            if (lock != null) lock.release();
-            if (fstream != null) fstream.close();
-          }
-          uraf = new ucar.unidata.io.RandomAccessFile(uncompressedFile.getPath(), "r");
+          } // Lock is released when the corresponding channel is closed on exit of try()
+          uraf = ucar.unidata.io.RandomAccessFile.acquire(uncompressedFile.getPath());
 
         } else {
-          // nope, gotta uncompress it
-          uraf = uncompress(raf, uncompressedFile.getPath());
-          if (log.isDebugEnabled()) log.debug("made uncompressed file= " + uncompressedFile.getPath());
+          try {
+            // nope, gotta uncompress it
+            uraf = uncompress(raf, uncompressedFile.getPath());
+            if (log.isDebugEnabled()) log.debug("made uncompressed file= " + uncompressedFile.getPath());
+          } catch (Throwable t) {
+            if (uraf != null) uraf.close();
+            throw t;
+          }
         }
 
         // switch to uncompressed file
@@ -196,14 +195,14 @@ public class Level2VolumeScan {
       raf.seek(Level2Record.FILE_HEADER_SIZE);
     }
 
-    List<Level2Record> reflectivity = new ArrayList<Level2Record>();
-    List<Level2Record> doppler = new ArrayList<Level2Record>();
-    List<Level2Record> highReflectivity = new ArrayList<Level2Record>();
-    List<Level2Record> highVelocity = new ArrayList<Level2Record>();
-    List<Level2Record> highSpectrum = new ArrayList<Level2Record>();
-    List<Level2Record> highDiffReflectivity = new ArrayList<Level2Record>();
-    List<Level2Record> highDiffPhase = new ArrayList<Level2Record>();
-    List<Level2Record> highCorreCoefficient = new ArrayList<Level2Record>();
+    List<Level2Record> reflectivity = new ArrayList<>();
+    List<Level2Record> doppler = new ArrayList<>();
+    List<Level2Record> highReflectivity = new ArrayList<>();
+    List<Level2Record> highVelocity = new ArrayList<>();
+    List<Level2Record> highSpectrum = new ArrayList<>();
+    List<Level2Record> highDiffReflectivity = new ArrayList<>();
+    List<Level2Record> highDiffPhase = new ArrayList<>();
+    List<Level2Record> highCorreCoefficient = new ArrayList<>();
 
     long message_offset31 = 0;
     int recno = 0;
@@ -285,24 +284,23 @@ public class Level2VolumeScan {
   private List<List<Level2Record>> sortScans(String name, List<Level2Record> scans, int siz) {
 
     // now group by elevation_num
-    Map<Short, List<Level2Record>> groupHash = new HashMap<Short, List<Level2Record>>(siz);
+    Map<Short, List<Level2Record>> groupHash = new HashMap<>(siz);
     for (Level2Record record : scans) {
       List<Level2Record> group = groupHash.get(record.elevation_num);
       if (null == group) {
-        group = new ArrayList<Level2Record>();
+        group = new ArrayList<>();
         groupHash.put(record.elevation_num, group);
       }
       group.add(record);
     }
 
     // sort the groups by elevation_num
-    List<List<Level2Record>> groups = new ArrayList<List<Level2Record>>(groupHash.values());
+    List<List<Level2Record>> groups = new ArrayList<>(groupHash.values());
     Collections.sort(groups, new GroupComparator());
 
     // use the maximum radials
-    for (int i = 0; i < groups.size(); i++) {
-      ArrayList group = (ArrayList) groups.get(i);
-      Level2Record r =(Level2Record) group.get(0);
+    for (List<Level2Record> group: groups) {
+      Level2Record r = group.get(0);
       if(runCheck) testScan(name, group);
       if(r.getGateCount(REFLECTIVITY_HIGH) > 500 || r.getGateCount(VELOCITY_HIGH) > 1000) {
           if(group.size() <= 360) {
@@ -321,11 +319,10 @@ public class Level2VolumeScan {
 
     if (debugRadials) {
       System.out.println(name + " min_radials= " + min_radials + " max_radials= " + max_radials);
-      for (int i = 0; i < groups.size(); i++) {
-        ArrayList group = (ArrayList) groups.get(i);
-        Level2Record lastr = (Level2Record) group.get(0);
+      for (List<Level2Record> group: groups) {
+        Level2Record lastr = group.get(0);
         for (int j = 1; j < group.size(); j++) {
-          Level2Record r = (Level2Record) group.get(j);
+          Level2Record r = group.get(j);
           if (r.data_msecs < lastr.data_msecs)
             System.out.println(" out of order " + j);
           lastr = r;
@@ -388,9 +385,9 @@ public class Level2VolumeScan {
   private int MAX_RADIAL = 721;
   private int[] radial = new int[MAX_RADIAL];
 
-  private boolean testScan(String name, ArrayList group) {
+  private boolean testScan(String name, List<Level2Record> group) {
     int datatype = name.equals("reflect") ? Level2Record.REFLECTIVITY : Level2Record.VELOCITY_HI;
-    Level2Record first = (Level2Record) group.get(0);
+    Level2Record first = group.get(0);
 
     int n = group.size();
     if (debugScans) {
@@ -399,15 +396,11 @@ public class Level2VolumeScan {
     }
 
     boolean ok = true;
-    double sum = 0.0;
-    double sum2 = 0.0;
 
     for (int i = 0; i < MAX_RADIAL; i++)
       radial[i] = 0;
 
-    for (int i = 0; i < group.size(); i++) {
-      Level2Record r = (Level2Record) group.get(i);
-
+    for (Level2Record r: group) {
       /* this appears to be common - seems to be ok, we put missing values in
       if (r.getGateCount(datatype) != first.getGateCount(datatype)) {
         log.error(raf.getLocation()+" different number of gates ("+r.getGateCount(datatype)+
@@ -437,10 +430,6 @@ public class Level2VolumeScan {
         ok = false;
       }
       radial[r.radial_num] = r.recno + 1;
-
-      sum += r.getElevation();
-      sum2 += r.getElevation() * r.getElevation();
-      // System.out.println("  elev="+r.getElevation()+" azi="+r.getAzimuth());
     }
 
     for (int i = 1; i < radial.length; i++) {
@@ -452,10 +441,6 @@ public class Level2VolumeScan {
         break;
       }
     }
-
-    /* double avg = sum / n;
-    double sd = Math.sqrt((n * sum2 - sum * sum) / (n * (n - 1)));
-    System.out.println(" avg elev="+avg+" std.dev="+sd); */
 
     return ok;
   }
@@ -664,7 +649,7 @@ public class Level2VolumeScan {
    */
   private RandomAccessFile uncompress(RandomAccessFile inputRaf, String ufilename) throws IOException {
     RandomAccessFile outputRaf = new RandomAccessFile(ufilename, "rw");
-    FileLock lock = null;
+    FileLock lock;
 
     while (true) { // loop waiting for the lock
       try {
@@ -676,13 +661,21 @@ public class Level2VolumeScan {
           Thread.sleep(100); // msecs
         } catch (InterruptedException e1) {
         }
+      } catch (IOException e) {
+          outputRaf.close();
+          throw e;
       }
     }
 
     try {
         inputRaf.seek(0);
         byte[] header = new byte[Level2Record.FILE_HEADER_SIZE];
-        inputRaf.read(header);
+        int bytesRead = inputRaf.read(header);
+        if (bytesRead != header.length)
+        {
+            throw new IOException("Error reading NEXRAD2 header -- got " +
+                    bytesRead + " rather than" + header.length);
+        }
         outputRaf.write(header);
 
         boolean eof = false;
@@ -757,7 +750,6 @@ public class Level2VolumeScan {
         outputRaf.flush();
     } catch (IOException e) {
         if (outputRaf != null) outputRaf.close();
-        outputRaf = null;
 
         // dont leave bad files around
         File ufile = new File(ufilename);
@@ -768,7 +760,12 @@ public class Level2VolumeScan {
 
         throw e;
     } finally {
-      if (lock != null) lock.release();
+      try {
+          if (lock != null) lock.release();
+      } catch (IOException e) {
+          if (outputRaf != null) outputRaf.close();
+          throw e;
+      }
     }
 
     return outputRaf;
@@ -779,12 +776,12 @@ public class Level2VolumeScan {
     boolean lookForHeader = false;
 
     // gotta make it
-    try (RandomAccessFile raf = new RandomAccessFile(ufilename, "r")) {
+    try (RandomAccessFile raf = RandomAccessFile.acquire(ufilename)) {
       raf.order(RandomAccessFile.BIG_ENDIAN);
       raf.seek(0);
       String test = raf.readString(8);
-      if (test.equals(Level2VolumeScan.ARCHIVE2) || test.equals
-             (Level2VolumeScan.AR2V0001)) {
+      if (test.equals(Level2VolumeScan.ARCHIVE2) ||
+                test.startsWith("AR2V000")) {
         System.out.println("--Good header= " + test);
         raf.seek(24);
       } else {
@@ -800,7 +797,8 @@ public class Level2VolumeScan {
 
         if (lookForHeader) {
           test = raf.readString(8);
-          if (test.equals(Level2VolumeScan.ARCHIVE2) || test.equals(Level2VolumeScan.AR2V0001)) {
+          if (test.equals(Level2VolumeScan.ARCHIVE2) ||
+                  test.startsWith("AR2V000")) {
             System.out.println("  found header= " + test);
             raf.skipBytes(16);
             lookForHeader = false;
@@ -834,40 +832,6 @@ public class Level2VolumeScan {
       e.printStackTrace();
     }
     return 0;
-  }
-
-  /**
-   * test
-   */
-  public static void main2(String[] args) throws IOException {
-    File testDir = new File("/share/testdata/radar/problem");
-
-    File[] files = testDir.listFiles();
-    for (int i = 0; i < files.length; i++) {
-      File file = files[i];
-      if (!file.getPath().endsWith(".ar2v")) continue;
-      System.out.println(file.getPath() + " " + file.length());
-      long pos = testValid(file.getPath());
-      if (pos == file.length()) {
-        System.out.println("OK");
-        try {
-          NetcdfFile.open(file.getPath());
-        } catch (Throwable t) {
-          System.out.println("ERROR=  " + t);
-        }
-      } else
-        System.out.println("NOT pos=" + pos);
-
-      System.out.println();
-    }
-  }
-
-  public static void main(String args[]) throws IOException {
-    NexradStationDB.init();
-
-    RandomAccessFile raf = new RandomAccessFile("/upc/share/testdata/radar/nexrad/level2/Level2_KFTG_20060818_1814.ar2v.uncompress.missingradials", "r");
-    // RandomAccessFile raf = new RandomAccessFile("R:/testdata2/radar/nexrad/level2/problem/KCCX_20060627_1701", "r");
-    new Level2VolumeScan(raf, null);
   }
 
 }

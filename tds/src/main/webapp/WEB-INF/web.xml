@@ -16,7 +16,7 @@
   <!-- Turn on some more targeted debugging. -->
   <filter>
     <filter-name>RequestBracketingLogMessageFilter</filter-name>
-    <filter-class>thredds.server.RequestBracketingLogMessageFilter</filter-class>
+    <filter-class>thredds.servlet.filter.RequestBracketingLogMessageFilter</filter-class>
   </filter>
 
   <filter>
@@ -38,14 +38,19 @@
     </init-param>
   </filter>
 
-  <!-- filter>
-    <filter-name>CatalogServiceFilter</filter-name>
-    <filter-class>thredds.servlet.filter.CatalogServiceFilter</filter-class>
-  </filter -->
-
   <filter>
     <filter-name>CookieFilter</filter-name>
     <filter-class>thredds.servlet.filter.CookieFilter</filter-class>
+  </filter>
+
+  <filter>
+    <filter-name>RequestCORSFilter</filter-name>
+    <!--filter-class>thredds.servlet.filter.RequestCORSFilter</filter-class-->
+    <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    <init-param>
+	    <param-name>targetBeanName</param-name>
+	    <param-value>corsFilter</param-value>
+    </init-param>
   </filter>
 
   <filter-mapping>
@@ -73,37 +78,16 @@
     <filter-name>RequestQueryFilter</filter-name>
     <servlet-name>root</servlet-name>
   </filter-mapping>
-   
-  <!-- filter-mapping>
-    <filter-name>RequestQueryFilter</filter-name>
-    <servlet-name>catalogService</servlet-name>
-  </filter-mapping -->
-    
-  <!--filter-mapping>
-    <filter-name>RequestQueryFilter</filter-name>
-    <servlet-name>FileServer</servlet-name>
-  </filter-mapping-->
-  <!-- filter-mapping>
-    <filter-name>RequestQueryFilter</filter-name>
-    <servlet-name>radarServer</servlet-name>
-  </filter-mapping-->
+
   <filter-mapping>
     <filter-name>RequestQueryFilter</filter-name>
     <servlet-name>RestrictedDataset</servlet-name>
   </filter-mapping>
-  <!-- filter-mapping>
-    <filter-name>RequestQueryFilter</filter-name>
-    <servlet-name>wcs</servlet-name>
-  </filter-mapping -->
+
   <filter-mapping>
-    <filter-name>RequestQueryFilter</filter-name>
-    <servlet-name>wms</servlet-name>
+    <filter-name>RequestCORSFilter</filter-name>
+    <url-pattern>/*</url-pattern>
   </filter-mapping>
-  
-  <!-- filter-mapping>
-    <filter-name>RequestQueryFilter</filter-name>
-    <servlet-name>DLwriter</servlet-name>
-  </filter-mapping -->
 
   <!--
   Filter:
@@ -116,16 +100,9 @@
   </filter-mapping>
   <filter-mapping>
     <filter-name>RequestQueryFilterAllowAngleBrackets</filter-name>
-    <servlet-name>Dap4</servlet-name>
+    <servlet-name>dap4</servlet-name>
   </filter-mapping>
 
-  <!--
-  Filter all requests that contain parameters used by CatalogServices
-  -->
-  <!-- filter-mapping>
-    <filter-name>CatalogServiceFilter</filter-name>
-    <servlet-name>catalogService</servlet-name>
-  </filter-mapping -->
   
   <!--
   Filter opendap and dap4 cookies
@@ -136,27 +113,8 @@
   </filter-mapping>
   <filter-mapping>
     <filter-name>CookieFilter</filter-name>
-    <servlet-name>Dap4</servlet-name>
+    <servlet-name>dap4</servlet-name>
   </filter-mapping>
-
-  <!--
-     Location of the Log4J config file (relative to the webapp root), for initialization.
-
-  <context-param>
-    <param-name>log4jConfigLocation</param-name>
-    <param-value>/WEB-INF/log4j.xml</param-value>
-  </context-param>
-   -->
-  <!--
-     Don't expose the webapp root directory as the "webapp.root" system property.
-     Multiple TDS will clash over this unless we change the name of the system property by defining it with a context-param named "webAppRootKey".
-     It isn't needed because we determine the logging directory ourselves.
-
-  <context-param>
-    <param-name>log4jExposeWebAppRoot</param-name>
-    <param-value>false</param-value>
-  </context-param>
-   -->
 
   <!--
      Spring listener to bootstrap Spring WebApplicationContext. Used to
@@ -165,65 +123,26 @@
   -->
   <context-param>
     <param-name>contextConfigLocation</param-name>
-    <param-value>/WEB-INF/applicationContext-tdsConfig.xml</param-value>
+    <param-value>/WEB-INF/applicationContext.xml</param-value>
   </context-param>
-
-  <!-- needed for intelliJ startup; check if needed for regular war
-      https://issues.apache.org/jira/browse/LOG4J2-223
-      Provided the Log4jContextListener is configured in web.xml shutdown now works fine with Tomcat 7 with revision 1484363.
-      LOOK: unsure if this is needed with latest log4j2
-      changed to Log4jServletContainerInitializer
-      see http://logging.apache.org/log4j/2.x/log4j-core/apidocs/index.html
-      -->
-  <listener>
-    <!--listener-class>org.apache.logging.log4j.core.web.Log4jServletContextListener</listener-class-->
-    <listener-class>org.apache.logging.log4j.core.web.Log4jServletContainerInitializer</listener-class>
-  </listener>
 
   <listener>
     <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
   </listener>
 
-  <listener>
-    <listener-class>thredds.server.opendap.OpendapSessionAttributeListener</listener-class>
-  </listener>
-
-
-
-  <!-- Some possible ways to deal with error handling. -->
-  <!--
-  <error-page>
-    <exception-type>java.lang.NullPointerException</exception-type>
-    <location>/null.html</location>
-  </error-page>
-  -->
-  <!-- The following goes into affect when 'res.sendError(100)' is called. -->
-  <!--
-  <error-page>
-    <error-code>100</error-code>
-    <location>/myPage.html</location>
-  </error-page>
-  -->
-
   <!-- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ -->
 
-  <!-- root servlet -->
+  <!-- spring servlet -->
   <servlet>
     <servlet-name>root</servlet-name>
     <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
     <init-param>
       <param-name>contextConfigLocation</param-name>
-      <param-value>/WEB-INF/servlet-context.xml</param-value>
+      <param-value>/WEB-INF/spring-servlet.xml</param-value>
     </init-param>
     <load-on-startup>1</load-on-startup>
   </servlet>
 
-  <!-- Setup for catalog services. (Catalog subsetting, validation, and translation into HTML.)
-  <servlet>
-    <servlet-name>catalogService</servlet-name>
-    <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
-    <load-on-startup>1</load-on-startup>
-  </servlet -->
 
   <!-- data services -->
   <!-- NON-SPRING  controllers ands servlets -->
@@ -234,40 +153,15 @@
     <servlet-class>thredds.server.opendap.OpendapServlet</servlet-class>
     <load-on-startup>2</load-on-startup>
   </servlet>
+
   <!-- NetCDF/Dap4 server -->
   <servlet>
     <display-name>Dap4 Server</display-name>
-    <servlet-name>Dap4</servlet-name>
-    <servlet-class>dap4.dap4servlet.Dap4Servlet</servlet-class>
+    <servlet-name>dap4</servlet-name>
+    <servlet-class>thredds.server.dap4.Dap4Servlet</servlet-class>
     <load-on-startup>3</load-on-startup>
   </servlet>
 
-  <!-- HTTP File server -->
-  <!-- servlet>
-    <servlet-name>FileServer</servlet-name>
-    <servlet-class>thredds.servlet.FileServerServlet</servlet-class>
-    <load-on-startup>3</load-on-startup>
-  </servlet -->
-
-  <!-- Radar Server -->
-  <!-- servlet>
-    <servlet-name>radarServer</servlet-name>
-    <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
-    <load-on-startup>1</load-on-startup>
-  </servlet -->
-
-  <!-- OGC Web Coverage server -->
-  <!-- servlet>
-    <servlet-name>wcs</servlet-name>
-    <servlet-class>thredds.server.wcs.WCSServlet</servlet-class>
-    <load-on-startup>1</load-on-startup>
-  </servlet -->
-
-  <servlet>
-    <servlet-name>wms</servlet-name>
-    <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
-    <load-on-startup>4</load-on-startup>
-  </servlet>
 
   <!-- Restricted Access (using container managed security, eg Tomcat, or CAMS) -->
   <servlet>
@@ -355,77 +249,20 @@
     <url-pattern>*.gif</url-pattern>
   </servlet-mapping>
 
-  <!-- servlet-mapping>
-    <servlet-name>catalogService</servlet-name>
-    <url-pattern>*.xml</url-pattern>
-  </servlet-mapping>
-  <servlet-mapping>
-    <servlet-name>catalogService</servlet-name>
-    <url-pattern>*.html</url-pattern>
-  </servlet-mapping>
-  <servlet-mapping>
-    <servlet-name>catalogService</servlet-name>
-    <url-pattern>/catalog/*</url-pattern>
-  </servlet-mapping>
-  <servlet-mapping>
-    <servlet-name>catalogService</servlet-name>
-    <url-pattern>/remoteCatalogService</url-pattern>
-  </servlet-mapping>
-  <servlet-mapping>  For backwards compatibility
-    <servlet-name>catalogService</servlet-name>
-    <url-pattern>/catalogServices</url-pattern>
-  </servlet-mapping>
-  <servlet-mapping>
-    <servlet-name>catalogService</servlet-name>
-    <url-pattern>/remoteCatalogValidation.html</url-pattern>
-  </servlet-mapping -->
-
-  <!-- data services -->
-  <!--servlet-mapping>
-    <servlet-name>radarServer</servlet-name>
-    <url-pattern>/radarServer/*</url-pattern>
-  </servlet-mapping -->
-
   <servlet-mapping>
     <servlet-name>Opendap</servlet-name>
     <url-pattern>/dodsC/*</url-pattern>
   </servlet-mapping>
 
   <servlet-mapping>
-    <servlet-name>Dap4</servlet-name>
+    <servlet-name>dap4</servlet-name>
     <url-pattern>/dap4/*</url-pattern>
   </servlet-mapping>
-
-  <!-- servlet-mapping>
-    <servlet-name>FileServer</servlet-name>
-    <url-pattern>/fileServer/*</url-pattern>
-  </servlet-mapping -->
 
   <servlet-mapping>
     <servlet-name>RestrictedDataset</servlet-name>
     <url-pattern>/restrictedAccess/*</url-pattern>
   </servlet-mapping>
-
-  <!-- servlet-mapping>
-    <servlet-name>wcs</servlet-name>
-    <url-pattern>/wcs/*</url-pattern>
-  </servlet-mapping -->
-
-  <servlet-mapping>
-    <servlet-name>wms</servlet-name>
-    <url-pattern>/wms/*</url-pattern>
-  </servlet-mapping>
-
-  <!-- catalog services -->
-  <!--servlet-mapping>
-    <servlet-name>DLwriter</servlet-name>
-    <url-pattern>/DLwriter</url-pattern>
-  </servlet-mapping -->
-
-  <!-- servlet-mapping>
-     <servlet-name>View</servlet-name>
-     <url-pattern>/view/*</url-pattern>
-   </servlet-mapping-->
 
   <welcome-file-list>
     <welcome-file>/</welcome-file>
@@ -435,6 +272,7 @@
     <error-code>404</error-code>
     <location>/WEB-INF/jsp/errorpages/404.jsp</location>
   </error-page>
+
   <error-page>
     <error-code>500</error-code>
     <location>/WEB-INF/jsp/errorpages/500.jsp</location>
@@ -463,7 +301,7 @@
     <web-resource-collection>
       <web-resource-name>sensitive read access</web-resource-name>
       <url-pattern>/admin/*</url-pattern>
-      <http-method>GET</http-method>
+      <!-- http-method>GET</http-method -->
     </web-resource-collection>
     <auth-constraint>
       <role-name>tdsConfig</role-name>
@@ -477,7 +315,7 @@
     <web-resource-collection>
       <web-resource-name>allow feature collection rescan to be triggered externally</web-resource-name>
       <url-pattern>/admin/collection/trigger</url-pattern>
-      <http-method>GET</http-method>
+      <!-- http-method>GET</http-method -->
     </web-resource-collection>
     <auth-constraint>
       <role-name>tdsTrigger</role-name>
@@ -495,7 +333,7 @@
     <web-resource-collection>
       <web-resource-name>sensitive read access</web-resource-name>
       <url-pattern>/admin/log/*</url-pattern>
-      <http-method>GET</http-method>
+      <!-- http-method>GET</http-method -->
     </web-resource-collection>
     <auth-constraint>
       <role-name>tdsMonitor</role-name>
@@ -526,7 +364,7 @@
     <web-resource-collection>
       <web-resource-name>restricted access datasets</web-resource-name>
       <url-pattern>/restrictedAccess/*</url-pattern>
-      <http-method>GET</http-method>
+      <!-- http-method>GET</http-method -->
     </web-resource-collection>
     <auth-constraint>
       <role-name>restrictedDatasetUser</role-name>

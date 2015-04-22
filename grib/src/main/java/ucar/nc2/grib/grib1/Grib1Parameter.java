@@ -59,7 +59,7 @@ public class Grib1Parameter implements GribTables.Parameter {
     this.number = number;
     this.name = setName(name);
     this.description = setDescription(description);
-    this.unit = setUnit(unit);
+    this.unit = unit; // setUnit(unit);
     this.cfName = null;
   }
 
@@ -68,7 +68,7 @@ public class Grib1Parameter implements GribTables.Parameter {
     this.number = number;
     this.name = setName(name);
     this.description = setDescription(description);
-    this.unit = setUnit(unit);
+    this.unit = unit; // setUnit(unit);
     this.cfName = cf_name;
   }
 
@@ -89,6 +89,11 @@ public class Grib1Parameter implements GribTables.Parameter {
   @Override
   public int getNumber() {
     return number;
+  }
+
+  @Override
+  public int getValue() {
+    return -1;
   }
 
   @Override
@@ -128,6 +133,16 @@ public class Grib1Parameter implements GribTables.Parameter {
   @Override
   public String getAbbrev() {
     return null;
+  }
+
+  @Override
+  public Float getFill() {
+    return null;
+  }
+
+  @Override
+  public Float getMissing() {
+    return Float.NaN;
   }
 
   public String getCFname() {

@@ -32,6 +32,7 @@
  */
 package ucar.unidata.geoloc;
 
+import com.google.common.math.DoubleMath;
 import ucar.unidata.util.Format;
 
 import java.io.*;
@@ -54,6 +55,27 @@ public class ProjectionRect implements java.io.Serializable {
   }
 
   /**
+   * Construct a ProjectionRect from any two opposite corner points.
+   *
+   * @param corner1  a corner.
+   * @param corner2  the opposite corner.
+   */
+  public ProjectionRect(ProjectionPoint corner1, ProjectionPoint corner2) {
+    this(corner1.getX(), corner1.getY(), corner2.getX(), corner2.getY());
+  }
+
+  /**
+    * Construct a ProjectionRect from any two opposite corner points.
+    *
+    * @param minimum  lower left corner, ie the minumum x and y
+    * @param width    x width.
+    * @param height   y height
+    */
+   public ProjectionRect(ProjectionPoint minimum, double width, double height) {
+     setRect(minimum.getX(), minimum.getY(), width, height);
+   }
+
+   /**
    * Copy Constructor
    *
    * @param r rectangle to copy
@@ -280,6 +302,19 @@ public class ProjectionRect implements java.io.Serializable {
       double x2 = Math.min(src1.getMaxX(), src2.getMaxX());
       double y2 = Math.min(src1.getMaxY(), src2.getMaxY());
       dest.setRect(x1, y1, x2 - x1, y2 - y1);
+  }
+
+  /**
+   * Returns {@code true} if this bounding box contains {@code point}.
+   *
+   * @param point a point in projection coordinates.
+   * @return {@code true} if this bounding box contains {@code point}.
+   */
+  public boolean contains(ProjectionPoint point) {
+    return DoubleMath.fuzzyCompare(point.getX(), getMinX(), 1e-6) >= 0 &&
+           DoubleMath.fuzzyCompare(point.getX(), getMaxX(), 1e-6) <= 0 &&
+           DoubleMath.fuzzyCompare(point.getY(), getMinY(), 1e-6) >= 0 &&
+           DoubleMath.fuzzyCompare(point.getY(), getMaxY(), 1e-6) <= 0;
   }
 
   /////////////////////////////////////////////////////

@@ -35,17 +35,20 @@
 
 package ucar.nc2.grib.collection;
 
+import ucar.nc2.constants.DataFormatType;
 import thredds.featurecollection.FeatureCollectionConfig;
 import thredds.inventory.CollectionUpdateType;
 import thredds.inventory.MFile;
+import ucar.nc2.Attribute;
 import ucar.nc2.NetcdfFile;
+import ucar.nc2.NetcdfFileSubclass;
+import ucar.nc2.constants.CDM;
 import ucar.nc2.dataset.NetcdfDataset;
-import ucar.nc2.grib.grib1.Grib1SectionProductDefinition;
-import ucar.nc2.grib.grib1.tables.Grib1Customizer;
+import ucar.nc2.grib.GribUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Formatter;
+import java.util.List;
 
 /**
  * Grib1 specific part of GribCollection
@@ -53,28 +56,28 @@ import java.util.Formatter;
  * @author John
  * @since 9/5/11
  */
-public class Grib1Collection extends GribCollection {
+public class Grib1Collection extends GribCollectionImmutable {
 
-  public Grib1Collection(String name, File directory, FeatureCollectionConfig config) {
-    super(name, directory, config, true);
+  Grib1Collection(GribCollectionMutable gc) {
+    super(gc);
   }
 
   @Override
   public ucar.nc2.dataset.NetcdfDataset getNetcdfDataset(Dataset ds, GroupGC group, String filename, FeatureCollectionConfig gribConfig,
                                                          Formatter errlog, org.slf4j.Logger logger) throws IOException {
-    if (filename == null) {  // LOOK thread-safety : sharing this, raf
+    if (filename == null) {
       Grib1Iosp iosp = new Grib1Iosp(group, ds.getType());
-      NetcdfFile ncfile = new NetcdfFileGC(iosp, null, getIndexFilepathInCache(), null);
+      NetcdfFile ncfile = new NetcdfFileSubclass(iosp, null, getLocation(), null);
       return new NetcdfDataset(ncfile);
 
     } else {
       MFile wantFile = findMFileByName(filename);
       if (wantFile != null) {
-        GribCollection gc = GribCdmIndex.openGribCollectionFromDataFile(true, wantFile, CollectionUpdateType.nocheck, gribConfig, errlog, logger);  // LOOK thread-safety : creating ncx
+        GribCollectionImmutable gc = GribCdmIndex.openGribCollectionFromDataFile(true, wantFile, CollectionUpdateType.nocheck, gribConfig, errlog, logger);  // LOOK thread-safety : creating ncx
         if (gc == null) return null;
 
         Grib1Iosp iosp = new Grib1Iosp(gc);
-        NetcdfFile ncfile = new NetcdfFileGC(iosp, null, getIndexFilepathInCache(), null);
+        NetcdfFile ncfile = new NetcdfFileSubclass(iosp, null, getLocation(), null);
         return new NetcdfDataset(ncfile);
       }
       return null;
@@ -84,20 +87,20 @@ public class Grib1Collection extends GribCollection {
   @Override
   public ucar.nc2.dt.grid.GridDataset getGridDataset(Dataset ds, GroupGC group, String filename, FeatureCollectionConfig gribConfig,
                                                      Formatter errlog, org.slf4j.Logger logger) throws IOException {
-    if (filename == null) { // LOOK thread-safety : sharing this, raf
+    if (filename == null) {
       Grib1Iosp iosp = new Grib1Iosp(group, ds.getType());
-      NetcdfFile ncfile = new NetcdfFileGC(iosp, null, getIndexFilepathInCache()+"#"+group.getId(), null);
+      NetcdfFile ncfile = new NetcdfFileSubclass(iosp, null, getLocation()+"#"+group.getId(), null);
       NetcdfDataset ncd = new NetcdfDataset(ncfile);
       return new ucar.nc2.dt.grid.GridDataset(ncd); // LOOK - replace with custom GridDataset??
 
     } else {
       MFile wantFile = findMFileByName(filename);
       if (wantFile != null) {
-        GribCollection gc = GribCdmIndex.openGribCollectionFromDataFile(true, wantFile, CollectionUpdateType.nocheck, gribConfig, errlog, logger);  // LOOK thread-safety : creating ncx
+        GribCollectionImmutable gc = GribCdmIndex.openGribCollectionFromDataFile(true, wantFile, CollectionUpdateType.nocheck, gribConfig, errlog, logger);  // LOOK thread-safety : creating ncx
         if (gc == null) return null;
 
         Grib1Iosp iosp = new Grib1Iosp(gc);
-        NetcdfFile ncfile = new NetcdfFileGC(iosp, null, getIndexFilepathInCache(), null);
+        NetcdfFile ncfile = new NetcdfFileSubclass(iosp, null, getLocation(), null);
         NetcdfDataset ncd = new NetcdfDataset(ncfile);
         return new ucar.nc2.dt.grid.GridDataset(ncd); // LOOK - replace with custom GridDataset??
       }
@@ -105,11 +108,11 @@ public class Grib1Collection extends GribCollection {
     }
   }
 
-  @Override
-  public String makeVariableName(VariableIndex vindex) {
-    Grib1Customizer cust1 = ((Grib1Customizer) cust);
-    Grib1SectionProductDefinition pdss = new Grib1SectionProductDefinition(vindex.rawPds);
-    return Grib1Iosp.makeVariableName(cust1, pdss);
+  protected void addGlobalAttributes(List<Attribute> result) {
+    String val = cust.getGeneratingProcessName(getGenProcessId());
+    if (val != null)
+      result.add(new Attribute(GribUtils.GEN_PROCESS, val));
+    result.add(new Attribute(CDM.FILE_FORMAT, DataFormatType.GRIB1.getDescription()));
   }
 
 

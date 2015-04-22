@@ -36,9 +36,9 @@
 package ucar.nc2.grib.collection;
 
 import thredds.featurecollection.FeatureCollectionConfig;
+import ucar.nc2.time.CalendarDate;
 import ucar.unidata.io.RandomAccessFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
@@ -52,10 +52,21 @@ import java.util.List;
 public class Grib2PartitionBuilderFromIndex extends Grib2CollectionBuilderFromIndex {
 
   // read in the index, index raf already open; return null on failure
-  static public PartitionCollection createTimePartitionFromIndex(String name, RandomAccessFile raf,
-           FeatureCollectionConfig config, boolean dataOnly, org.slf4j.Logger logger) throws IOException {
+  static public Grib2Partition createTimePartitionFromIndex(String name, RandomAccessFile raf,
+           FeatureCollectionConfig config, org.slf4j.Logger logger) throws IOException {
 
-    Grib2PartitionBuilderFromIndex builder = new Grib2PartitionBuilderFromIndex(name, config, dataOnly, logger);
+    Grib2PartitionBuilderFromIndex builder = new Grib2PartitionBuilderFromIndex(name, config, logger);
+    if (builder.readIndex(raf))
+      return new Grib2Partition(builder.pc);
+
+    return null;
+  }
+
+  // read in the index, index raf already open; return null on failure
+  static public PartitionCollectionMutable openMutablePCFromIndex(String name, RandomAccessFile raf,
+           FeatureCollectionConfig config, org.slf4j.Logger logger) throws IOException {
+
+    Grib2PartitionBuilderFromIndex builder = new Grib2PartitionBuilderFromIndex(name, config, logger);
     if (builder.readIndex(raf))
       return builder.pc;
 
@@ -65,11 +76,11 @@ public class Grib2PartitionBuilderFromIndex extends Grib2CollectionBuilderFromIn
   //////////////////////////////////////////////////////////////////////////////////
 
   //private final PartitionManager tpc; // defines the partition
-  private PartitionCollection pc;  // build this object
+  private PartitionCollectionMutable pc;  // build this object
 
-  private Grib2PartitionBuilderFromIndex(String name, FeatureCollectionConfig config, boolean dataOnly, org.slf4j.Logger logger) {
-    super(name, config, dataOnly, logger);
-    this.pc = new Grib2Partition(name, null, config, logger);
+  private Grib2PartitionBuilderFromIndex(String name, FeatureCollectionConfig config, org.slf4j.Logger logger) {
+    super(name, config, logger);
+    this.pc = new PartitionCollectionMutable(name, null, config, false, logger);
     this.gc = pc;
   }
 
@@ -111,21 +122,17 @@ public class Grib2PartitionBuilderFromIndex extends Grib2CollectionBuilderFromIn
     repeated Parameter vparams = 101;    // not used yet
   }
    */
+
   @Override
-  protected GribCollection.VariableIndex readVariableExtensions(GribCollection.GroupGC group, GribCollectionProto.Variable proto, GribCollection.VariableIndex vi) {
+  protected GribCollectionMutable.VariableIndex readVariableExtensions(GribCollectionMutable.GroupGC group, GribCollectionProto.Variable proto, GribCollectionMutable.VariableIndex vi) {
     List<PartitionCollectionProto.PartitionVariable> pvList = proto.getExtension(PartitionCollectionProto.partition);
+    PartitionCollectionMutable.VariableIndexPartitioned vip = pc.makeVariableIndexPartitioned(group, vi, pvList.size());
+    vip.setPartitions(pvList);
 
-    PartitionCollection.VariableIndexPartitioned vip = pc.makeVariableIndexPartitioned(group, vi, pvList.size());
-    /* vip.density = vi.density;   // ??
-    vip.missing = vi.missing;
+    // cant put this in the constructor
     vip.ndups = vi.ndups;
-    vip.nrecords = vi.nrecords;  */
-
-    for (PartitionCollectionProto.PartitionVariable pv : pvList) {
-      vip.addPartition(pv.getPartno(), pv.getGroupno(), pv.getVarno(), pv.getFlag(), pv.getNdups(),
-              pv.getNrecords(), pv.getMissing(), pv.getDensity());
-    }
-
+    vip.nrecords = vi.nrecords;
+    vip.nmissing = vi.nmissing;
     return vip;
   }
 
@@ -137,9 +144,9 @@ message Partition {
   optional uint64 lastModified = 4;
 }
    */
-  private PartitionCollection.Partition makePartition(PartitionCollectionProto.Partition proto) {
-
-    return pc.addPartition(proto.getName(), proto.getFilename(), proto.getLastModified(), proto.getDirectory());
+  private PartitionCollectionMutable.Partition makePartition(PartitionCollectionProto.Partition proto) {
+    CalendarDate partitionDate =  proto.hasPartitionDate() ? CalendarDate.of(proto.getPartitionDate()) : null;
+    return pc.addPartition(proto.getName(), proto.getFilename(), proto.getLastModified(), proto.getLength(), proto.getDirectory(), partitionDate);
   }
 
 }

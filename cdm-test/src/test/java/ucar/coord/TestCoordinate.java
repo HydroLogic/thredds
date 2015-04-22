@@ -1,7 +1,7 @@
 package ucar.coord;
 
+import ucar.nc2.grib.GribLevelType;
 import ucar.nc2.grib.VertCoord;
-import ucar.nc2.grib.grib2.Grib2Utils;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarPeriod;
 import ucar.nc2.util.Indent;
@@ -29,17 +29,17 @@ public class TestCoordinate implements Coordinate {
     CalendarPeriod period = CalendarPeriod.of("1 hour");
     switch (type) {
       case runtime:
-        List<CalendarDate> cd = new ArrayList<>(nvals);
-        for (int i=0; i<nvals; i++) cd.add(CalendarDate.of(null, 1953, 11, i+1, 9, i+1, 0));
+        List<Long> cd = new ArrayList<>(nvals);
+        for (int i=0; i<nvals; i++) cd.add( CalendarDate.of(null, 1953, 11, i+1, 9, i+1, 0).getMillis());
         return new CoordinateRuntime(cd, period);
       case time:
         List<Integer> vals = new ArrayList<>(nvals);
         for (int i=0; i<nvals; i++) vals.add(i);
-        return new CoordinateTime(0, period, null, vals);
+        return new CoordinateTime(0, period, null, vals, null);
       case vert:
         List<VertCoord.Level> vert = new ArrayList<>(nvals);
          for (int i=0; i<nvals; i++) vert.add(new VertCoord.Level((double) (i+1), (double) (i+2), true));
-        return new CoordinateVert(1, Grib2Utils.getLevelUnit(1), vert);
+        return new CoordinateVert(1, new GribLevelType(11, "m", null, true), vert);  // random vert unit
      }
     return null;
   }
@@ -72,6 +72,11 @@ public class TestCoordinate implements Coordinate {
   @Override
   public int getSize() {
     return vals.size();
+  }
+
+  @Override
+  public int estMemorySize() {
+    return 0;
   }
 
   @Override

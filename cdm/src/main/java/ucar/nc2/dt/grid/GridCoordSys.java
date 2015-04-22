@@ -47,6 +47,7 @@ import ucar.unidata.geoloc.projection.VerticalPerspectiveView;
 import ucar.unidata.geoloc.projection.RotatedPole;
 import ucar.unidata.geoloc.projection.RotatedLatLon;
 import ucar.unidata.geoloc.projection.sat.MSGnavigation;
+import ucar.unidata.geoloc.projection.sat.Geostationary;
 import ucar.unidata.geoloc.vertical.*;
 import ucar.ma2.*;
 
@@ -226,12 +227,16 @@ public class GridCoordSys extends CoordinateSystem implements ucar.nc2.dt.GridCo
     CoordinateAxis t = cs.getTaxis();
     CoordinateAxis rt = cs.findAxis(AxisType.RunTime);
 
-    // A runtime axis must be one-dimensional
-    if (rt != null && !(rt instanceof CoordinateAxis1D)) {
-      if (sbuff != null) {
-        sbuff.format("%s: RunTime axis must be 1D%n", cs.getName());
+    // A runtime axis must be scalar or one-dimensional
+    if (rt != null) {
+      if (rt.isScalar()) // for the moment ignore
+        rt = null;
+      else if (!(rt instanceof CoordinateAxis1D)) {
+        if (sbuff != null) {
+          sbuff.format("%s: RunTime axis must be 1D%n", cs.getName());
+        }
+        return false;
       }
-      return false;
     }
 
     // If time axis is two-dimensional...
@@ -426,8 +431,8 @@ public class GridCoordSys extends CoordinateSystem implements ucar.nc2.dt.GridCo
     ensembleAxis = (CoordinateAxis1D) cs.findAxis(AxisType.Ensemble);
     if (null != ensembleAxis) coordAxes.add(ensembleAxis);
 
-    CoordinateAxis1D rtAxis = (CoordinateAxis1D) cs.findAxis(AxisType.RunTime);
-    if (null != rtAxis) {
+    CoordinateAxis rtAxis = cs.findAxis(AxisType.RunTime);
+    if (null != rtAxis && !rtAxis.isScalar()) {
       try {
         if (rtAxis instanceof CoordinateAxis1DTime)
           runTimeAxis = (CoordinateAxis1DTime) rtAxis;
@@ -438,7 +443,7 @@ public class GridCoordSys extends CoordinateSystem implements ucar.nc2.dt.GridCo
 
       } catch (IOException e) {
         if (sbuff != null) {
-          sbuff.format("Error reading runtime coord= %s err= %s%n", t.getFullName(), e.getMessage());
+          sbuff.format("Error reading runtime coord= %s err= %s%n", rtAxis.getFullName(), e.getMessage());
         }
       }
     }
@@ -1174,7 +1179,8 @@ public class GridCoordSys extends CoordinateSystem implements ucar.nc2.dt.GridCo
     double minx, maxx, miny, maxy;
 
     ProjectionImpl proj = getProjection();
-    if (proj != null && !(proj instanceof VerticalPerspectiveView) && !(proj instanceof MSGnavigation)) { // LOOK kludge - how to do this generrally ??
+    if (proj != null && !(proj instanceof VerticalPerspectiveView) && !(proj instanceof MSGnavigation)
+         && !(proj instanceof Geostationary)) { // LOOK kludge - how to do this generrally ??
       // first clip the request rectangle to the bounding box of the grid
       LatLonRect bb = getLatLonBoundingBox();
       LatLonRect rect2 = bb.intersect(rect);
@@ -1342,41 +1348,41 @@ public class GridCoordSys extends CoordinateSystem implements ucar.nc2.dt.GridCo
 
   @Override
   public void show(Formatter f, boolean showCoords) {
-    f.format("Coordinate System (%s)%n%n", getName());
+    f.format("Coordinate System (%s)%n", getName());
 
     if (getRunTimeAxis() != null) {
-      f.format("rt=%s (%s)", runTimeAxis.getFullName(), runTimeAxis.getClass().getName());
+      f.format(" rt=%s (%s)", runTimeAxis.getNameAndDimensions(), runTimeAxis.getClass().getName());
       if (showCoords) showCoords(runTimeAxis, f);
       f.format("%n");
     }
     if (getEnsembleAxis() != null) {
-      f.format("ens=%s (%s)", ensembleAxis.getFullName(), ensembleAxis.getClass().getName());
+      f.format(" ens=%s (%s)", ensembleAxis.getNameAndDimensions(), ensembleAxis.getClass().getName());
       if (showCoords) showCoords(ensembleAxis, f);
       f.format("%n");
     }
     if (getTimeAxis() != null) {
-      f.format("t=%s (%s)", tAxis.getFullName(), tAxis.getClass().getName());
+      f.format(" t=%s (%s)", tAxis.getNameAndDimensions(), tAxis.getClass().getName());
       if (showCoords) showCoords(tAxis, f);
       f.format("%n");
     }
     if (getVerticalAxis() != null) {
-      f.format("z=%s (%s)", vertZaxis.getFullName(), vertZaxis.getClass().getName());
+      f.format(" z=%s (%s)", vertZaxis.getNameAndDimensions(), vertZaxis.getClass().getName());
       if (showCoords) showCoords(vertZaxis, f);
       f.format("%n");
     }
     if (getYHorizAxis() != null) {
-      f.format("y=%s (%s)", horizYaxis.getFullName(), horizYaxis.getClass().getName());
+      f.format(" y=%s (%s)", horizYaxis.getNameAndDimensions(), horizYaxis.getClass().getName());
       if (showCoords) showCoords(horizYaxis, f);
       f.format("%n");
     }
     if (getXHorizAxis() != null) {
-      f.format("x=%s (%s)", horizXaxis.getFullName(), horizXaxis.getClass().getName());
+      f.format(" x=%s (%s)", horizXaxis.getNameAndDimensions(), horizXaxis.getClass().getName());
       if (showCoords) showCoords(horizXaxis, f);
       f.format("%n");
     }
 
     if (proj != null)
-      f.format("  Projection: %s %s%n", proj.getName(), proj.paramsToString());
+      f.format(" Projection: %s %s%n", proj.getName(), proj.paramsToString());
   }
 
   private void showCoords(CoordinateAxis axis, Formatter f) {
@@ -1439,6 +1445,7 @@ public class GridCoordSys extends CoordinateSystem implements ucar.nc2.dt.GridCo
     List<CalendarDate> runtimes = rtaxis.getCalendarDates();
     for (int i = 0; i < runtimes.size(); i++) {
       CoordinateAxis1DTime taxis = getTimeAxisForRun(i);
+      if (taxis == null) throw new IllegalStateException();
       List<CalendarDate> times = taxis.getCalendarDates();
       for (CalendarDate time : times) dates.add(time);
     }

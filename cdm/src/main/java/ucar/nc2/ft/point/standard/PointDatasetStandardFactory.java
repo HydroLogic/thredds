@@ -114,7 +114,6 @@ public class PointDatasetStandardFactory implements FeatureDatasetFactory {
     if (analyser == null)
       return null;
 
-    errlog.format("%s%n", analyser.getErrlog());
     if (!analyser.featureTypeOk(wantFeatureType, errlog)) {
       return null;
     }
@@ -129,7 +128,7 @@ public class PointDatasetStandardFactory implements FeatureDatasetFactory {
     return new PointDatasetStandard(wantFeatureType, (TableAnalyzer) analyser, ncd, errlog);
   }
 
-  public FeatureType[] getFeatureType() {
+  public FeatureType[] getFeatureTypes() {
     return new FeatureType[]{FeatureType.ANY_POINT};
   }
 

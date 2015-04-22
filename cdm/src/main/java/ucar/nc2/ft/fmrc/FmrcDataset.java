@@ -1,51 +1,42 @@
 /*
- * Copyright (c) 1998 - 2010. University Corporation for Atmospheric Research/Unidata
- * Portions of this software were developed by the Unidata Program at the
- * University Corporation for Atmospheric Research.
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- * Access and use of this software shall impose the following obligations
- * and understandings on the user. The user is granted the right, without
- * any fee or cost, to use, copy, modify, alter, enhance and distribute
- * this software, and any derivative works thereof, and its supporting
- * documentation for any purpose whatsoever, provided that this entire
- * notice appears in all copies of the software, derivative works and
- * supporting documentation.  Further, UCAR requests that the user credit
- * UCAR/Unidata in any publications that result from the use of this
- * software or in any product that includes this software. The names UCAR
- * and/or Unidata, however, may not be used in any advertising or publicity
- * to endorse or promote any products or commercial entity unless specific
- * written permission is obtained from UCAR/Unidata. The user also
- * understands that UCAR/Unidata is not obligated to provide the user with
- * any support, consulting, training or assistance of any kind with regard
- * to the use, operation and performance of this software nor to provide
- * the user with any updates, revisions, new versions or "bug fixes."
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
- * THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- * WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 package ucar.nc2.ft.fmrc;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Formatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 import net.jcip.annotations.ThreadSafe;
-
-import org.joda.time.Chronology;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import thredds.featurecollection.FeatureCollectionConfig;
 import ucar.ma2.Array;
@@ -68,21 +59,11 @@ import ucar.nc2.constants.CDM;
 import ucar.nc2.constants.CF;
 import ucar.nc2.constants.FeatureType;
 import ucar.nc2.constants._Coordinate;
-import ucar.nc2.dataset.CoordSysBuilderIF;
-import ucar.nc2.dataset.CoordinateAxis;
-import ucar.nc2.dataset.CoordinateSystem;
-import ucar.nc2.dataset.CoordinateTransform;
-import ucar.nc2.dataset.DatasetConstructor;
-import ucar.nc2.dataset.NetcdfDataset;
-import ucar.nc2.dataset.StructureDS;
-import ucar.nc2.dataset.TransformType;
-import ucar.nc2.dataset.VariableDS;
-import ucar.nc2.dataset.VariableEnhanced;
+import ucar.nc2.dataset.*;
 import ucar.nc2.dt.GridCoordSystem;
 import ucar.nc2.dt.GridDatatype;
 import ucar.nc2.dt.grid.GridDataset;
 import ucar.nc2.ncml.NcMLReader;
-import ucar.nc2.time.Calendar;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarDateRange;
 import ucar.nc2.util.CancelTask;
@@ -113,7 +94,7 @@ class FmrcDataset {
   //private List<String> protoList; // the list of datasets in the proto that have proxy reader, so these need to exist. not implemented yet
 
   // allow to build a new state while old state can still be safely used
-  private class State {
+  private static class State {
     NetcdfDataset proto; // once built, the proto doesnt change until setInventory is called with forceProto = true
     FmrcInvLite lite; // lightweight version of the FmrcInv
 
@@ -308,7 +289,7 @@ class FmrcDataset {
     }
     FmrInv proto = list.get(protoIdx); // use this one
 
-    HashMap<String, NetcdfDataset> openFilesProto = new HashMap<String, NetcdfDataset>();
+    Map<String, NetcdfDataset> openFilesProto = new HashMap<>();
 
     try {
       // create the union of all objects in that run
@@ -318,13 +299,18 @@ class FmrcDataset {
         logger.debug("FmrcDataset: proto= " + proto.getName() + " " + proto.getRunDate() + " collection= " + fmrcInv.getName());
       for (GridDatasetInv file : files) {
         NetcdfDataset ncfile = open(file.getLocation(), openFilesProto);
-        transferGroup(ncfile.getRootGroup(), result.getRootGroup(), result);
+        if (ncfile != null)
+          transferGroup(ncfile.getRootGroup(), result.getRootGroup(), result);
+        else
+          logger.warn("Failed to open "+file.getLocation());
         if (logger.isDebugEnabled()) logger.debug("FmrcDataset: proto dataset= " + file.getLocation());
       }
 
       // some additional global attributes
       Group root = result.getRootGroup();
-      root.addAttribute(new Attribute(CDM.CONVENTIONS, "CF-1.4, " + _Coordinate.Convention));
+      Attribute orgConv =  root.findAttributeIgnoreCase(CDM.CONVENTIONS);
+      String convAtt = CoordSysBuilder.buildConventionAttribute("CF-1.4", (orgConv == null ? null : orgConv.getStringValue()));
+      root.addAttribute(new Attribute(CDM.CONVENTIONS, convAtt));
       root.addAttribute(new Attribute("cdm_data_type", FeatureType.GRID.toString()));
       root.addAttribute(new Attribute(CF.FEATURE_TYPE, FeatureType.GRID.toString()));
       root.addAttribute(new Attribute("location", "Proto "+fmrcInv.getName()));
@@ -334,7 +320,7 @@ class FmrcDataset {
 
       // protoList = new ArrayList<String>();
       // these are the non-agg variables - store data or ProxyReader in proto
-      List<Variable> copyList = new ArrayList<Variable>(root.getVariables()); // use copy since we may be removing some variables
+      List<Variable> copyList = new ArrayList<>(root.getVariables()); // use copy since we may be removing some variables
       for (Variable v : copyList) {
         // see if its a non-agg variable
         FmrcInv.UberGrid grid = fmrcInv.findUberGrid(v.getFullName());
@@ -417,7 +403,7 @@ class FmrcDataset {
 
       // more troublesome attributes, use pure CF
       for (Variable v : result.getVariables()) {
-        Attribute att = null;
+        Attribute att;
         if (null != (att = v.findAttribute(_Coordinate.Axes)))
            v.remove(att);
         if (null != (att = v.findAttribute(_Coordinate.Systems)))
@@ -666,21 +652,9 @@ class FmrcDataset {
     CoordinateSystem replace = result.findCoordinateSystem(protoCs.getName());
     if (replace != null) return replace;
 
-    List<CoordinateAxis> axes = new ArrayList<CoordinateAxis>();
+    List<CoordinateAxis> axes = new ArrayList<>();
     for (CoordinateAxis axis : protoCs.getCoordinateAxes()) {
-      Variable v = result.findCoordinateAxis(axis.getFullNameEscaped());
-      CoordinateAxis ra;
-      if (v instanceof CoordinateAxis)
-        ra = (CoordinateAxis) v;
-      else {
-        // if not a CoordinateAxis, will turn into one
-        ra = result.addCoordinateAxis((VariableDS) v);
-
-        if (axis.getAxisType() != null) {
-          ra.setAxisType(axis.getAxisType());
-          ra.addAttribute(new Attribute(_Coordinate.AxisType, axis.getAxisType().toString()));
-        }
-      }
+      CoordinateAxis ra = result.findCoordinateAxis(axis.getFullNameEscaped());
       axes.add(ra);
     }
 
@@ -804,7 +778,7 @@ class FmrcDataset {
       List<Range> innerSection = ranges.subList(2, ranges.size());
 
       // keep track of open file - must be local variable for thread safety
-      HashMap<String, NetcdfDataset> openFilesRead = new HashMap<String, NetcdfDataset>();
+      HashMap<String, NetcdfDataset> openFilesRead = new HashMap<>();
       try {
 
         // iterate over the desired runs
@@ -958,8 +932,10 @@ class FmrcDataset {
       }
     }
 
-    CoordSysBuilderIF builder = result.enhance();
-    if (debugEnhance) System.out.printf("GridDataset1D parseInfo = %s%n", builder.getParseInfo());
+    if (debugEnhance) {
+      CoordSysBuilderIF builder = result.enhance();
+      System.out.printf("GridDataset1D parseInfo = %s%n", builder.getParseInfo());
+    }
 
     return new ucar.nc2.dt.grid.GridDataset(result);
   }
@@ -1048,7 +1024,7 @@ class FmrcDataset {
     return timeVar;
   }
 
-  private class Vstate1D {
+  private static class Vstate1D {
     FmrcInvLite.Gridset.Grid gridLite;
     TimeInventory timeInv;
 
@@ -1087,7 +1063,7 @@ class FmrcDataset {
      List<Range> innerSection = ranges.subList(1, ranges.size());
 
        // keep track of open files - must be local variable for thread safety
-      HashMap<String, NetcdfDataset> openFilesRead = new HashMap<String, NetcdfDataset>();
+      HashMap<String, NetcdfDataset> openFilesRead = new HashMap<>();
 
       try {
 
@@ -1213,26 +1189,21 @@ class FmrcDataset {
    * @param openFiles keep track of open files
    * @return file or null if not found
    */
-  private NetcdfDataset open(String location, HashMap<String, NetcdfDataset> openFiles)  { // } throws IOException {
-    NetcdfDataset ncd = null;
+  private NetcdfDataset open(String location, Map<String, NetcdfDataset> openFiles)  throws IOException {
+    NetcdfDataset ncd;
 
     if (openFiles != null) {
       ncd = openFiles.get(location);
       if (ncd != null) return ncd;
     }
 
-    try {
-      if (config.innerNcml == null) {
-        ncd = NetcdfDataset.acquireDataset(location, null);  // default enhance
+    if (config.innerNcml == null) {
+      ncd = NetcdfDataset.acquireDataset(location, null);  // default enhance
 
-      } else {
-        NetcdfFile nc = NetcdfDataset.acquireFile(location, null);
-        ncd = NcMLReader.mergeNcML(nc, config.innerNcml); // create new dataset
-        ncd.enhance(); // now that the ncml is added, enhance "in place", ie modify the NetcdfDataset
-      }
-    } catch (IOException ioe) {
-      logger.error("Cant open file ", ioe);  // file was deleted ??
-      return null;
+    } else {
+      NetcdfFile nc = NetcdfDataset.acquireFile(location, null);
+      ncd = NcMLReader.mergeNcML(nc, config.innerNcml); // create new dataset
+      ncd.enhance(); // now that the ncml is added, enhance "in place", ie modify the NetcdfDataset
     }
 
     if (openFiles != null && ncd != null) {
@@ -1270,10 +1241,9 @@ class FmrcDataset {
     return ds;
   } */
 
-  private void closeAll(HashMap<String, NetcdfDataset> openFiles) throws IOException {
-    for (NetcdfDataset ncfile : openFiles.values()) {
+  private void closeAll(Map<String, NetcdfDataset> openFiles) throws IOException {
+    for (NetcdfDataset ncfile : openFiles.values())
       ncfile.close();
-    }
     openFiles.clear();
   }
 
@@ -1289,26 +1259,18 @@ class FmrcDataset {
     }
 
     public Array reallyRead(Variable client, CancelTask cancelTask) throws IOException {
-      NetcdfFile ncfile = null;
-      try {
-        ncfile = open(location, null);
+      try (NetcdfFile ncfile= open(location, null)) {
         if ((cancelTask != null) && cancelTask.isCancel()) return null;
         Variable proxyV = findVariable(ncfile, client);
         return proxyV.read();
-      } finally {
-        ncfile.close();
       }
     }
 
     public Array reallyRead(Variable client, Section section, CancelTask cancelTask) throws IOException, InvalidRangeException {
-      NetcdfFile ncfile = null;
-      try {
-        ncfile = open(location, null);
+      try (NetcdfFile ncfile = open(location, null)) {
         Variable proxyV = findVariable(ncfile, client);
         if ((cancelTask != null) && cancelTask.isCancel()) return null;
         return proxyV.read(section);
-      } finally {
-        ncfile.close();
       }
     }
   }

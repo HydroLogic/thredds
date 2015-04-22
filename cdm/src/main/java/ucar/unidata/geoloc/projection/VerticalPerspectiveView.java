@@ -419,7 +419,7 @@ public class VerticalPerspectiveView extends ProjectionImpl {
         temp = rho * cosLat0 * Math.cos(c)
                 - fromY * sinLat0 * Math.sin(c);
         toLon = lon0 + Math.atan(fromX * Math.sin(c) / temp);
-      } else if (lat0 == PI_OVER_4) {
+      } else if (Double.compare(lat0, PI_OVER_4) == 0) {
         toLon = lon0 + Math.atan(fromX / -fromY);
         temp = -fromY;
       } else {
@@ -533,7 +533,7 @@ public class VerticalPerspectiveView extends ProjectionImpl {
           temp = rho * cosLat0 * Math.cos(c)
                   - fromY * sinLat0 * Math.sin(c);
           toLon = lon0 + Math.atan(fromX * Math.sin(c) / temp);
-        } else if (lat0 == PI_OVER_4) {
+        } else if (Double.compare(lat0, PI_OVER_4) == 0) {
           toLon = lon0 + Math.atan(fromX / -fromY);
           temp = -fromY;
         } else {
@@ -648,7 +648,7 @@ public class VerticalPerspectiveView extends ProjectionImpl {
           temp = rho * cosLat0 * Math.cos(c)
                   - fromY * sinLat0 * Math.sin(c);
           toLon = lon0 + Math.atan(fromX * Math.sin(c) / temp);
-        } else if (lat0 == PI_OVER_4) {
+        } else if (Double.compare(lat0, PI_OVER_4) == 0) {
           toLon = lon0 + Math.atan(fromX / -fromY);
           temp = -fromY;
         } else {
@@ -690,7 +690,7 @@ public class VerticalPerspectiveView extends ProjectionImpl {
     double radius = 6371.0;
 
     VerticalPerspectiveView a = new VerticalPerspectiveView(0, 0, radius, 5.62 * radius);
-    ProjectionPointImpl p = a.latLonToProj(lat, lon);
+    ProjectionPoint p = a.latLonToProj(lat, lon);
     System.out.println("-----\nproj point = " + p);
     System.out.println("x/r = " + p.getX() / radius); // see snyder p 174
     System.out.println("y/r = " + p.getY() / radius);

@@ -317,6 +317,7 @@ public class DConnect2
             command.process(is);
 
         } catch (Exception e) {
+            Util.check(e);
             e.printStackTrace();
             throw new DAP2Exception(e);
 
@@ -335,7 +336,7 @@ public class DConnect2
                 {
                     public void process(InputStream is) throws IOException
                     {
-                        String buffer = captureStream(is);
+                        captureStream(is);
                     }
                 });
             }
@@ -519,8 +520,10 @@ public class DConnect2
         if(filePath != null) { // url was file:
             File daspath = new File(filePath + ".das");
             // See if the das file exists
-            if(daspath.canRead()) {
-                command.process(new FileInputStream(daspath));
+            if (daspath.canRead()) {
+              try (FileInputStream is = new FileInputStream(daspath) ) {
+                command.process(is);
+              }
             }
         } else if(stream != null) {
             command.process(stream);
@@ -535,7 +538,7 @@ public class DConnect2
         return command.das;
     }
 
-    private class DASCommand implements Command
+    static private class DASCommand implements Command
     {
         DAS das = new DAS();
 
@@ -582,8 +585,10 @@ public class DConnect2
     {
         DDSCommand command = new DDSCommand();
         command.setURL(CE == null || CE.length() == 0 ? urlString : urlString + "?" + CE);
-        if(filePath != null) {
-            command.process(new FileInputStream(filePath + ".dds"));
+        if (filePath != null) {
+          try (FileInputStream is = new FileInputStream(filePath + ".dds") ) {
+            command.process(is);
+          }
         } else if(stream != null) {
             command.process(stream);
         } else { // must be a remote url
@@ -592,7 +597,7 @@ public class DConnect2
         return command.dds;
     }
 
-    private class DDSCommand implements Command
+    static private class DDSCommand implements Command
     {
         DDS dds = new DDS();
         String url = null;
@@ -623,13 +628,17 @@ public class DConnect2
     {
         String localProjString = null;
         String localSelString = null;
+        if(CE == null)
+            return "";
         //remove any leading '?'
         if(CE.startsWith("?")) CE = CE.substring(1);
         int selIndex = CE.indexOf('&');
         if(selIndex == 0) {
             localProjString = "";
+            localSelString = CE;
         } else if(selIndex > 0) {
             localSelString = CE.substring(selIndex);
+            localProjString = CE.substring(0,selIndex);
         } else {// selIndex < 0
             localProjString = CE;
             localSelString = "";
@@ -714,7 +723,7 @@ public class DConnect2
         return command.dds;
     }
 
-    private class DDXCommand implements Command
+    static private class DDXCommand implements Command
     {
         DDS dds = new DDS();
 
@@ -796,16 +805,16 @@ public class DConnect2
             ParseException, DDSException, DAP2Exception
     {
 
-        DataDDXCommand command = new DataDDXCommand(btf);
+        DataDDXCommand command = new DataDDXCommand(btf,this.ver);
         openConnection(urlString + ".ddx" + (getCompleteCE(CE)), command);
         return command.dds;
     }
 
-    private class DataDDXCommand implements Command
+    static private class DataDDXCommand implements Command
     {
         DataDDS dds;
 
-        DataDDXCommand(BaseTypeFactory btf)
+        DataDDXCommand(BaseTypeFactory btf,ServerVersion ver)
         {
             dds = new DataDDS(ver, btf);
         }
@@ -849,30 +858,33 @@ public class DConnect2
     public DataDDS getData(String CE, StatusUI statusUI, BaseTypeFactory btf) throws MalformedURLException, IOException,
             ParseException, DDSException, DAP2Exception
     {
-
+        if(CE != null && CE.trim().length() == 0) CE = null;
         DataDDS dds = new DataDDS(ver, btf);
         DataDDSCommand command = new DataDDSCommand(dds, statusUI);
-        command.setURL(urlString + "?" + CE);
+        command.setURL(urlString + (CE == null ? "" : "?" + CE));
         if(filePath != null) { // url is file:
             File dodspath = new File(filePath + ".dods");
             // See if the dods file exists
             if(dodspath.canRead()) {
       /* WARNING: any constraints are ignored in reading the file */
-                command.process(new FileInputStream(dodspath));
+              try (FileInputStream is = new FileInputStream(dodspath) ) {
+                command.process(is);
+              }
             }
         } else if(stream != null) {
             command.process(stream);
         } else {
-            String urls = urlString + ".dods" + (getCompleteCE(CE));
+            String urls = urlString + ".dods" + (CE == null ? "" : getCompleteCE(CE));
             openConnection(urls, command);
         }
         return command.dds;
     }
 
-    private class DataDDSCommand implements Command
+    static private class DataDDSCommand implements Command
     {
         DataDDS dds = null;
         StatusUI statusUI;
+        //Coverity[FB.URF_UNREAD_FIELD]
         String url = null;
 
         DataDDSCommand(DataDDS dds, StatusUI statusUI)

@@ -1,15 +1,16 @@
 package thredds.tds.idd;
 
-import org.junit.runners.Parameterized;
-import org.junit.runner.RunWith;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import thredds.client.catalog.Catalog;
+import thredds.tds.ethan.TestAll;
+import ucar.unidata.test.util.NotTravis;
 
 import java.util.Collection;
 
-import thredds.tds.ethan.TestAll;
-import thredds.catalog.InvCatalogImpl;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Ping a TDS assuming an IDD setup.
@@ -17,6 +18,7 @@ import static org.junit.Assert.*;
  * @author edavis
  * @since 4.0
  */
+@Category(NotTravis.class)
 @RunWith(Parameterized.class)
 public class PingMotherlodeTdsTest
 {
@@ -44,7 +46,7 @@ public class PingMotherlodeTdsTest
     StringBuilder msgLog = new StringBuilder();
 
     String url = this.tdsUrl + this.catUrl;
-    InvCatalogImpl cat = TestAll.openValidateAndCheckExpires( url, msgLog );
+    Catalog cat = TestAll.openValidateAndCheckExpires( url, msgLog );
 
     assertNotNull( "Catalog [" + url + "] failed to open, failed to validate, or was expired: " + msgLog, cat);
   }

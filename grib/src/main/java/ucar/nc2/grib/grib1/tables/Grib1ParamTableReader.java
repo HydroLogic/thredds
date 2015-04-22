@@ -37,13 +37,15 @@ import org.jdom2.Element;
 import org.jdom2.JDOMException;
 import org.jdom2.Namespace;
 import org.jdom2.input.SAXBuilder;
+import thredds.client.catalog.Catalog;
+import ucar.nc2.constants.CDM;
 import ucar.nc2.grib.GribResourceReader;
 import ucar.nc2.grib.grib1.*;
 import ucar.nc2.ncml.NcMLReader;
-import ucar.nc2.wmo.Util;
 import ucar.unidata.util.StringUtil2;
 
 import java.io.*;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +81,7 @@ public class Grib1ParamTableReader {
   public Grib1ParamTableReader(String path) throws IOException {
     this.path = StringUtil2.replace(path, "\\", "/");
     File f = new File(path);
-    this.name =  f.getName();
+    this.name = f.getName();
     this.parameters = readParameterTable();
   }
 
@@ -96,9 +98,9 @@ public class Grib1ParamTableReader {
     this.center_id = center_id;
     this.subcenter_id = subcenter_id;
     this.version = version;
-    this.path =  path;
+    this.path = StringUtil2.replace(path, "\\", "/");
     File f = new File(path);
-    this.name =  f.getName();
+    this.name = f.getName();
   }
 
   /**
@@ -109,7 +111,7 @@ public class Grib1ParamTableReader {
    */
   public Grib1ParamTableReader(org.jdom2.Element paramTableElem) throws IOException {
     this.name = paramTableElem.getChildText("title");
-    DssParser p = new DssParser(NcMLReader.ncNS);
+    DssParser p = new DssParser(Catalog.ncmlNS);
     this.parameters = p.parseXml(paramTableElem);
   }
 
@@ -161,8 +163,7 @@ public class Grib1ParamTableReader {
     if (parameters == null)
       readParameterTable();
 
-    Grib1Parameter p = parameters.get(id);
-    return p;
+    return parameters.get(id);
   }
 
   /**
@@ -196,7 +197,7 @@ public class Grib1ParamTableReader {
       readParameterTableEcmwf(); // ecmwf
     else if (name.startsWith("US058"))
       readParameterTableXml(new FnmocParser());// FNMOC
-     else if (name.endsWith(".tab"))
+    else if (name.endsWith(".tab"))
       readParameterTableTab();                               // wgrib format
     else if (name.endsWith(".wrf"))
       readParameterTableSplit("\\|", new int[]{0, 3, 1, 2}); // WRF AMPS
@@ -207,7 +208,7 @@ public class Grib1ParamTableReader {
     else if (name.endsWith(".xml"))
       readParameterTableXml(new DssParser(Namespace.NO_NAMESPACE));// NCAR DSS XML format
     else if (name.startsWith("2.98"))
-        readParameterTableEcmwfGribApi(); // ecmwf from grib api package
+      readParameterTableEcmwfGribApi(); // ecmwf from grib api package
     else
       logger.warn("Dont know how to read " + name + " file=" + path);
     return parameters;
@@ -236,13 +237,12 @@ TBLE2 cptec_254_params[] = {
   private boolean readParameterTableNcl() {
     HashMap<Integer, Grib1Parameter> result = new HashMap<>();
 
-    try (InputStream is =  GribResourceReader.getInputStream(path)) {
+    try (InputStream is = GribResourceReader.getInputStream(path)) {
       if (is == null) return false;
 
-      BufferedReader br = new BufferedReader(new InputStreamReader(is));
+      BufferedReader br = new BufferedReader(new InputStreamReader(is, CDM.UTF8));
 
       // Ignore header
-      int count = 0;
       while (true) {
         String line = br.readLine();
         if (line == null) break; // done with the file
@@ -254,7 +254,6 @@ TBLE2 cptec_254_params[] = {
           subcenter_id = extract(line, "Subcenter:");
         else if (line.contains("version:"))
           version = extract(line, "version:");
-        count++;
       }
 
       while (true) {
@@ -277,7 +276,7 @@ TBLE2 cptec_254_params[] = {
         if (debug) System.out.printf(" %s%n", parameter);
       }
 
-      parameters = result; // all at once - thread safe
+      parameters =  Collections.unmodifiableMap(result);  // all at once - thread safe
       return true;
 
     } catch (IOException ioError) {
@@ -338,16 +337,21 @@ TBLE2 cptec_254_params[] = {
   private boolean readParameterTableEcmwf() {
     HashMap<Integer, Grib1Parameter> result = new HashMap<>();
 
-    try (InputStream is =  GribResourceReader.getInputStream(path)) {
+    try (InputStream is = GribResourceReader.getInputStream(path)) {
       if (is == null) {
-        logger.error("Cant open "+path);
+        logger.error("Cant open " + path);
         return false;
       }
 
-      BufferedReader br = new BufferedReader(new InputStreamReader(is));
+      BufferedReader br = new BufferedReader(new InputStreamReader(is, CDM.UTF8));
       String line = br.readLine();
+      if (line == null) {
+        logger.error("File is empty " + path);
+        return false;
+      }
       if (!line.startsWith("...")) name = line; // maybe ??
-      while (!line.startsWith("..."))
+
+      while (line != null && !line.startsWith("..."))
         line = br.readLine(); // skip
 
       while (true) {
@@ -369,7 +373,6 @@ TBLE2 cptec_254_params[] = {
         // optional notes
         line = br.readLine();
         String notes = (line == null || line.startsWith("...")) ? null : line.trim();
-
         if (desc != null && desc.equalsIgnoreCase("undefined")) continue; // skip
 
         int p1;
@@ -381,10 +384,10 @@ TBLE2 cptec_254_params[] = {
         }
         Grib1Parameter parameter = new Grib1Parameter(this, p1, name, desc, units1);
         result.put(parameter.getNumber(), parameter);
-        if (debug) System.out.printf(" %s%n", parameter);
+        if (debug) System.out.printf(" %s (%s)%n", parameter, notes);
       }
 
-      parameters = result; // all at once - thread safe
+      parameters =  Collections.unmodifiableMap(result);  // all at once - thread safe
       return true;
 
     } catch (IOException ioError) {
@@ -395,102 +398,106 @@ TBLE2 cptec_254_params[] = {
 
   }
 
-/**
- * This method will read in ECMWF grib1 tables. Note that these tables
- * are generated locally by Unidata, and come directly from the ECMWF GRIB-API
- * package localConcepts files. They are generated by:
- *
- * ucar.nc2.grib.grib1.tables.EcmwfLocalConcepts
- *
- * The original localConcepts files are located in:
- *
- * grib/src/main/sources/ecmwfGribApi/
- *
- * Since we write the table file that are ultimately read by CDM, the
- * format is controled and is the following:
- *
- * paramNum shortName [description] (units)
- *
- * for example,
- *
- * 251 atte [Adiabatic tendency of temperature] (K)
- *
- */
+  /**
+   * This method will read in ECMWF grib1 tables. Note that these tables
+   * are generated locally by Unidata, and come directly from the ECMWF GRIB-API
+   * package localConcepts files. They are generated by:
+   * <p/>
+   * ucar.nc2.grib.grib1.tables.EcmwfLocalConcepts
+   * <p/>
+   * The original localConcepts files are located in:
+   * <p/>
+   * grib/src/main/sources/ecmwfGribApi/
+   * <p/>
+   * Since we write the table file that are ultimately read by CDM, the
+   * format is controled and is the following:
+   * <p/>
+   * paramNum shortName [description] (units)
+   * <p/>
+   * for example,
+   * <p/>
+   * 251 atte [Adiabatic tendency of temperature] (K)
+   */
   private boolean readParameterTableEcmwfGribApi() {
-      HashMap<Integer, Grib1Parameter> result = new HashMap<>();
+    HashMap<Integer, Grib1Parameter> result = new HashMap<>();
 
-    try (InputStream is =  GribResourceReader.getInputStream(path)) {
+    try (InputStream is = GribResourceReader.getInputStream(path)) {
 
-          if (is == null) {
-              logger.error("Cant open " + path);
-              return false;
-          }
-
-          BufferedReader br = new BufferedReader(new InputStreamReader(is));
-          String line = br.readLine();
-
-          // create table name from file name
-          String[] splitPath = path.split("/");
-          String tableNum = splitPath[splitPath.length -1 ].replace(".table", "");
-          name = "ECMWF GRIB API TABLE " + tableNum;
-
-          // skip header
-          while (!line.startsWith("#"))
-              line = br.readLine(); // skip
-
-          // keep going until the end of the file is reached (line == null)
-          while (true) {
-              // exmaple: 251 atte [Adiabatic tendency of temperature] (K)
-              line = br.readLine();
-              if (line == null) break; // done with the file
-              if ((line.length() == 0) || line.startsWith("#")) continue;
-
-              // get unit - (K)
-              String[] tmpUnitArray = line.split("\\(");
-              String tmpUnit = tmpUnitArray[tmpUnitArray.length - 1];
-              int lastUnitIndex = tmpUnit.lastIndexOf(")");
-              String unit = "";
-              if (lastUnitIndex > 0) {
-                  unit = tmpUnit.substring(0, lastUnitIndex).trim();
-              }
-              unit = Util.cleanUnit(unit); // fixes some common unit mistakes
-
-              // get parameter number - 251
-              String[] lineArray = line.trim().split("\\s+"); // all and any white space
-              String num = lineArray[0];
-
-              // get shortName - atte
-              String name = lineArray[1].trim();
-              //if (name.equals("~")) {}; - todo create name from long name(?)
-
-              // get description. bracketed by [] - [Adiabatic Tendency of temperature]
-              int startDesc = line.indexOf("[");
-              int endDesc = line.indexOf("]");
-              String desc = line.substring(startDesc, endDesc).trim();
-
-              // stuff information into a Grib1Parameter object
-              int p1;
-              try {
-                  p1 = Integer.parseInt(num);
-              } catch (Exception e) {
-                  logger.warn("Cant parse " + num + " in file " + path);
-                  continue;
-              }
-              Grib1Parameter parameter = new Grib1Parameter(this, p1, name, desc, unit);
-              result.put(parameter.getNumber(), parameter);
-              if (debug) System.out.printf(" %s%n", parameter);
-          }
-          parameters = result; // all at once - thread safe
-          return true;
-      } catch (IOException ioError) {
-          logger.warn("An error occurred in Grib1ParamTable while trying to open the parameter table for "
-                  + path + " : " + ioError);
-          return false;
+      if (is == null) {
+        logger.error("Cant open " + path);
+        return false;
       }
+
+      BufferedReader br = new BufferedReader(new InputStreamReader(is, CDM.UTF8));
+      String line = br.readLine();
+      if (line == null) {
+        logger.error("File is empty " + path);
+        return false;
+      }
+      // create table name from file name
+      String[] splitPath = path.split("/");
+      String tableNum = splitPath[splitPath.length - 1].replace(".table", "");
+      name = "ECMWF GRIB API TABLE " + tableNum;
+
+      // skip header
+      while (line != null && !line.startsWith("#"))
+        line = br.readLine(); // skip
+
+      // keep going until the end of the file is reached (line == null)
+      while (true) {
+        // exmaple: 251 atte [Adiabatic tendency of temperature] (K)
+        line = br.readLine();
+        if (line == null) break; // done with the file
+        if ((line.length() == 0) || line.startsWith("#")) continue;
+
+
+        // get unit - (K)
+        String[] tmpUnitArray = line.split("\\(");
+        String tmpUnit = tmpUnitArray[tmpUnitArray.length - 1];
+        int lastUnitIndex;
+        while ((lastUnitIndex = tmpUnit.lastIndexOf(")")) > 0) {
+          tmpUnit = tmpUnit.substring(0, lastUnitIndex).trim();
+        }
+        String unit = tmpUnit.trim();
+        // unit = Util.cleanUnit(unit); // fixes some common unit mistakes  // jcaron - just use unit as it is
+
+        // get parameter number - 251
+        String[] lineArray = line.trim().split("\\s+"); // all and any white space
+        String num = lineArray[0];
+
+        // get shortName - atte
+        String name = lineArray[1].trim();
+        //if (name.equals("~")) {}; - todo create name from long name(?)
+
+        // get description. bracketed by [] - [Adiabatic Tendency of temperature]
+        int startDesc = line.indexOf("[");
+        int endDesc = line.indexOf("]");
+        String desc = line.substring(startDesc, endDesc).trim();
+
+        // stuff information into a Grib1Parameter object
+        int p1;
+        try {
+          p1 = Integer.parseInt(num);
+        } catch (Exception e) {
+          logger.warn("Cant parse " + num + " in file " + path);
+          continue;
+        }
+        Grib1Parameter parameter = new Grib1Parameter(this, p1, name, desc, unit);
+        result.put(parameter.getNumber(), parameter);
+        if (debug) System.out.printf(" %s%n", parameter);
+      }
+
+      parameters =  Collections.unmodifiableMap(result);  // all at once - thread safe
+      return true;
+    } catch (IOException ioError) {
+      logger.warn("An error occurred in Grib1ParamTable while trying to open the parameter table for "
+              + path + " : " + ioError);
+      return false;
+    }
   }
 
   private boolean readParameterTableXml(XmlTableParser parser) {
-    try (InputStream is =  GribResourceReader.getInputStream(path)) {
+    try (InputStream is = GribResourceReader.getInputStream(path)) {
 
       if (is == null) return false;
 
@@ -511,24 +518,25 @@ TBLE2 cptec_254_params[] = {
   }
 
   private interface XmlTableParser {
-    HashMap<Integer, Grib1Parameter> parseXml(Element root);
+    Map<Integer, Grib1Parameter> parseXml(Element root);
   }
 
   private class DssParser implements XmlTableParser {
 
     private Namespace ns;
+
     DssParser(Namespace ns) {
       this.ns = ns;
     }
 
-   /* http://dss.ucar.edu/metadata/ParameterTables/WMO_GRIB1.60-1.3.xml
-    <parameter code="5">
-    <description>ICAO Standard Atmosphere reference height</description>
-    <units>m</units>
-    </parameter>
-    */
-   public HashMap<Integer, Grib1Parameter> parseXml(Element root) {
-      HashMap<Integer, Grib1Parameter> result = new HashMap<>();
+    /* http://dss.ucar.edu/metadata/ParameterTables/WMO_GRIB1.60-1.3.xml
+     <parameter code="5">
+     <description>ICAO Standard Atmosphere reference height</description>
+     <units>m</units>
+     </parameter>
+     */
+    public Map<Integer, Grib1Parameter> parseXml(Element root) {
+      Map<Integer, Grib1Parameter> result = new HashMap<>();
       List<Element> params = root.getChildren("parameter", ns);
       for (Element elem1 : params) {
         int code = Integer.parseInt(elem1.getAttributeValue("code"));
@@ -543,7 +551,7 @@ TBLE2 cptec_254_params[] = {
         result.put(parameter.getNumber(), parameter);
         if (debug) System.out.printf(" %s%n", parameter);
       }
-      return result;
+      return Collections.unmodifiableMap(result);  // all at once - thread safe
     }
   }
 
@@ -599,11 +607,11 @@ TBLE2 cptec_254_params[] = {
   private boolean readParameterTableSplit(String regexp, int[] order) {
     HashMap<Integer, Grib1Parameter> result = new HashMap<>();
 
-    try (InputStream is =  GribResourceReader.getInputStream(path)) {
+    try (InputStream is = GribResourceReader.getInputStream(path)) {
 
       if (is == null) return false;
 
-      BufferedReader br = new BufferedReader(new InputStreamReader(is));
+      BufferedReader br = new BufferedReader(new InputStreamReader(is, CDM.UTF8));
 
       // rdg - added the 0 line length check to cover the case of blank lines at
       //       the end of the parameter table file.
@@ -623,7 +631,7 @@ TBLE2 cptec_254_params[] = {
         if (debug) System.out.printf(" %s%n", parameter);
       }
 
-      parameters = result; // all at once - thread safe
+      parameters =  Collections.unmodifiableMap(result);  // all at once - thread safe
       return true;
 
     } catch (IOException ioError) {
@@ -639,12 +647,12 @@ TBLE2 cptec_254_params[] = {
       logger.error("Grib1ParamTable: unknown path for " + this);
       return false;
     }
-    try (InputStream is =  GribResourceReader.getInputStream(path)) {
+    try (InputStream is = GribResourceReader.getInputStream(path)) {
       if (is == null) {
         logger.error("Grib1ParamTable: error getInputStream on " + this);
         return false;
       }
-      BufferedReader br = new BufferedReader(new InputStreamReader(is));
+      BufferedReader br = new BufferedReader(new InputStreamReader(is, CDM.UTF8));
       br.readLine(); // skip a line
 
       HashMap<Integer, Grib1Parameter> params = new HashMap<>(); // thread safe - local var
@@ -675,7 +683,7 @@ TBLE2 cptec_254_params[] = {
           System.out.println(parameter.getNumber() + " " + parameter.getDescription() + " " + parameter.getUnit());
       }
 
-      this.parameters = params; // thread safe
+      parameters =  Collections.unmodifiableMap(params);  // all at once - thread safe
       return true;
 
     } catch (IOException ioError) {
@@ -683,17 +691,5 @@ TBLE2 cptec_254_params[] = {
       return false;
     }
 
-  }
-
-  static public void main(String[] args) throws IOException {
-    String dirS = "C:\\dev\\github\\thredds\\grib\\src\\main\\resources\\resources\\grib1\\ncl";
-    File dir = new File(dirS);
-    for (File f : dir.listFiles()) {
-      if (!f.getName().endsWith(".h")) continue;
-      Grib1ParamTableReader table = new Grib1ParamTableReader(f.getPath());
-
-      //  60:	 1:		180:	WMO_GRIB1.60-1.180.xml
-      System.out.printf("%5d: %5d: %5d: %s%n", table.getCenter_id(), table.getSubcenter_id(), table.getVersion(), table.getName());
-    }
   }
 }

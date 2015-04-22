@@ -147,7 +147,8 @@ public class NestedTable {
 
         // look for coordinates that are not part of the extras
     for (CoordinateAxis axis : ds.getCoordinateAxes()) {
-      if (!isCoordinate(axis) && !isExtra(axis))
+      if (!isCoordinate(axis) && !isExtra(axis)
+              && axis.getDimensionsAll().size() <= 1)  // Only permit 0-D and 1-D axes as extra variables.
         addExtraVariable(axis);
     }
 
@@ -185,11 +186,13 @@ public class NestedTable {
     extras.add(v);
   }
 
+  // Has v already been added to the set of extra variables?
   private boolean isExtra( Variable v) {
     if (v == null) return false;
     return extras != null && extras.contains(v);
   }
 
+  // Is v a coordinate axis for this feature type?
   private boolean isCoordinate( Variable v) {
     if (v == null) return false;
     String name = v.getShortName();
@@ -245,7 +248,7 @@ public class NestedTable {
 
   /////////////////////////////////////////////////////////////////////////
   // knows how to get specific coordinate data from a table or its parents
-  private class CoordVarExtractorVariable extends CoordVarExtractor {
+  private static class CoordVarExtractorVariable extends CoordVarExtractor {
     protected VariableDS coordVar;
 
     CoordVarExtractorVariable(VariableDS v, String axisName, int nestingLevel) {
@@ -297,7 +300,7 @@ public class NestedTable {
 
   /////////////////////////////////////////////////////////////////////////
   // knows how to get specific coordinate data from a table or its parents
-  private class CoordVarTop extends CoordVarExtractor {
+  private static class CoordVarTop extends CoordVarExtractor {
     protected VariableDS varTop;
 
     CoordVarTop(VariableDS v) {
@@ -350,7 +353,7 @@ public class NestedTable {
 
   /////////////////////////////////////////////////////////////////////////
   // knows how to get specific coordinate data from a table or its parents
-  private class CoordVarStructureData extends CoordVarExtractor {
+  private static class CoordVarStructureData extends CoordVarExtractor {
     protected StructureData sdata;
 
     CoordVarStructureData(String axisName, StructureData sdata) {
@@ -393,7 +396,7 @@ public class NestedTable {
 
   /////////////////////////////////////////////////////////////////////////
   // a constant coordinate variable
-  private class CoordVarConstant extends CoordVarExtractor {
+  private static class CoordVarConstant extends CoordVarExtractor {
     String units, value;
 
     CoordVarConstant(String name, String units, String value) {

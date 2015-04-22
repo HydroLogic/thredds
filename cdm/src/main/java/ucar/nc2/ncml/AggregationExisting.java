@@ -33,6 +33,7 @@
 
 package ucar.nc2.ncml;
 
+import thredds.client.catalog.Catalog;
 import thredds.inventory.MFile;
 import ucar.nc2.constants.CDM;
 import ucar.nc2.constants.CF;
@@ -258,6 +259,7 @@ public class AggregationExisting extends AggregationOuterDimension {
     if (cacheName.startsWith("file:"))      // LOOK
       cacheName = cacheName.substring(5);
     File cacheFile = diskCache2.getCacheFile(cacheName);
+    if (cacheFile == null) throw new IllegalStateException();
 
     // only write out if something changed after the cache file was last written, or if the file has been deleted
     if (!cacheDirty && cacheFile.exists())
@@ -286,7 +288,7 @@ public class AggregationExisting extends AggregationOuterDimension {
       }
       if (lock == null) return;
 
-      PrintWriter out = new PrintWriter(fos);
+      PrintWriter out = new PrintWriter( new OutputStreamWriter(fos, CDM.utf8Charset));
       out.print("<?xml version='1.0' encoding='UTF-8'?>\n");
       out.print("<aggregation xmlns='http://www.unidata.ucar.edu/namespaces/netcdf/ncml-2.2' version='3' ");
       out.print("type='" + type + "' ");
@@ -346,6 +348,7 @@ public class AggregationExisting extends AggregationOuterDimension {
       cacheName = cacheName.substring(5);
 
     File cacheFile = diskCache2.getCacheFile(cacheName);
+    if (cacheFile == null) throw new IllegalStateException();
     if (!cacheFile.exists())
       return;
     long lastWritten = cacheFile.lastModified();
@@ -369,7 +372,7 @@ public class AggregationExisting extends AggregationOuterDimension {
       map.put(ds.getId(), ds);
     }
 
-    List<Element> ncList = aggElem.getChildren("netcdf", NcMLReader.ncNS);
+    List<Element> ncList = aggElem.getChildren("netcdf", Catalog.ncmlNS);
     for (Element netcdfElemNested : ncList) {
       String id = netcdfElemNested.getAttributeValue("id");
       DatasetOuterDimension dod = (DatasetOuterDimension) map.get(id);
@@ -399,7 +402,7 @@ public class AggregationExisting extends AggregationOuterDimension {
 
       // if (dod.coordValue != null) continue; // allow ncml to override
 
-      List<Element> cacheElemList = netcdfElemNested.getChildren("cache", NcMLReader.ncNS);
+      List<Element> cacheElemList = netcdfElemNested.getChildren("cache", Catalog.ncmlNS);
       for (Element cacheElemNested : cacheElemList) {
         String varName = cacheElemNested.getAttributeValue("varName");
         CacheVar pv = findCacheVariable(varName);

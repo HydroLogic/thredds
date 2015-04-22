@@ -72,7 +72,6 @@ public class MockTdsServletContext extends MockServletContext {
     } catch (IOException e) {
       e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
     }
-    System.out.println("Current dir:"+current);
 	}
 	
 	public MockTdsServletContext(ResourceLoader resourceLoader) {
@@ -95,6 +94,11 @@ public class MockTdsServletContext extends MockServletContext {
 		
 		return new MockRequestDispatcher(path);
 	}
+
+  public javax.servlet.descriptor.JspConfigDescriptor getJspConfigDescriptor()
+  {
+      throw new UnsupportedOperationException();
+  }
 
   /**
  	 * Build a full resource location for the given path,

@@ -11,13 +11,13 @@ import dap4.core.util.*;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharsetDecoder;
+import java.util.List;
 
 public class D4DataAtomic extends D4DataVariable implements DataAtomic
 {
     //////////////////////////////////////////////////
     // Instance variables
 
-    protected D4DSP dsp = null;
     protected long product = 0; // dimension cross product; 0 => undefined
     protected DapType basetype = null;
     protected AtomicType atomictype = null;
@@ -26,6 +26,7 @@ public class D4DataAtomic extends D4DataVariable implements DataAtomic
     protected long varelementsize = 0;
     protected boolean isbytestring = false;
     // Following two fields only defined if isbytestring is true
+    //Coverity[FB.URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD]
     protected long totalbytestringsize = 0;  // total space used by the bytestrings
     protected int[] bytestrings = null; // List of the absolute start offsets of
     // an array of e.g. opaque,  or string atomictypes.
@@ -81,11 +82,49 @@ public class D4DataAtomic extends D4DataVariable implements DataAtomic
 
     @Override
     public void
-    read(long start, long count, Object data, long offset)
-            throws DataException
+    read(List<Slice> slices, Object data, long offset)
+        throws DataException
     {
-        extractObjectVector(basetype, this.dsp.getData(), start, count, data, offset);
+        if(slices == null || slices.size() == 0) { // scalar
+            extractObjectVector(this.basetype, this.dsp.getData(), 0, 1, data, 0);
+        } else {// dimensioned
+            boolean contig = DapUtil.isContiguous(slices);
+            Odometer odom;
+            try {
+                odom = Odometer.factory(slices,
+                    ((DapVariable) this.getTemplate()).getDimensions(),
+                    contig);
+            } catch (DapException de) {
+                throw new DataException(de);
+            }
+            long localoffset = offset;
+            if(odom.isContiguous()) {
+                List<Slice> pieces = odom.getContiguous();
+                assert pieces.size() == 1;  // temporary
+                Slice lastslice = pieces.get(0);
+                assert lastslice.getStride() == 1;
+                long first = lastslice.getFirst();
+                long extent = lastslice.getCount();
+                while(odom.hasNext()) {
+                    long index = odom.next();
+                    extractObjectVector(this.basetype, this.dsp.getData(), index+first, extent, data, localoffset);
+                    localoffset += extent;
+                }
+            } else { // read one by one
+                while(odom.hasNext()) {
+                    long index = odom.next();
+                    extractObjectVector(this.basetype, this.dsp.getData(), index, 1, data, localoffset);
+                    localoffset++;
+                }
+            }
+        }
     }
+
+    /*protected void
+    read(long start, long count, Object data, long offset) throws DataException;
+
+    extractObjectVector(basetype, this.dsp.getData(), start, count, data, offset);
+     */
 
     @Override
     public Object
@@ -201,7 +240,7 @@ public class D4DataAtomic extends D4DataVariable implements DataAtomic
         //long elemsize = AtomicType.getSize(atomtype);
         long elemsize = this.varelementsize;
         //long localoffset = this.varoffset + (elemsize * start);
-        long extent = elemsize * count;
+        //long extent = elemsize * count;
         // If this is a fixed size type, then we can immediately
         // position the buffer
         /*if(atomtype.isFixedSize() && !atomtype.isEnumType()) {

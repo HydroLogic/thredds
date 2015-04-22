@@ -30,12 +30,16 @@
  *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
  *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
 package ucar.atd.dorade;
 
+import ucar.nc2.constants.CDM;
+import ucar.nc2.time.CalendarDateFormatter;
+
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.HashMap;
@@ -104,8 +108,8 @@ abstract class DoradeDescriptor {
       // get the name and descriptor size
       //
       byte[] header = new byte[8];
-      file.read(header);
-      descName = new String(header, 0, 4);
+      file.readFully(header);
+      descName = new String(header, 0, 4, CDM.utf8Charset);
       int size = grabInt(header, 4);
 
       //
@@ -115,7 +119,7 @@ abstract class DoradeDescriptor {
       file.seek(startpos);
 
       data = new byte[size];
-      file.read(data);
+      file.readFully(data);
     } catch (java.io.IOException ex) {
       throw new DescriptorException(ex);
     }
@@ -143,11 +147,11 @@ abstract class DoradeDescriptor {
                                        boolean littleEndianData)
           throws DescriptorException, java.io.IOException {
     try {
-      file.read(new byte[4]); // skip name
+      file.readFully(new byte[4]); // skip name
       byte[] lenBytes = new byte[4];
-      file.read(lenBytes);
+      file.readFully(lenBytes);
       int descLen = grabInt(lenBytes, 0, littleEndianData);
-      file.read(new byte[descLen - 8]);
+      file.readFully(new byte[descLen - 8]);
     } catch (java.io.EOFException eofex) {
       return; // just leave the file at EOF
     } catch (Exception ex) {
@@ -173,8 +177,9 @@ abstract class DoradeDescriptor {
       if (file.read(nameBytes) == -1)
         return null;  // EOF
       file.seek(filepos);
-      return new String(nameBytes);
-    } catch (Exception ex) {
+      return new String(nameBytes, CDM.utf8Charset);
+
+    } catch (IOException ex) {
       throw new DescriptorException(ex);
     }
   }
@@ -196,7 +201,7 @@ abstract class DoradeDescriptor {
       // skip the 4-byte descriptor name
       //
       byte[] bytes = new byte[4];
-      file.read(bytes);
+      file.readFully(bytes);
       //
       // get the descriptor length
       //
@@ -272,7 +277,7 @@ abstract class DoradeDescriptor {
         src[0] = bytes[offset + 3];
         src[1] = bytes[offset + 2];
         src[2] = bytes[offset + 1];
-        src[3] = bytes[offset + 0];
+        src[3] = bytes[offset];
         offset = 0;
       } else {
         src = bytes;
@@ -305,7 +310,7 @@ abstract class DoradeDescriptor {
         src[4] = bytes[offset + 3];
         src[5] = bytes[offset + 2];
         src[6] = bytes[offset + 1];
-        src[7] = bytes[offset + 0];
+        src[7] = bytes[offset];
         offset = 0;
       } else {
         src = bytes;
@@ -357,9 +362,7 @@ abstract class DoradeDescriptor {
    * @return a string containing the representation of the date
    */
   public static String formatDate(Date date) {
-    SimpleDateFormat df = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS z");
-    df.setTimeZone(TZ_UTC);
-    return df.format(date);
+    return CalendarDateFormatter.toDateTimeString(date);
   }
 
   /**

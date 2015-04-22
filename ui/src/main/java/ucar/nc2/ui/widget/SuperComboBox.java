@@ -40,15 +40,17 @@ import ucar.nc2.ui.table.JTableSorted;
 import ucar.nc2.ui.table.TableRow;
 import ucar.nc2.ui.table.TableRowAbstract;
 import ucar.nc2.util.NamedObject;
+import ucar.util.prefs.ui.Field;
+import ucar.util.prefs.ui.PrefPanel;
 
-import ucar.util.prefs.ui.*;
-
+import javax.swing.*;
+import javax.swing.border.EtchedBorder;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import java.awt.*;
 import java.awt.event.*;
-import javax.swing.*;
-import javax.swing.border.*;
-import javax.swing.event.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * SuperComboBox is a complete rewrite of JComboBox;
@@ -356,20 +358,20 @@ public class SuperComboBox extends JPanel {
 
   private void showPulldownMenu() {
     if (pulldown.isShowing())
-      pulldown.hide();
+      pulldown.setVisible(false);
     else {
       Dimension d = new Dimension(getWidth(), height);
       pulldown.setSize(d);
       Point p = text.getLocationOnScreen();
       p.y += text.getHeight();
       pulldown.setLocation(p);
-      pulldown.show();
+      pulldown.setVisible(true);
     }
   }
 
   private void hidePulldownMenu() {
     if (pulldown.isShowing()) {
-      pulldown.hide();
+      pulldown.setVisible(false);
       //System.out.println("hidePulldownMenu");
     }
   }
@@ -403,14 +405,14 @@ public class SuperComboBox extends JPanel {
   }
 
 
-  private class SimpleRow extends TableRowAbstract {
+  private static class SimpleRow extends TableRowAbstract {
     Object o;
     SimpleRow( Object o){ this.o = o; }
     public Object getValueAt( int col) { return o; }
     public Object getUserObject() { return o; }
   }
 
-  private class NamedObjectRow extends TableRowAbstract implements NamedObject {
+  private static class NamedObjectRow extends TableRowAbstract implements NamedObject {
     NamedObject o;
     NamedObjectRow( NamedObject o){ this.o = o; }
     public Object getValueAt( int col) { return this; }
@@ -421,7 +423,7 @@ public class SuperComboBox extends JPanel {
     public String toString() { return getName(); }
   }
 
-  private class GeoGridRow extends TableRowAbstract implements NamedObject {
+  private static class GeoGridRow extends TableRowAbstract implements NamedObject {
     NamedObject o;
     GeoGridRow(NamedObject o){ this.o = o; }
     public Object getValueAt( int col) { return this; }
@@ -544,7 +546,6 @@ public class SuperComboBox extends JPanel {
     private AbstractAction loopAct, helpAct;
     private boolean stopped, forward, first = true, continuous = true, less = true;
     private int step = 1, start = -1;
-    private long startTime;
 
     LoopControl () {
       loopPanel = new JPanel();
@@ -649,7 +650,7 @@ public class SuperComboBox extends JPanel {
 
       ifPanel = new PrefPanel("loopControl", null);
       stepIF = ifPanel.addIntField("step", "step", 1);
-      startIF = ifPanel.addTextField("start", "start", "    ");
+      startIF = ifPanel.addTextField("start", "start", "    0");
       ifPanel.finish(false);
     }
 
@@ -693,7 +694,6 @@ public class SuperComboBox extends JPanel {
 
     private void start(boolean forward) {
       this.forward = forward;
-      startTime = System.currentTimeMillis();
       eventOK = false;
       immediateMode = true;
       stopped = false;

@@ -47,6 +47,7 @@ import java.io.IOException;
  */
 public class Grib1DataReader {
   static private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(Grib1DataReader.class);
+  static private final float staticMissingValue = Float.NaN;
 
   ///////////////////////////////// Grib1Data
 
@@ -68,16 +69,12 @@ value R, the binary scale factor E and the decimal scale factor D by means of th
 
 */
 
-
-
-  static private final float staticMissingValue = Float.NaN;
-
   ///////////////////////////////////// Grib1BinaryDataSection
 
   private final int decimalScale;
   private final int scanMode;
   private final int nx, ny;
-  private final int nPts;
+  private final int nPts;           // number of points from GDS
   private final long startPos;
 
   /**
@@ -99,12 +96,12 @@ value R, the binary scale factor E and the decimal scale factor D by means of th
     int msgLength = GribNumbers.uint3(raf);
 
     // octet 4, 1st half (packing flag)
-    int unusedbits = raf.read();
-    if ((unusedbits & 192) != 0) {
+    int flag = raf.read();
+    if ((flag & 192) != 0) {
       logger.error("Grib1BinaryDataSection: (octet 4, 1st half) not grid point data and simple packing for {}", raf.getLocation());
       throw new IllegalStateException("Grib1BinaryDataSection: (octet 4, 1st half) not grid point data and simple packing ");
     }
-    unusedbits = unusedbits & 15;
+    int unusedbits = flag & 15;
 
     // octets 5-6 (binary scale factor)
     int binscale = GribNumbers.int2(raf);
@@ -148,7 +145,7 @@ value R, the binary scale factor E and the decimal scale factor D by means of th
         if (nx != -1 && ny != -1) {
           values = new float[nx * ny];
         } else {
-          values = new float[((msgLength - 11) * 8 - unusedbits) / numbits];
+          values = new float[((msgLength - 11) * 8 - unusedbits) / numbits];  // WTF ??
         }
         BitReader reader = new BitReader(raf, startPos+11);
         for (int i = 0; i < values.length; i++) {
@@ -165,6 +162,35 @@ value R, the binary scale factor E and the decimal scale factor D by means of th
     }
 
     return values;
+  }
+
+  // debugging
+  int[] getDataRaw(RandomAccessFile raf, byte[] bitmap) throws IOException {
+    raf.seek(startPos); // go to the data section
+    int msgLength = GribNumbers.uint3(raf);
+
+    // octet 4, 1st half (packing flag)
+    int unusedbits = raf.read();
+    if ((unusedbits & 192) != 0) {
+      logger.error("Grib1BinaryDataSection: (octet 4, 1st half) not grid point data and simple packing for {} len={}", raf.getLocation(), msgLength);
+      throw new IllegalStateException("Grib1BinaryDataSection: (octet 4, 1st half) not grid point data and simple packing ");
+    }
+
+    GribNumbers.int2(raf); // octets 5-6 (binary scale factor)
+    GribNumbers.float4(raf); // octets 7-10 (reference point = minimum value)
+
+    // octet 11 (number of bits per value)
+    int numbits = raf.read();
+    // boolean isConstant =  (numbits == 0);
+
+    // *** read int values *******************************************************
+    BitReader reader = new BitReader(raf, startPos+11);
+    int[] ivals = new int[nPts];
+    for (int i = 0; i < nPts; i++) {
+      ivals[i] = (int) reader.bits2UInt(numbits);
+    }
+
+    return ivals;
   }
 
   /**
@@ -186,11 +212,10 @@ value R, the binary scale factor E and the decimal scale factor D by means of th
 
     // Mode  0 +x, -y, adjacent x, adjacent rows same dir
     // Mode  64 +x, +y, adjacent x, adjacent rows same dir
-    if ((scanMode == 0) || (scanMode == 64)) {
+    //if ((scanMode == 0) || (scanMode == 64)) {
       // NOOP
-
-
-    } else if ((scanMode == 128) || (scanMode == 192)) {
+    //} else
+    if ((scanMode == 128) || (scanMode == 192)) {
       // Mode  128 -x, -y, adjacent x, adjacent rows same dir
       // Mode  192 -x, +y, adjacent x, adjacent rows same dir
       // change -x to +x ie east to west -> west to east

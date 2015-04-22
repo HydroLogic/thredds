@@ -1,36 +1,40 @@
 /*
- * Copyright (c) 1998 - 2011. University Corporation for Atmospheric Research/Unidata
- * Portions of this software were developed by the Unidata Program at the
- * University Corporation for Atmospheric Research.
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- * Access and use of this software shall impose the following obligations
- * and understandings on the user. The user is granted the right, without
- * any fee or cost, to use, copy, modify, alter, enhance and distribute
- * this software, and any derivative works thereof, and its supporting
- * documentation for any purpose whatsoever, provided that this entire
- * notice appears in all copies of the software, derivative works and
- * supporting documentation.  Further, UCAR requests that the user credit
- * UCAR/Unidata in any publications that result from the use of this
- * software or in any product that includes this software. The names UCAR
- * and/or Unidata, however, may not be used in any advertising or publicity
- * to endorse or promote any products or commercial entity unless specific
- * written permission is obtained from UCAR/Unidata. The user also
- * understands that UCAR/Unidata is not obligated to provide the user with
- * any support, consulting, training or assistance of any kind with regard
- * to the use, operation and performance of this software nor to provide
- * the user with any updates, revisions, new versions or "bug fixes."
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
- * THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- * WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 package thredds.inventory;
 
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.io.File;
@@ -66,16 +70,16 @@ public class CollectionSpecParser {
   private final String spec;
   private final String rootDir;
   private final boolean subdirs; // recurse into subdirectories under the root dir
+  private final boolean filterOnName; // filter on name, else on entire path
   private final java.util.regex.Pattern filter; // regexp filter
   private final String dateFormatMark;
-  //private final boolean useName; // true = use name, false = use path for dateFormatMark
 
   /**
    * Single spec : "/topdir/** /#dateFormatMark#regExp"
    * This only allows the dateFormatMark to be in the file name, not anywhere else in the filename path,
    *  and you cant use any part of the dateFormat to filter on.
    * @param collectionSpec the collection Spec
-   * @param errlog put error messages here
+   * @param errlog put error messages here, may be null
    */
   public CollectionSpecParser(String collectionSpec, Formatter errlog) {
     this.spec = collectionSpec.trim();
@@ -97,7 +101,7 @@ public class CollectionSpecParser {
     }
 
     File locFile = new File(rootDir);
-    if (!locFile.exists()) {
+    if (!locFile.exists() && errlog != null) {
       errlog.format(" Directory %s does not exist %n", rootDir);
     }
 
@@ -136,64 +140,33 @@ public class CollectionSpecParser {
       dateFormatMark = null;
       this.filter = null;
     }
-    //useName = true;
+
+    this.filterOnName = true;
   }
 
-  /*
-   * Seperate the spec, with no dateMatcher, and a seperate string with a dateMatcher
-   * This only allows the dateFormatMark to be in the file name, not anywhere else in the filename path
-   * @param collectionSpec the collection Spec, no dateMatcher
-   * @param dateMatcher regexp the dateMatcher regular expression
-   * @param errlog put error messages here
-   *
-  public CollectionSpecParser(String collectionSpec, String dateMatcher, Formatter errlog) {
-    this.spec = collectionSpec.trim();
+  public CollectionSpecParser(String rootDir, String regExp, Formatter errlog) {
+    this.rootDir = StringUtil2.removeFromEnd(rootDir, '/');
+    this.subdirs = true;
+    this.spec = this.rootDir +"/" + regExp;
+    this.filter = java.util.regex.Pattern.compile(spec);
+    this.dateFormatMark = null;
+    this.filterOnName = false;
+  }
 
-    int posGlob = collectionSpec.indexOf("/** /");
-    if (posGlob > 0) {
-      rootDir = collectionSpec.substring(0, posGlob);
-      int posFilter = posGlob + 3;
-      subdirs = true;
-      String regexp = collectionSpec.substring(posFilter+1);
-      this.filter = java.util.regex.Pattern.compile(regexp);
-
+  public PathMatcher getPathMatcher() {
+    if (spec.startsWith("regex:") || spec.startsWith("glob:")) {  // experimental
+      return FileSystems.getDefault().getPathMatcher(spec);
     } else {
-      int posFilter = collectionSpec.lastIndexOf('/');
-      rootDir = collectionSpec.substring(0, posFilter);
-      subdirs = false;
-      String regexp = collectionSpec.substring(posFilter+1);
-      this.filter = java.util.regex.Pattern.compile(regexp);
+      return new BySpecp();
     }
+  }
 
-    File locFile = new File(rootDir);
-    if (!locFile.exists()) {
-      errlog.format(" Directory %s does not exist %n", rootDir);
+  private class BySpecp implements java.nio.file.PathMatcher {
+    @Override
+    public boolean matches(Path path) {
+      java.util.regex.Matcher matcher = filter.matcher(path.getFileName().toString());
+      return matcher.matches();
     }
-
-    this.dateFormatMark = dateMatcher;
-
-    /* int hashPos = -1;
-    if ((hashPos = dateMatcher.indexOf('#', hashPos+1)) >= 0) {
-      // check for two hash marks
-      hashPos = dateMatcher.indexOf('#', hashPos+1);
-      int secondHash = hashPos;
-
-      if (secondHash > 0) { // two hashes
-        dateFormatMark = dateMatcher.substring(0, secondHash+1); // everything up to the second hash
-      } else { // one hash
-        dateFormatMark = dateMatcher; // everything
-      }
-
-    } else  { // no hashes
-      errlog.format(" No DateMatcher specified in '%s'%n", dateMatcher);
-      dateFormatMark = null;
-    }
-
-    useName = false;
-  } */
-
-  public String getSpec() {
-    return spec;
   }
 
   public String getRootDir() {
@@ -204,12 +177,12 @@ public class CollectionSpecParser {
     return subdirs;
   }
 
-  //public boolean useName() {
-  //  return true;
-  //}
-
   public Pattern getFilter() {
     return filter;
+  }
+
+  public boolean getFilterOnName() {
+    return filterOnName;
   }
 
   public String getDateFormatMark() {
@@ -257,6 +230,12 @@ public class CollectionSpecParser {
 
 
   public static void main(String arg[]) {
+    /*
+    US058GMET-GR1mdl.0018_0056_00000F0..#yyyyMMddHH#_0102_000000-000000pres$
+    FNMOC_NAVGEM_0.5-degree_6-hourly_Pressure-201302.ncx3 */
+
+    doit("/u00/FNMOC/NAVGEM/pressure/**/US058GMET-GR1mdl.0018_0056_00000F0..#yyyyMMddHH#_0102_000000-000000pres$", new Formatter());
+
     doit("/data/ldm/pub/native/grid/NCEP/GFS/Alaska_191km/**/GFS_Alaska_191km_#yyyyMMdd_HHmm#\\.grib1$", new Formatter());
     doit("Q:/grid/grib/grib1/data/agg/.*\\.grb", new Formatter());
     doit("/data/ldm/pub/decoded/netcdf/surface/metar/**/Surface_METAR_#yyyyMMdd_HHmm#\\.nc", new Formatter());

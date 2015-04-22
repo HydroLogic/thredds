@@ -43,8 +43,10 @@ import ucar.nc2.wmo.CommonCodeTable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Interprets grib1 info in a way that may be customized.
@@ -70,6 +72,7 @@ public class Grib1Customizer implements GribTables {
   static public Grib1Customizer factory(int center, int subcenter, int version, Grib1ParamTables tables) {
     if (center == 7) return new NcepTables(tables);
     else if (center == 9) return new NcepRfcTables(tables);
+    else if (center == 34) return new JmaTables(tables);
     else if (center == 57) return new AfwaTables(tables);
     else if (center == 58) return new FnmocTables(tables);
     else if (center == 60) return new NcarTables(tables);
@@ -88,6 +91,11 @@ public class Grib1Customizer implements GribTables {
   protected Grib1Customizer(int center, Grib1ParamTables tables) {
     this.center = center;
     this.tables = (tables == null) ? new Grib1ParamTables() : tables;
+
+    synchronized (Grib1Customizer.class) {
+      if (wmoTable3 == null)
+        wmoTable3 = readTable3("resources/grib1/wmoTable3.xml");
+    }
   }
 
   public int getCenter() {
@@ -98,7 +106,14 @@ public class Grib1Customizer implements GribTables {
     return tables.getParameter(center, subcenter, tableVersion, param_number);
   }
 
+  @Override
   public String getGeneratingProcessName(int genProcess) {
+    return null;
+  }
+
+
+  @Override
+  public String getGeneratingProcessTypeName(int genProcess) {
     return null;
   }
 
@@ -121,7 +136,7 @@ public class Grib1Customizer implements GribTables {
   // code table 5
   public String getTimeTypeName(int timeRangeIndicator) {
     if (timeRangeIndicator < 0) return null;
-    return Grib1WmoTimeType.getTimeTypeName(timeRangeIndicator);
+    return Grib1ParamTime.getTimeTypeName(timeRangeIndicator);
   }
 
   @Override
@@ -149,6 +164,7 @@ public class Grib1Customizer implements GribTables {
   protected VertCoord.VertUnit makeVertUnit(int code) {
     return getLevelType(code);
   }
+
 
   @Override
   public String getLevelNameShort(int levelType) {
@@ -200,21 +216,16 @@ public class Grib1Customizer implements GribTables {
 
   ////////////////////////////////////////////////////////////////////////
 
-  private HashMap<Integer, GribLevelType> wmoTable3;
+  static private Map<Integer, GribLevelType> wmoTable3;  // shared by all instances
 
-  private GribLevelType getLevelType(int code) {
-    if (wmoTable3 == null)
-      wmoTable3 = readTable3("resources/grib1/wmoTable3.xml");
-    if (wmoTable3 == null)
-      return null; // fail
-
+  protected GribLevelType getLevelType(int code) {
     GribLevelType result = wmoTable3.get(code);
     if (result == null)
       result = new GribLevelType(code, "unknownLayer"+code, null, "unknownLayer"+code, null, false, false);
     return result;
   }
 
-  protected HashMap<Integer, GribLevelType> readTable3(String path) {
+  protected synchronized Map<Integer, GribLevelType> readTable3(String path) {
     try (InputStream is =  GribResourceReader.getInputStream(path)) {
       if (is == null) {
         logger.error("Cant find Table 3 = " + path);
@@ -225,7 +236,7 @@ public class Grib1Customizer implements GribTables {
       org.jdom2.Document doc = builder.build(is);
       Element root = doc.getRootElement();
 
-      HashMap<Integer, GribLevelType> result = new HashMap<Integer, GribLevelType>(200);
+      Map<Integer, GribLevelType> result = new HashMap<Integer, GribLevelType>(200);
       List<Element> params = root.getChildren("parameter");
       for (Element elem1 : params) {
         int code = Integer.parseInt(elem1.getAttributeValue("code"));
@@ -239,7 +250,7 @@ public class Grib1Customizer implements GribTables {
         result.put(code, lt);
       }
 
-      return result;  // all at once - thread safe
+      return Collections.unmodifiableMap(result);  // all at once - thread safe
 
     } catch (IOException ioe) {
       logger.error("Cant read NcepLevelTypes = " + path, ioe);
@@ -248,7 +259,6 @@ public class Grib1Customizer implements GribTables {
     } catch (JDOMException e) {
       logger.error("Cant parse NcepLevelTypes = " + path, e);
       return null;
-
     }
   }
 

@@ -46,6 +46,7 @@ import ucar.unidata.io.RandomAccessFile;
 
 import java.io.IOException;
 import java.util.Formatter;
+import java.util.zip.CRC32;
 
 /**
  * The Product Definition Section for GRIB-1 files
@@ -69,7 +70,7 @@ public final class Grib1SectionProductDefinition {
     int length = GribNumbers.uint3(raf);
     rawData = new byte[length];
     raf.skipBytes(-3);
-    raf.read(rawData);
+    raf.readFully(rawData);
   }
 
   /**
@@ -88,6 +89,10 @@ public final class Grib1SectionProductDefinition {
    */
   public byte[] getRawBytes() {
     return rawData;
+  }
+
+  public int getLength() {
+    return GribNumbers.uint3(getOctet(1),getOctet(2),getOctet(3));
   }
 
   /**
@@ -308,24 +313,26 @@ public final class Grib1SectionProductDefinition {
    * @param index 1 based index
    * @return rawData[index-1] & 0xff
    */
-  private final int getOctet(int index) {
+  private int getOctet(int index) {
     if (index > rawData.length) return GribNumbers.UNDEFINED;
     return rawData[index - 1] & 0xff;
   }
 
   /////////////////////////////////////////////////////////////////////
 
-  private Grib1ParamTime ptime;
-  public Grib1ParamTime getParamTime(Grib1Customizer cust) {
-    if (ptime == null) ptime = new Grib1ParamTime(cust, this);
-    return ptime;
+  private String getCalendarPeriodAsString() {
+    try {
+      return GribUtils.getCalendarPeriod(getTimeUnit()).toString();
+    } catch (UnsupportedOperationException e) {
+      return "Unknown Time Unit";
+    }
   }
 
   public void showPds(Grib1Customizer cust, Formatter f) {
 
-    f.format("            Originating Center : (%d) %s%n", getCenter(), CommonCodeTable.getCenterName(getCenter(), 1));
-    f.format("         Originating SubCenter : (%d) %s%n", getSubCenter(), cust.getSubCenterName( getSubCenter()));
-    f.format("                 Table Version : %d%n", getTableVersion());
+    f.format("5           Originating Center : (%d) %s%n", getCenter(), CommonCodeTable.getCenterName(getCenter(), 1));
+    f.format("26       Originating SubCenter : (%d) %s%n", getSubCenter(), cust.getSubCenterName( getSubCenter()));
+    f.format("4                Table Version : %d%n", getTableVersion());
 
     Grib1Parameter parameter = cust.getParameter(getCenter(), getSubCenter(), getTableVersion(), getParameterNumber());
     if (parameter != null) {
@@ -338,24 +345,28 @@ public final class Grib1SectionProductDefinition {
       f.format("               Parameter %d not found%n", getParameterNumber());
     }
 
-    f.format("       Generating Process Type : (%d) %s%n", getGenProcess(), cust.getGeneratingProcessName(getGenProcess()));
+    f.format("6      Generating Process Type : (%d) %s%n", getGenProcess(), cust.getGeneratingProcessName(getGenProcess()));
+    f.format("7              Grid Definition : (%d) %n", getGridDefinition());
+    f.format("8                         Flag : (%d) %n", getFlag());
 
-    f.format("                Reference Time : %s%n", getReferenceDate());
-    f.format("                    Time Units : (%d) %s%n", getTimeUnit(), GribUtils.getCalendarPeriod(getTimeUnit()));
-    Grib1ParamTime ptime = getParamTime(cust);
-    f.format("          Time Range Indicator : (%d) %s%n", getTimeRangeIndicator(), ptime.getTimeTypeName());
-    f.format("                   Time 1 (P1) : %d%n", getTimeValue1());
-    f.format("                   Time 2 (P2) : %d%n", getTimeValue2());
+    f.format("13-17           Reference Time : %s%n", getReferenceDate());
+    f.format("18                  Time Units : (%d) %s%n", getTimeUnit(), getCalendarPeriodAsString());
+    Grib1ParamTime ptime = cust.getParamTime(this);;
+    f.format("19                 Time 1 (P1) : %d%n", getTimeValue1());
+    f.format("20                 Time 2 (P2) : %d%n", getTimeValue2());
+    f.format("21        Time Range Indicator : (%d) %s%n", getTimeRangeIndicator(), ptime.getTimeTypeName());
+    f.format("22-23           N in statistic : (%d)%n", getNincluded());
+    f.format("24                   N missing : (%d)%n", getNmissing());
     f.format("                   Time  coord : %s%n", ptime.getTimeCoord());
     Grib1ParamLevel plevel = cust.getParamLevel(this);
-    f.format("                    Level Type : (%d) %s%n", getLevelType(), plevel.getNameShort());
+    f.format("10                  Level Type : (%d) %s%n", getLevelType(), plevel.getNameShort());
     f.format("             Level Description : %s%n", plevel.getDescription());
     f.format("                 Level Value 1 : %f%n", plevel.getValue1());
     f.format("                 Level Value 2 : %f%n", plevel.getValue2());
-    f.format("               Grid Definition : %d%n", getGridDefinition());
+    f.format("27-28     Decimal Scale Factor : %d%n", getDecimalScale());
+
     f.format("                    GDS Exists : %s%n", gdsExists());
     f.format("                    BMS Exists : %s%n", bmsExists());
-    f.format("          Decimal Scale Factor : %d%n", getDecimalScale());
   }
 
  ////////////////////////////////////////////////////////
@@ -390,14 +401,12 @@ public final class Grib1SectionProductDefinition {
   public boolean isEnsemble() {
     switch (getCenter()) {
       case 7:
-        if ((rawData.length >= 43) && (getOctet(41) == 1))
-          return true;
+        return ((rawData.length >= 43) && (getOctet(41) == 1));
 
       case 98:
-        if ((rawData.length >= 51) &&
+        return ((rawData.length >= 51) &&
             (getOctet(41) == 1 || getOctet(41) == 30) &&
-            (getOctet(43) == 10 || getOctet(43) == 11))
-          return true;
+            (getOctet(43) == 10 || getOctet(43) == 11));
     }
     return false;
   }
@@ -425,6 +434,12 @@ public final class Grib1SectionProductDefinition {
       case 98: return getOctet(50);
     }
     return GribNumbers.UNDEFINED;
+  }
+
+  public long calcCRC() {
+    CRC32 crc32 = new CRC32();
+    crc32.update(rawData);
+    return crc32.getValue();
   }
 
 }

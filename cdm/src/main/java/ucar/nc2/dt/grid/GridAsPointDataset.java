@@ -55,12 +55,9 @@ import ucar.unidata.geoloc.LatLonPoint;
  * @author caron
  */
 public class GridAsPointDataset {
-  private List<GridDatatype> grids;
   private List<CalendarDate> dates;
 
   public GridAsPointDataset( List<GridDatatype> grids) {
-    this.grids = grids;
-
     //HashSet<Date> dateHash = new HashSet<Date>(); ????
     HashSet<CalendarDate> dateHash = new HashSet<>();
     List<CoordinateAxis1DTime> timeAxes = new ArrayList<>();
@@ -261,14 +258,14 @@ public class GridAsPointDataset {
 	  
 	  return p;
   }
-  
+
   private int findTimeIndexForCalendarDate(GridCoordSystem gcs, CalendarDate date){	  
 	  
 	  CoordinateAxis1DTime timeAxis = gcs.getTimeAxis1D();	  
 	  return timeAxis.findTimeIndexFromCalendarDate(date);
   }
 
-  public class Point {
+  public static class Point {
     public double lat,lon,z,ens,dataValue;
   }
 

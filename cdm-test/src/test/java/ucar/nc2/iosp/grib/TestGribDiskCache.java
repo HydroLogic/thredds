@@ -33,9 +33,11 @@
 package ucar.nc2.iosp.grib;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import ucar.nc2.NetcdfFile;
-import ucar.nc2.grib.collection.GribCollection;
+import ucar.nc2.grib.GribIndexCache;
 import ucar.nc2.util.DiskCache2;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
 import java.io.File;
@@ -46,6 +48,7 @@ import java.io.File;
  * @author caron
  * @since 2/16/12
  */
+@Category(NeedsCdmUnitTest.class)
 public class TestGribDiskCache {
 
   @Test
@@ -62,7 +65,7 @@ public class TestGribDiskCache {
     cache.setAlwaysUseCache(true);
     assert cache.getRootDirectory().equals(cacheDirName) : cache.getRootDirectory()+" != " + cacheDirName;
     assert new File(cache.getRootDirectory()).exists();
-    GribCollection.setDiskCache2(cache);
+    GribIndexCache.setDiskCache2(cache);
 
     String dataDir = TestDir.cdmUnitTestDir + "testCache";
     File dd = new File(dataDir);
@@ -76,7 +79,8 @@ public class TestGribDiskCache {
         data.delete();
       if (data.getName().endsWith(".ncx2"))
         data.delete();
-    }
+      if (data.getName().endsWith(".ncx3"))
+        data.delete();   }
 
     for (File data : dd.listFiles()) {
       System.out.printf("Open %s%n", data.getPath());
@@ -89,8 +93,9 @@ public class TestGribDiskCache {
       assert !data.getName().endsWith(".gbx9");
       assert !data.getName().endsWith(".ncx");
       assert !data.getName().endsWith(".ncx2");
+      assert !data.getName().endsWith(".ncx3");
       if (data.getName().endsWith(".grib1") || data.getName().endsWith(".grib2")) {
-        String index = data.getPath()+".ncx2";
+        String index = data.getPath()+".ncx3";
         File indexFile = cache.getCacheFile(index);
         assert indexFile != null;
         assert indexFile.exists() : indexFile.getPath() +" does not exist";

@@ -1,9 +1,12 @@
 package ucar.unidata.test.util;
 
+import thredds.featurecollection.FeatureCollectionConfigBuilder;
+import thredds.util.PathAliasReplacementFromMap;
 import ucar.ma2.InvalidRangeException;
 import ucar.ma2.Section;
 import ucar.nc2.NetcdfFile;
 import ucar.nc2.Variable;
+import ucar.unidata.io.RandomAccessFile;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -66,6 +69,11 @@ public class TestDir {
   public static String cdmLocalTestDataDir = "../cdm/src/test/data/";
 
   /**
+   * cdm-test data directory (distributed with code but depends on data not in github)
+   */
+  public static String cdmTestDataDir = "../cdm-test/src/test/data/";
+
+  /**
    * Temporary data directory (for writing temporary data).
    */
   public static String temporaryLocalDataDir = "target/test/tmp/";
@@ -82,17 +90,25 @@ public class TestDir {
    * available as system properties. */
   private static String threddsPropFileName = "thredds.properties";
 
-  // Remote Test server
+  // Remote Test server(s)
 
-  private static String remoteTestServerPropName = "remotetest";
+  private static String threddsTestServerPropName = "threddstestserver";
+
+  static public String threddsTestServer = "remotetest.unidata.ucar.edu";
 
     static public String remoteTestServer = "remotetest.unidata.ucar.edu";
 
+  // DAP2 Test server (for testing)
+
+  static public String dap3TestServerPropName = "dts";
+
+  static public String dapTestServer = remoteTestServer;
+
   // DAP4 Test server (for testing)
 
-  private static String dap4TestServerPropName = "d4ts";
+  static public String dap4TestServerPropName = "d4ts";
 
-  static public String dap4TestServer = "remotetest.unidata.ucar.edu";
+  static public String dap4TestServer = remoteTestServer;
 
   //////////////////////////////////////////////////
 
@@ -112,7 +128,7 @@ public class TestDir {
           userThreddsProps.load( new FileInputStream( userThreddsPropsFile ) );
         }
         catch ( IOException e ) {
-          System.out.println( "**Failed loading user THREDDS property file: " + e.getMessage() );
+          System.err.println( "**Failed loading user THREDDS property file: " + e.getMessage() );
         }
         if ( userThreddsProps != null && ! userThreddsProps.isEmpty() ) {
           if ( testdataDir == null )
@@ -123,8 +139,8 @@ public class TestDir {
 
     // Use default paths if needed.
     if ( testdataDir == null ) {
-      System.out.println( "**No \"unidata.testdata.path\"property, defaulting to \"/share/testdata/\"." );
       testdataDir = "/share/testdata/";
+      System.err.printf( "**No '%s' property, defaulting to '%s'%n", testdataDirPropName, testdataDir );
     }
     // Make sure paths ends with a slash.
     testdataDir = testdataDir.replace('\\','/'); //canonical
@@ -134,24 +150,31 @@ public class TestDir {
     cdmUnitTestDir = testdataDir + "cdmUnitTest/";
 
     File file = new File( cdmUnitTestDir );
-    if ( ! file.exists() || !file.isDirectory() ) {
-      System.out.println( "**WARN: Non-existence of Level 3 test data directory [" + file.getAbsolutePath() + "]." );
+    if ( !file.exists() || !file.isDirectory() ) {
+      System.err.println( "**WARN: Non-existence of Level 3 test data directory [" + file.getAbsolutePath() + "]." );
     }
 
     File tmpDataDir = new File(temporaryLocalDataDir);
     if ( ! tmpDataDir.exists() ) {
       if ( ! tmpDataDir.mkdirs() ) {
-        System.out.println( "**ERROR: Could not create temporary data dir <" + tmpDataDir.getAbsolutePath() + ">." );
+        System.err.println( "**ERROR: Could not create temporary data dir <" + tmpDataDir.getAbsolutePath() + ">." );
       }
     }
 
-    String rts = System.getProperty(remoteTestServerPropName);
+    String rts = System.getProperty(threddsTestServerPropName);
 	if(rts != null && rts.length() > 0)
-		remoteTestServer = rts;
+		threddsTestServer = rts;
+
+    String dts = System.getProperty(dap2TestServerPropName);
+      if(dts != null && dts.length() > 0)
+            dap2TestServer = dts;
 
     String d4ts = System.getProperty(dap4TestServerPropName);
     if(d4ts != null && d4ts.length() > 0)
       	dap4TestServer = d4ts;
+
+    PathAliasReplacementFromMap replace = new PathAliasReplacementFromMap("${cdmUnitTest}", cdmUnitTestDir);
+    FeatureCollectionConfigBuilder.setPathAliasReplacement(replace);
   }
 
   static public void showMem(String where) {
@@ -168,7 +191,7 @@ public class TestDir {
 
   public static NetcdfFile open( String filename) {
     try {
-      System.out.println("**** Open "+filename);
+      if (dumpFile) System.out.println("**** Open "+filename);
       NetcdfFile ncfile = NetcdfFile.open(filename, null);
       if (dumpFile) System.out.println("open "+ncfile);
       return ncfile;
@@ -192,6 +215,19 @@ public class TestDir {
 
   public static NetcdfFile openFileLocal( String filename) {
     return open( TestDir.cdmLocalTestDataDir +filename);
+  }
+
+  static public long checkLeaks() {
+    if (RandomAccessFile.getOpenFiles().size() > 0) {
+      System.out.printf("%nRandomAccessFile still open:%n");
+      for (String filename : RandomAccessFile.getOpenFiles()) {
+        System.out.printf(" open= %s%n", filename);
+      }
+    } else {
+      System.out.printf("RandomAccessFile: no leaks%n");
+    }
+    System.out.printf("RandomAccessFile: count open=%d, max=%d%n", RandomAccessFile.getOpenFileCount(), RandomAccessFile.getMaxOpenFileCount());
+    return RandomAccessFile.getOpenFiles().size();
   }
 
 
@@ -234,8 +270,28 @@ public class TestDir {
     }
   }
 
+  // FIXME: This method sucks: it doesn't fail when dirName can't be read.
   public static int actOnAll(String dirName, FileFilter ff, Act act) throws IOException {
     return actOnAll( dirName, ff, act, true);
+  }
+
+  // FIXME: This method sucks: it doesn't fail when dirName can't be read.
+  public static int actOnAllParameterized(String dirName, FileFilter ff, Collection<Object[]> filenames) throws IOException {
+    return actOnAll( dirName, ff, new ListAction(filenames), true);
+  }
+
+  static class ListAction implements Act {
+    Collection<Object[]> filenames;
+
+    ListAction(Collection<Object[]> filenames) {
+      this.filenames = filenames;
+    }
+
+    @Override
+    public int doAct(String filename) throws IOException {
+      filenames.add( new Object[] {filename} );
+      return 0;
+    }
   }
 
   /**
@@ -246,6 +302,7 @@ public class TestDir {
    * @return count
    * @throws IOException on IO error
    */
+  // FIXME: This method sucks: it doesn't fail when dirName can't be read.
   public static int actOnAll(String dirName, FileFilter ff, Act act, boolean recurse) throws IOException {
     int count = 0;
 
@@ -280,10 +337,12 @@ public class TestDir {
   }
 
   ////////////////////////////////////////////////////////////////////////////
+  // FIXME: This method sucks: it doesn't fail when dirName can't be read.
   public static int readAllDir(String dirName, FileFilter ff) throws IOException {
     return actOnAll(dirName, ff, new ReadAllVariables());
   }
-  
+
+  // FIXME: This method sucks: it doesn't fail when dirName can't be read.
   public static void readAll(String filename) throws IOException {
     ReadAllVariables act = new ReadAllVariables();
     act.doAct(filename);
@@ -294,9 +353,7 @@ public class TestDir {
     @Override
     public int doAct(String filename) throws IOException {
       System.out.println("\n------Reading filename "+filename);
-      NetcdfFile ncfile = null;
-      try {
-        ncfile = NetcdfFile.open(filename);
+      try (NetcdfFile ncfile = NetcdfFile.open(filename)) {
 
         for (Variable v : ncfile.getVariables()) {
           if (v.getSize() > max_size) {
@@ -312,10 +369,6 @@ public class TestDir {
         e.printStackTrace();
         //assert false;
 
-      } finally {
-        if (ncfile != null)
-          try { ncfile.close(); }
-          catch (IOException e) { }
       }
 
       return 1;
@@ -356,9 +409,20 @@ public class TestDir {
 
   ////////////////////////////////////////////////////
 
-  public static List<Object[]> getAllFilesInDirectory(String topdir, FileFilter filter) {
+  /**
+   * Returns all of the files in {@code topDir} that satisfy {@code filter}.
+   *
+   * @param topDir  a directory.
+   * @param filter  a file filter.
+   * @return  the files. An empty list will be returned if {@code topDir == null || !topDir.exists()}.
+   */
+  public static List<Object[]> getAllFilesInDirectory(File topDir, FileFilter filter) {
+    if (topDir == null || !topDir.exists()) {
+      return Collections.emptyList();
+    }
+
     List<File> files = new ArrayList<>();
-    File topDir = new File(topdir);
+
     for (File f : topDir.listFiles()) {
       if (filter != null && !filter.accept(f)) continue;
       files.add( f);
@@ -373,6 +437,4 @@ public class TestDir {
 
     return result;
   }
-
-
 }

@@ -32,15 +32,13 @@
 
 package ucar.nc2;
 
-import junit.framework.TestCase;
-
-import java.io.PrintWriter;
-import java.util.List;
-import java.io.IOException;
-
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import ucar.ma2.*;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
+
+import java.io.IOException;
 
 /**
  * Describe
@@ -48,6 +46,7 @@ import ucar.unidata.test.util.TestDir;
  * @author caron
  * @since Nov 10, 2009
  */
+@Category(NeedsCdmUnitTest.class)
 public class TestSequence {
 
   @Test
@@ -131,7 +130,7 @@ public class TestSequence {
 
       showArraySequence(as);
 
-      PrintWriter pw = new PrintWriter(System.out);
+      // PrintWriter pw = new PrintWriter(System.out);
       int count = 0;
       StructureDataIterator iter = as.getStructureDataIterator();
       try {
@@ -145,8 +144,8 @@ public class TestSequence {
           try {
             while (nestedIter.hasNext()) {
               StructureData nestedData = nestedIter.next();
-              NCdumpW.printStructureData(pw, nestedData);
-              System.out.printf("%n");
+              // NCdumpW.printStructureData(pw, nestedData);
+              assert nestedData != null;
             }
           } finally {
             nestedIter.finish();

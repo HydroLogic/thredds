@@ -38,8 +38,11 @@ import org.jdom2.output.XMLOutputter;
 import org.jdom2.output.Format;
 
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.util.StringTokenizer;
 
+import ucar.nc2.constants.CDM;
 import ucar.nc2.util.IO;
 
 /**
@@ -72,11 +75,11 @@ import ucar.nc2.util.IO;
  */
 public class ODLparser {
   static private org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ODLparser.class);
+  private static boolean debug = false, showRaw = false, show = false;
 
   private Document doc;
-  private boolean debug = false, showRaw = false, show = false;
 
-  void showDoc(java.io.OutputStream out) {
+  void showDoc(PrintWriter out) {
     XMLOutputter fmt = new XMLOutputter(Format.getPrettyFormat());
     try {
       fmt.output(doc, out);
@@ -86,7 +89,7 @@ public class ODLparser {
   }
 
   void parseFile(String filename) throws IOException {
-    String text = new String(IO.readFileToByteArray(filename));
+    String text = new String(IO.readFileToByteArray(filename), CDM.utf8Charset);
     parseFromString(text);
   }
 
@@ -123,7 +126,7 @@ public class ODLparser {
       }
     }
 
-    if (show) showDoc(System.out);
+    if (show) showDoc(new PrintWriter( new OutputStreamWriter(System.out, CDM.utf8Charset)));
     return rootElem;
   }
 

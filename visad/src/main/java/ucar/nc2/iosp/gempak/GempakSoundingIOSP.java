@@ -1,36 +1,34 @@
 /*
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- *  * Copyright 1998-2013 University Corporation for Atmospheric Research/Unidata
- *  *
- *  *  Portions of this software were developed by the Unidata Program at the
- *  *  University Corporation for Atmospheric Research.
- *  *
- *  *  Access and use of this software shall impose the following obligations
- *  *  and understandings on the user. The user is granted the right, without
- *  *  any fee or cost, to use, copy, modify, alter, enhance and distribute
- *  *  this software, and any derivative works thereof, and its supporting
- *  *  documentation for any purpose whatsoever, provided that this entire
- *  *  notice appears in all copies of the software, derivative works and
- *  *  supporting documentation.  Further, UCAR requests that the user credit
- *  *  UCAR/Unidata in any publications that result from the use of this
- *  *  software or in any product that includes this software. The names UCAR
- *  *  and/or Unidata, however, may not be used in any advertising or publicity
- *  *  to endorse or promote any products or commercial entity unless specific
- *  *  written permission is obtained from UCAR/Unidata. The user also
- *  *  understands that UCAR/Unidata is not obligated to provide the user with
- *  *  any support, consulting, training or assistance of any kind with regard
- *  *  to the use, operation and performance of this software nor to provide
- *  *  the user with any updates, revisions, new versions or "bug fixes."
- *  *
- *  *  THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- *  *  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- *  *  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- *  *  DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- *  *  INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- *  *  FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- *  *  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- *  *  WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 
@@ -44,9 +42,6 @@ import ucar.nc2.constants.AxisType;
 import ucar.nc2.constants.CDM;
 import ucar.nc2.constants.CF;
 import ucar.nc2.constants._Coordinate;
-
-import ucar.nc2.iosp.IOServiceProvider;
-import ucar.nc2.util.CancelTask;
 
 import ucar.unidata.io.RandomAccessFile;
 
@@ -452,7 +447,7 @@ public class GempakSoundingIOSP extends GempakStationFileIOSP {
 
 
     // build the data structure
-    List<Dimension> stationTime = new ArrayList<Dimension>();
+    List<Dimension> stationTime = new ArrayList<>();
     stationTime.add(station);
     stationTime.add(times);
     String structName = (isMerged) ? GempakSoundingFileReader.MERGED : GempakSoundingFileReader.UNMERGED;
@@ -462,7 +457,7 @@ public class GempakSoundingIOSP extends GempakStationFileIOSP {
     sVar.addAttribute(new Attribute(CF.COORDINATES, "time SLAT SLON SELV"));
     List<String> sequenceNames;
     if (isMerged) {
-      sequenceNames = new ArrayList<String>();
+      sequenceNames = new ArrayList<>();
       sequenceNames.add(GempakSoundingFileReader.SNDT);
     } else {
       sequenceNames = ((GempakSoundingFileReader) gemreader).getUnmergedParts();
@@ -532,7 +527,7 @@ public class GempakSoundingIOSP extends GempakStationFileIOSP {
    *
    * @author Unidata Development Team
    */
-  class EmptyStructureDataIterator implements StructureDataIterator {
+  static class EmptyStructureDataIterator implements StructureDataIterator {
 
     /**
      * Do we have more?
@@ -596,12 +591,12 @@ public class GempakSoundingIOSP extends GempakStationFileIOSP {
    *
    * @author Unidata Development Team
    */
-  private class SequenceIterator implements StructureDataIterator {
+  static private class SequenceIterator implements StructureDataIterator {
 
     /**
      * the number of records
      */
-    private int count;
+    // private int count;
 
     /**
      * the backing structure
@@ -620,7 +615,7 @@ public class GempakSoundingIOSP extends GempakStationFileIOSP {
      * @param abb   the backing store
      */
     SequenceIterator(int count, ArrayStructure abb) {
-      this.count = count;
+      // this.count = count;
       this.abb = abb;
     }
 
@@ -687,44 +682,5 @@ public class GempakSoundingIOSP extends GempakStationFileIOSP {
 
   }
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * Test this.
-   *
-   * @param args file name
-   * @throws IOException problem reading the file
-   */
-  public static void main(String[] args) throws IOException {
-    IOServiceProvider mciosp = new GempakSoundingIOSP();
-    RandomAccessFile rf = new RandomAccessFile(args[0], "r", 2048);
-    NetcdfFile ncfile = new MakeNetcdfFile(mciosp, rf, args[0], null);
-    if (args.length > 1) {
-      ucar.nc2.FileWriter.writeToFile(ncfile, args[1]);
-    } else {
-      System.out.println(ncfile);
-    }
-  }
-
-  /**
-   * TODO:  generalize this
-   * static class for testing
-   */
-  protected static class MakeNetcdfFile extends NetcdfFile {
-
-    /**
-     * Ctor
-     *
-     * @param spi        IOServiceProvider
-     * @param raf        RandomAccessFile
-     * @param location   location of file?
-     * @param cancelTask CancelTask
-     * @throws IOException problem opening the file
-     */
-    MakeNetcdfFile(IOServiceProvider spi, RandomAccessFile raf, String location, CancelTask cancelTask)
-            throws IOException {
-      super(spi, raf, location, cancelTask);
-    }
-  }
 }
 

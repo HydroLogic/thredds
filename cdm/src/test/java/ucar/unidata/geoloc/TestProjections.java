@@ -50,7 +50,7 @@ import ucar.nc2.TestAll;
  */
 
 public class TestProjections extends TestCase {
-  boolean show = true;
+  boolean show = false;
   int NTRIALS = 10000;
   double TOLERENCE = 1.0e-6;
   int count = 10;
@@ -64,9 +64,11 @@ public class TestProjections extends TestCase {
     ProjectionPoint p = proj.latLonToProj(startL);
     LatLonPointImpl endL = (LatLonPointImpl) proj.projToLatLon(p);
 
-    System.out.println("start  = " + startL.toString(8));
-    System.out.println("projection point  = " + p.toString());
-    System.out.println("end  = " + endL.toString(8));
+    if (show) {
+      System.out.println("start  = " + startL.toString(8));
+      System.out.println("projection point  = " + p.toString());
+      System.out.println("end  = " + endL.toString(8));
+    }
   }
 
   private void testProjection(ProjectionImpl proj) {
@@ -81,7 +83,9 @@ public class TestProjections extends TestCase {
       ProjectionPoint p = proj.latLonToProj(startL);
       if (Double.isNaN(p.getX()) || Double.isNaN(p.getY())) continue;
       LatLonPoint endL = proj.projToLatLon(p);
-      if (Double.isNaN(endL.getLatitude()) || Double.isNaN(endL.getLongitude())) continue;
+      if (Double.isNaN(endL.getLatitude()) ||
+              Double.isNaN(endL.getLongitude()) ||
+              endL.equals(LatLonPointImmutable.INVALID)) continue;
 
       assert (Misc.closeEnough(startL.getLatitude(), endL.getLatitude(), 1.0e-3)) :
           proj.getClass().getName() + " failed start= " + startL + " end = " + endL + " diff = "+ Misc.howClose(startL.getLatitude(), endL.getLatitude());
@@ -105,8 +109,9 @@ public class TestProjections extends TestCase {
       assert (Misc.closeEnough(startP.getY(), endP.getY()));
       countT2++;
     }
-
-    System.out.printf("Tested %d, %d pts for projection %s %n", countT1, countT2, proj.getClassName());
+    if (show)
+      System.out.printf("Tested %d, %d pts for projection %s %n", countT1,
+               countT2, proj.getClassName());
   }
 
   // must have lon within +/- lonMax, lat within +/- latMax
@@ -177,7 +182,42 @@ public class TestProjections extends TestCase {
       }
     }
 
-    System.out.println("Tested " + NTRIALS + " pts for projection " + proj.getClassName());
+    if (show)
+      System.out.println("Tested " + NTRIALS + " pts for projection " + proj
+               .getClassName());
+  }
+
+  // must have x within +/- xMax, y within +/- yMax
+  public void testProjectionProjMax(ProjectionImpl proj, double xMax,
+                                    double yMax) {
+      java.util.Random r = new java.util.Random((long) this.hashCode());
+      ProjectionPointImpl startP = new ProjectionPointImpl();
+      for (int i = 0; i < NTRIALS; i++) {
+          double x = xMax * (2 * r.nextDouble() - 1);
+          double y = yMax * (2 * r.nextDouble() - 1);
+          startP.setLocation(x, y);
+          try {
+              LatLonPoint ll = proj.projToLatLon(startP);
+              ProjectionPoint endP = proj.latLonToProj(ll);
+              if (show) {
+                  System.out.println("start  = " + startP);
+                  System.out.println("interL  = " + ll);
+                  System.out.println("end  = " + endP);
+              }
+              assert Misc.closeEnough(startP.getX(), endP.getX(),
+                      5.0e-4) : " failed start= " + startP.getX() + " end = "
+                      + endP.getX() + "; x,y=" + startP;
+              assert Misc.closeEnough(startP.getY(), endP.getY(),
+                      5.0e-4) : " failed start= " + startP.getY() + " end = "
+                      + endP.getY() + "; x,y=" + startP;
+          } catch (IllegalArgumentException e) {
+              System.out.printf("IllegalArgumentException=%s%n", e.getMessage());
+              continue;
+          }
+      }
+      if (show)
+          System.out.println("Tested " + NTRIALS + " pts for projection " + proj
+                  .getClassName());
   }
 
   public void testLC() {
@@ -192,8 +232,10 @@ public class TestProjections extends TestCase {
     LambertConformal lc = new LambertConformal(40.0, 180.0, 20.0, 60.0);
     ProjectionPointImpl p1 = (ProjectionPointImpl) lc.latLonToProj(new LatLonPointImpl(0.0, -1.0), new ProjectionPointImpl());
     ProjectionPointImpl p2 = (ProjectionPointImpl) lc.latLonToProj(new LatLonPointImpl(0.0, 1.0), new ProjectionPointImpl());
-    System.out.printf(" p1= x=%f y=%f%n", p1.getX(), p1.getY());
-    System.out.printf(" p2= x=%f y=%f%n", p2.getX(), p2.getY());
+    if (show) {
+      System.out.printf(" p1= x=%f y=%f%n", p1.getX(), p1.getY());
+      System.out.printf(" p2= x=%f y=%f%n", p2.getX(), p2.getY());
+    }
     assert lc.crossSeam(p1, p2);
   }
 
@@ -262,7 +304,7 @@ public class TestProjections extends TestCase {
   }
 
   public void testFlatEarth() {
-    testProjection(new FlatEarth());
+    testProjectionProjMax(new FlatEarth(), 5000, 5000);
     FlatEarth p = new FlatEarth();
     FlatEarth p2 = (FlatEarth) p.constructCopy();
     assert p.equals(p2);
@@ -278,7 +320,9 @@ public class TestProjections extends TestCase {
   private void showProjVal(ProjectionImpl proj, double lat, double lon) {
     LatLonPointImpl startL = new LatLonPointImpl(lat, lon);
     ProjectionPoint p = proj.latLonToProj(startL);
-    System.out.printf("lat,lon= (%f, %f) x, y= (%f, %f) %n", lat, lon, p.getX(), p.getY());
+    if (show)
+      System.out.printf("lat,lon= (%f, %f) x, y= (%f, %f) %n", lat, lon,
+               p.getX(), p.getY());
   }
 
   public void testMSG() {
@@ -402,7 +446,8 @@ public class TestProjections extends TestCase {
       assert (TestAll.closeEnough(startP.getY(), endP.getY()));
     }  */
 
-    System.out.println("Tested " + n + " pts for UTM projection ");
+    if (show)
+      System.out.println("Tested " + n + " pts for UTM projection ");
   }
 
   public void utestVerticalPerspectiveView() {

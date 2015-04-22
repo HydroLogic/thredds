@@ -38,11 +38,7 @@ import org.junit.Test;
 import ucar.nc2.util.UnitTestCommon;
 import ucar.unidata.test.util.TestDir;
 
-import java.io.*;
 import java.nio.charset.Charset;
-
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.assertTrue;
 
 /**
  * Test the proper state transitions of HTTPSession
@@ -59,7 +55,7 @@ public class TestState extends UnitTestCommon
 {
     //////////////////////////////////////////////////
     // Constants
-    protected final String SESSIONURL = "http://"+ TestDir.remoteTestServer+"/dts";
+    protected final String SESSIONURL = "http://"+ TestDir.dap2TestServer+"/dts";
     protected final String TESTSOURCE1 = SESSIONURL + "/test.01.dds";
     protected final String TESTSOURCE2 = SESSIONURL + "/test.02.dds";
 
@@ -80,7 +76,7 @@ public class TestState extends UnitTestCommon
     testState()
         throws Exception
     {
-
+        int status = 0;
         HTTPSession session = HTTPFactory.newSession(SESSIONURL);
         assertFalse(session.isClosed());
 
@@ -91,7 +87,7 @@ public class TestState extends UnitTestCommon
         assertTrue(methodcount == 1);
 
         // Check that stream close causes method close
-        method.execute();
+        status = method.execute();
         HTTPMethodStream stream = (HTTPMethodStream) method.getResponseBodyAsStream();
         assertTrue(method.hasStreamOpen());
         stream.close();
@@ -104,7 +100,7 @@ public class TestState extends UnitTestCommon
         method = HTTPFactory.Get(session, TESTSOURCE1);
         methodcount = session.getMethodcount();
         assertTrue(methodcount == 1);
-        method.execute();
+        status = method.execute();
         stream = (HTTPMethodStream) method.getResponseBodyAsStream();
         method.close();
         assertTrue(stream.isClosed());
@@ -116,7 +112,7 @@ public class TestState extends UnitTestCommon
         method = HTTPFactory.Get(session);
         methodcount = session.getMethodcount();
         assertTrue(methodcount == 1);
-        method.execute();
+        status = method.execute();
         stream = (HTTPMethodStream) method.getResponseBodyAsStream();
         session.close();
         assertTrue(stream.isClosed());
@@ -131,7 +127,7 @@ public class TestState extends UnitTestCommon
         session = method.getSession();
         methodcount = session.getMethodcount();
         assertTrue(methodcount == 1);
-        method.execute();
+        status = method.execute();
         String body = method.getResponseAsString();// will close stream
         try {
             stream = (HTTPMethodStream) method.getResponseBodyAsStream();

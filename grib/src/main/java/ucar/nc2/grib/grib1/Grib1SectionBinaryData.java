@@ -33,6 +33,7 @@
 package ucar.nc2.grib.grib1;
 
 import net.jcip.annotations.Immutable;
+import ucar.nc2.grib.GribData;
 import ucar.nc2.grib.GribNumbers;
 import ucar.unidata.io.RandomAccessFile;
 
@@ -104,21 +105,57 @@ public class Grib1SectionBinaryData {
   public long getStartingPosition() {
     return startingPosition;
   }
-
   public int getLength() {
     return length;
   }
 
   /////////////////////
-  public int getNBits(RandomAccessFile raf) throws IOException {
-    raf.seek(startingPosition + 10); // go to the data section
-    return raf.read();
+
+  public byte[] getBytes(RandomAccessFile raf) throws IOException {
+    raf.seek(startingPosition); // go to the data section
+    byte[] data = new byte[length];
+    raf.readFully(data);
+    return data;
   }
 
-  public float getRefValue(RandomAccessFile raf) throws IOException {
-    raf.seek(startingPosition + 6); // go to the data section
-    return GribNumbers.float4(raf);
+    // for debugging
+  GribData.Info getBinaryDataInfo(RandomAccessFile raf) throws IOException {
+    raf.seek(startingPosition); // go to the data section
+
+    GribData.Info info = new GribData.Info();
+
+    info.dataLength = GribNumbers.uint3(raf);    // // octets 1-3 (section length)
+
+    /*
+    Code table 11 – Flag
+    Bit No. Value Meaning
+     1 0 Grid-point data
+       1 Spherical harmonic coefficients
+     2 0 Simple packing
+       1 Complex or second-order packing
+     3 0 Floating point values (in the original data) are represented
+       1 Integer values (in the original data) are represented
+     4 0 No additional flags at octet 14
+       1 Octet 14 contains additional flag bits
+     */
+
+    // octet 4, 1st half (packing flag)
+    info.flag = raf.read();
+
+    // Y × 10^D = R + X × 2^E
+    // octets 5-6 (E = binary scale factor)
+    info.binaryScaleFactor = GribNumbers.int2(raf);
+
+    // octets 7-10 (R = reference point = minimum value)
+    info.referenceValue = GribNumbers.float4(raf);
+
+    // octet 11 (number of bits per value)
+    info.numberOfBits = raf.read();
+
+    return info;
   }
+
+
 
 
 }

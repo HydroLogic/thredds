@@ -163,21 +163,19 @@ public class HttpUriResolver {
   private HTTPMethod getHttpResponse( URI uri )
           throws IOException, HTTPException
   {
-    HTTPMethod method = HTTPFactory.Get(uri.toString());
-    method.getSession().setConnectionTimeout( this.connectionTimeout );
-    method.getSession().setSoTimeout( this.socketTimeout );
-    method.setFollowRedirects( this.followRedirects );
-    if(allowContentEncoding)
-      method.setAllowCompression();
+    try (HTTPMethod method = HTTPFactory.Get(uri.toString())) {
+      method.getSession().setConnectionTimeout( this.connectionTimeout );
+      method.getSession().setSoTimeout( this.socketTimeout );
+      method.setFollowRedirects( this.followRedirects );
+      if(allowContentEncoding)
+        method.setAllowCompression();
 
-   method.execute();
-    int statusCode = method.getStatusCode();
-    if ( statusCode == 200 || statusCode == 201 )
-    {
-      return method;
+      method.execute();
+      int statusCode = method.getStatusCode();
+      if ( statusCode == 200 || statusCode == 201 )
+      {
+        return method;
+      }
     }
-
-    method.execute();
-    return method;
   }
 }

@@ -33,8 +33,9 @@
 package thredds.tds.ethan;
 
 import junit.framework.*;
-
-import thredds.catalog.*;
+import org.junit.experimental.categories.Category;
+import thredds.client.catalog.Catalog;
+import ucar.unidata.test.util.NotTravis;
 
 /**
  * _more_
@@ -42,6 +43,7 @@ import thredds.catalog.*;
  * @author edavis
  * @since Nov 30, 2006 11:13:36 AM
  */
+@Category(NotTravis.class)
 public class TestTdsIddPing extends TestCase
 {
 
@@ -66,7 +68,7 @@ public class TestTdsIddPing extends TestCase
     System.out.println( "validate catalog: " + catUrl );
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
+    Catalog catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
     if ( catalog == null )
     {
       fail( msg.toString());
@@ -79,7 +81,7 @@ public class TestTdsIddPing extends TestCase
     System.out.println( "validate catalog: " + catUrl );
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
+    Catalog catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
     if ( catalog == null )
     {
       fail( msg.toString() );

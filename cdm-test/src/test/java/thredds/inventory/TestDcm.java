@@ -32,10 +32,18 @@
 
 package thredds.inventory;
 
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import thredds.featurecollection.FeatureCollectionConfig;
 import thredds.featurecollection.FeatureCollectionType;
+import thredds.inventory.filter.StreamFilter;
+import thredds.inventory.partition.DirectoryCollection;
+import ucar.nc2.time.CalendarDate;
 import ucar.nc2.util.Misc;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
 import java.io.File;
@@ -44,11 +52,12 @@ import java.util.Formatter;
 import java.util.List;
 
 /**
- * Test DatasetCollectionManager
+ * Test CollectionManager implementations
  *
  * @author caron
  * @since 6/20/11
  */
+@Category(NeedsCdmUnitTest.class)
 public class TestDcm {
 
   @Test
@@ -64,12 +73,15 @@ public class TestDcm {
     int count = 0;
     String[] result = new String[] {"2000-01-18T12:00:00", "2000-01-19T00:00:00", "2000-01-20T12:00:00"};
     for (MFile mfile : dcm.getFilesSorted()) {
-      System.out.printf("  %s == %s%n", mfile.getPath(), dcm.extractDate(mfile));
-      assert dcm.extractDate(mfile).toString().startsWith(result[count++]);
+      CalendarDate de = dcm.extractDate(mfile);
+      System.out.printf("  %s == %s%n", mfile.getPath(), de);
+      assert de.toString().startsWith(result[count]);
+      count++;
     }
   }
 
-  //@Test
+  @Test
+  @Ignore("tests fail on jenkins due to file permisssions")
   public void testScanOlderThan() throws IOException, InterruptedException {
     Formatter f = new Formatter(System.out);
     CollectionManager dcm = MFileCollectionManager.open("testScanOlderThan", TestDir.cdmUnitTestDir + "agg/updating/.*nc$", null, f);
@@ -83,20 +95,20 @@ public class TestDcm {
     dcm.scan(true);
     fileList = (List<MFile>) Misc.getList(dcm.getFilesSorted());
     assert fileList.size() ==  2 : dcm;
-
-    for (MFile mfile : dcm.getFilesSorted()) {
-      System.out.printf("  %s == %s%n", mfile.getPath(), dcm.extractDate(mfile));
-    }
   }
 
-  //@Test
+  @Test
+  @Ignore("tests fail on jenkins due to file permisssions")
   public void testScanFromConfig() throws IOException {
     //public FeatureCollectionConfig(String name, FeatureCollectionType fcType, String spec, String dateFormatMark, String olderThan, String recheckAfter,
     //                               String timePartition, String useIndexOnlyS, Element innerNcml) {
 
+    //   public FeatureCollectionConfig(String name, String path, FeatureCollectionType fcType, String spec,
+   //                                  String dateFormatMark, String olderThan,
+   //                                  String timePartition, String useIndexOnlyS, Element innerNcml) {
+
     FeatureCollectionConfig config = new FeatureCollectionConfig("testScanFromConfig", "path", FeatureCollectionType.FMRC,
-            TestDir.cdmUnitTestDir + "agg/updating/.*nc$",
-            null, "10 sec", null, null, null, null);
+            TestDir.cdmUnitTestDir + "agg/updating/.*nc$", null, null, "10 sec", null, null);
 
     assert touch(TestDir.cdmUnitTestDir + "agg/updating/extra.nc");
 
@@ -106,12 +118,36 @@ public class TestDcm {
     dcm.scan(true);
     List<MFile> fileList = (List<MFile>) Misc.getList(dcm.getFilesSorted());
     assert fileList.size() ==  2 : dcm;
-
-    // check date extractor
-    for (MFile mfile : dcm.getFilesSorted()) {
-      System.out.printf("  %s == %s%n", mfile.getPath(), dcm.extractDate(mfile));
-    }
   }
+
+  @Test
+  @Ignore("tests fail on jenkins due to file permisssions")
+  public void testOlderThanInDirectoryCollection() throws IOException {
+    //   public FeatureCollectionConfig(String name, String path, FeatureCollectionType fcType, String spec,
+   //                                  String dateFormatMark, String olderThan,
+   //                                  String timePartition, String useIndexOnlyS, Element innerNcml) {
+
+    FeatureCollectionConfig config = new FeatureCollectionConfig("testOlderThanInDirectoryCollection", "path", FeatureCollectionType.GRIB1,
+            TestDir.cdmUnitTestDir + "datasets/NDFD-CONUS-5km/.*grib2", null, null, "30 sec", null, null);
+
+    Formatter errlog = new Formatter(System.out);
+    CollectionSpecParser specp = new CollectionSpecParser(config.spec, errlog);
+
+    String fileToTouch =  specp.getRootDir() + "/NDFD_CONUS_5km_20131213_1200.grib2";
+    assert touch(fileToTouch);
+
+    // count scanned files
+    // String topCollectionName, String topDirS, String olderThan, org.slf4j.Logger logger
+    Logger logger = LoggerFactory.getLogger("testOlderThanInDirectoryCollection");
+    DirectoryCollection dcm = new DirectoryCollection("topCollectionName", specp.getRootDir(), true, config.olderThan, logger);
+    dcm.setStreamFilter(new StreamFilter(java.util.regex.Pattern.compile(".*grib2"), true));
+
+    List<String> fileList = dcm.getFilenames();
+    for (String name : fileList)
+    System.out.printf("%s%n", name);
+    assert fileList.size() ==  3 : fileList.size()+" !=  3 in "+specp.getRootDir();
+  }
+
 
   boolean touch(String who) {
     File file = new File(who);

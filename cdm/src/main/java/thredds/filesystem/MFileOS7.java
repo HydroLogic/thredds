@@ -46,12 +46,11 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 
 /**
- * Describe
+ * Use Java 7 nio Paths
  *
  * @author caron
  * @since 11/16/13
  */
-
 
 @ThreadSafe
 public class MFileOS7 implements MFile {
@@ -114,6 +113,11 @@ public class MFileOS7 implements MFile {
   }
 
   @Override
+   public MFile getParent() throws IOException {
+     return new MFileOS7(path.getParent());
+   }
+
+  @Override
   public int compareTo(MFile o) {
     return getPath().compareTo( o.getPath());
   }
@@ -131,5 +135,9 @@ public class MFileOS7 implements MFile {
   @Override
   public String toString() {
     return getPath();
+  }
+
+  public Path getNioPath() {
+    return path;
   }
 }

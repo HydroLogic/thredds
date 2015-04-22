@@ -1,36 +1,34 @@
 /*
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- *  * Copyright 1998-2013 University Corporation for Atmospheric Research/Unidata
- *  *
- *  *  Portions of this software were developed by the Unidata Program at the
- *  *  University Corporation for Atmospheric Research.
- *  *
- *  *  Access and use of this software shall impose the following obligations
- *  *  and understandings on the user. The user is granted the right, without
- *  *  any fee or cost, to use, copy, modify, alter, enhance and distribute
- *  *  this software, and any derivative works thereof, and its supporting
- *  *  documentation for any purpose whatsoever, provided that this entire
- *  *  notice appears in all copies of the software, derivative works and
- *  *  supporting documentation.  Further, UCAR requests that the user credit
- *  *  UCAR/Unidata in any publications that result from the use of this
- *  *  software or in any product that includes this software. The names UCAR
- *  *  and/or Unidata, however, may not be used in any advertising or publicity
- *  *  to endorse or promote any products or commercial entity unless specific
- *  *  written permission is obtained from UCAR/Unidata. The user also
- *  *  understands that UCAR/Unidata is not obligated to provide the user with
- *  *  any support, consulting, training or assistance of any kind with regard
- *  *  to the use, operation and performance of this software nor to provide
- *  *  the user with any updates, revisions, new versions or "bug fixes."
- *  *
- *  *  THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- *  *  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- *  *  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- *  *  DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- *  *  INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- *  *  FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- *  *  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- *  *  WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 
@@ -45,7 +43,6 @@ import ucar.unidata.io.RandomAccessFile;
 import java.io.*;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 
@@ -100,11 +97,6 @@ public class GempakGridReader extends GempakFileReader {
           "GPM2", "GPM3"
   };
 
-  /**
-   * grid header len
-   */
-  private int khdrln = 0;
-
   private final String filename;
 
   /**
@@ -157,14 +149,13 @@ public class GempakGridReader extends GempakFileReader {
       logError("Grid part header too long");
       return false;
     }
-    khdrln = lenhdr - 2;
+    // int khdrln = lenhdr - 2;
 
     // check that the column names are correct
     for (int i = 0; i < keys.kkcol.size(); i++) {
       Key colkey = keys.kkcol.get(i);
       if (!colkey.name.equals(kcolnm[i])) {
-        logError("Column name " + colkey + " doesn't match "
-                + kcolnm[i]);
+        logError("Column name " + colkey + " doesn't match " + kcolnm[i]);
         return false;
       }
     }
@@ -192,7 +183,7 @@ public class GempakGridReader extends GempakFileReader {
     // Make the grid headers
     // TODO: move this up into GempakFileReader using DM_RHDA
     // and account for the flipping there.
-    List<GempakGridRecord> tmpList = new ArrayList<GempakGridRecord>();
+    List<GempakGridRecord> tmpList = new ArrayList<>();
     int[] header = new int[dmLabel.kckeys];
     if ((headers == null) || (headers.colHeaders == null)) {
       return false;
@@ -224,8 +215,7 @@ public class GempakGridReader extends GempakFileReader {
     //List gridList = gridIndex.getGridRecords();
     //if ( !gridList.isEmpty()) {
     if (!tmpList.isEmpty()) {
-      for (int i = 0; i < tmpList.size(); i++) {
-        GempakGridRecord gh = (GempakGridRecord) tmpList.get(i);
+      for (GempakGridRecord gh : tmpList) {
         gh.packingType = getGridPackingType(gh.gridNumber);
         if ((gh.packingType == MDGGRB) || (gh.packingType == MDGRB2)
                 || (gh.packingType == MDGNON)) {
@@ -235,6 +225,7 @@ public class GempakGridReader extends GempakFileReader {
     } else {
       return false;
     }
+
     // check to see if there are any grids that we can handle
     if (gridIndex.getGridRecords().isEmpty()) {
       return false;
@@ -259,10 +250,8 @@ public class GempakGridReader extends GempakFileReader {
     }
 
     try {
-      GempakGridParameterTable.addParameters(
-              "resources/nj22/tables/gempak/wmogrib3.tbl");
-      GempakGridParameterTable.addParameters(
-              "resources/nj22/tables/gempak/ncepgrib2.tbl");
+      GempakGridParameterTable.addParameters("resources/nj22/tables/gempak/wmogrib3.tbl");
+      GempakGridParameterTable.addParameters("resources/nj22/tables/gempak/ncepgrib2.tbl");
     } catch (Exception e) {
       System.out.println("unable to init param tables");
     }
@@ -336,9 +325,8 @@ public class GempakGridReader extends GempakFileReader {
   public int getGridPackingType(int gridNumber) throws IOException {
     // See DM_RDTR
     int irow = 1;  // Always 1 for grids
-    int icol = gridNumber;
-    if ((icol < 1) || (icol > dmLabel.kcol)) {
-      logWarning("bad grid number " + icol);
+    if ((gridNumber < 1) || (gridNumber > dmLabel.kcol)) {
+      logWarning("bad grid number " + gridNumber);
       return -9;
     }
     int iprt = getPartNumber("GRID");
@@ -347,7 +335,7 @@ public class GempakGridReader extends GempakFileReader {
       return -10;
     }
     // gotta subtract 1 because parts are 1 but List is 0 based
-    DMPart part = (DMPart) parts.get(iprt - 1);
+    DMPart part = parts.get(iprt - 1);
     // check for valid data type
     if (part.ktyprt != MDGRID) {
       logWarning("Not a valid type: "
@@ -357,7 +345,7 @@ public class GempakGridReader extends GempakFileReader {
     int ilenhd = part.klnhdr;
     int ipoint = dmLabel.kpdata
             + (irow - 1) * dmLabel.kcol * dmLabel.kprt
-            + (icol - 1) * dmLabel.kprt + (iprt - 1);
+            + (gridNumber - 1) * dmLabel.kprt + (iprt - 1);
     // From DM_RPKG
     int istart = DM_RINT(ipoint);
     if (istart == 0) {
@@ -375,11 +363,10 @@ public class GempakGridReader extends GempakFileReader {
     }
     int[] header = new int[ilenhd];
     DM_RINT(isword, header);
-    int nword = length - ilenhd;
+    // int nword = length - ilenhd;
     isword += ilenhd;
     // read the data packing type
-    int ipktyp = DM_RINT(isword);
-    return ipktyp;
+    return DM_RINT(isword);
   }
 
   /**
@@ -389,12 +376,12 @@ public class GempakGridReader extends GempakFileReader {
    * @return the grid header or null
    */
   public GempakGridRecord findGrid(String parm) {
-    List gridList = gridIndex.getGridRecords();
+    List<GridRecord> gridList = gridIndex.getGridRecords();
     if (gridList == null) {
       return null;
     }
-    for (int i = 0; i < gridList.size(); i++) {
-      GempakGridRecord gh = (GempakGridRecord) gridList.get(i);
+    for (GridRecord grid : gridList) {
+      GempakGridRecord gh = (GempakGridRecord) grid;
       if (gh.param.trim().equals(parm)) {
         return gh;
       }
@@ -412,8 +399,8 @@ public class GempakGridReader extends GempakFileReader {
   public float[] readGrid(GridRecord gr) throws IOException {
 
     int gridNumber = ((GempakGridRecord) gr).getGridNumber();
-    int irow = 1;  // Always 1 for grids
-    int icol = gridNumber;
+    //int irow = 1;  // Always 1 for grids
+    //int icol = gridNumber;
     RData data = DM_RDTR(1, gridNumber, "GRID", gr.getDecimalScale());
     float[] vals = null;
     if (data != null) {
@@ -435,7 +422,7 @@ public class GempakGridReader extends GempakFileReader {
           throws IOException {
     // from DM_RPKG
     // read the data packing type
-    float[] data = null;
+    float[] data;
     int ipktyp = DM_RINT(isword);
     int iiword = isword + 1;
     int lendat = nword - 1;
@@ -473,7 +460,7 @@ public class GempakGridReader extends GempakFileReader {
     int misflg = iarray[1];
     boolean miss = misflg != 0;
     int kxky = iarray[2];
-    int mword = kxky;
+    // int mword = kxky;
     int kx = 0;
     if (iiw == 4) {
       kx = iarray[3];
@@ -537,7 +524,7 @@ public class GempakGridReader extends GempakFileReader {
   /**
    * flag for using DP_UGRB or not
    */
-  public static boolean useDP = true;
+  public boolean useDP = true;  // removed static - not thread safe jcaron 12/21/14
 
   /**
    * Unpack grib data packed into ints
@@ -590,7 +577,7 @@ public class GempakGridReader extends GempakFileReader {
               : idata[iword] << jshft;
       idat = idat & imax;
       //
-      //    Check to see if packed integer overflows into next word.
+      //    Check to see if packed integer overflows into next word. LOOK fishy bit operations
       //
       if (jshft > 0) {
         jshft -= 32;
@@ -750,7 +737,6 @@ public class GempakGridReader extends GempakFileReader {
     }
 
     // LOOK - not dealing with repeated records
-
     return new Grib2Record(null, is, ids, lus, gds, pds, drs, bms, dataSection, false, Grib2Index.ScanModeMissing);
   }
 
@@ -766,7 +752,7 @@ public class GempakGridReader extends GempakFileReader {
    * </pre>
    */
   public void printNavBlock() {
-    StringBuffer buf = new StringBuffer("GRID NAVIGATION:");
+    StringBuilder buf = new StringBuilder("GRID NAVIGATION:");
     if (navBlock != null) {
       buf.append(navBlock.toString());
     } else {
@@ -779,7 +765,7 @@ public class GempakGridReader extends GempakFileReader {
    * Print out the analysis block so it looks something like this:
    */
   public void printAnalBlock() {
-    StringBuffer buf = new StringBuffer("GRID ANALYSIS BLOCK:");
+    StringBuilder buf = new StringBuilder("GRID ANALYSIS BLOCK:");
     if (analBlock != null) {
       buf.append(analBlock.toString());
     } else {
@@ -801,14 +787,13 @@ public class GempakGridReader extends GempakFileReader {
    * Print out the grids.
    */
   public void printGrids() {
-    List gridList = gridIndex.getGridRecords();
-    if (gridList == null) {
+    List<GridRecord> gridList = gridIndex.getGridRecords();
+    if (gridList == null)
       return;
-    }
-    System.out.println(
-            "  NUM       TIME1              TIME2           LEVL1 LEVL2  VCORD PARM");
-    for (Iterator iter = gridList.iterator(); iter.hasNext(); ) {
-      System.out.println(iter.next());
+
+    System.out.println("  NUM       TIME1              TIME2           LEVL1 LEVL2  VCORD PARM");
+    for (GridRecord aGridList : gridList) {
+      System.out.println(aGridList);
     }
   }
 
@@ -824,8 +809,7 @@ public class GempakGridReader extends GempakFileReader {
     System.out.println("");
     printAnalBlock();
     System.out.println("\nNumber of grids in file:  " + gridList.size());
-    System.out.println("\nMaximum number of grids in file:  "
-            + dmLabel.kcol);
+    System.out.println("\nMaximum number of grids in file:  " + dmLabel.kcol);
     System.out.println("");
     if (printGrids) {
       printGrids();
@@ -954,9 +938,9 @@ public class GempakGridReader extends GempakFileReader {
                 ? 1
                 : -1;      /* toggle */
       }
-    } else {
-      fgrid = ingrid;
-    }
+    } //else {          logically dead code
+      //fgrid = ingrid;
+    //}
     return fgrid;
 
   }

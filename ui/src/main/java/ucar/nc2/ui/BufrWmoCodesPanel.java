@@ -34,7 +34,6 @@ package ucar.nc2.ui;
 
 import ucar.nc2.iosp.bufr.tables.CodeFlagTables;
 import ucar.nc2.ui.widget.BAMutil;
-import ucar.nc2.ui.widget.FileManager;
 import ucar.nc2.ui.widget.IndependentWindow;
 import ucar.nc2.ui.widget.TextHistoryPane;
 import ucar.util.prefs.PreferencesExt;
@@ -58,12 +57,10 @@ public class BufrWmoCodesPanel extends JPanel {
   private PreferencesExt prefs;
 
   private BeanTable codeTable, entryTable;
-  private JSplitPane split, split2;
+  private JSplitPane split;
 
   private TextHistoryPane compareTA;
   private IndependentWindow infoWindow;
-
-  private FileManager fileChooser;
 
   public BufrWmoCodesPanel(final PreferencesExt prefs, JPanel buttPanel) {
     this.prefs = prefs;
@@ -89,15 +86,15 @@ public class BufrWmoCodesPanel extends JPanel {
     });
 
     entryTable = new BeanTable(EntryBean.class, (PreferencesExt) prefs.node("EntryBean"), false);
-    entryTable.addListSelectionListener(new ListSelectionListener() {
+    /* entryTable.addListSelectionListener(new ListSelectionListener() {
       public void valueChanged(ListSelectionEvent e) {
-        EntryBean csb = (EntryBean) entryTable.getSelectedBean();
+        entryTable.getSelectedBean();
       }
-    });
+    });  */
 
     Map<Short, CodeFlagTables> tables = CodeFlagTables.getTables();
-    java.util.List<CodeTableBean> beans = new ArrayList<CodeTableBean>(tables.size());
-    List<Short> list = new ArrayList<Short>(tables.keySet());
+    java.util.List<CodeTableBean> beans = new ArrayList<>(tables.size());
+    List<Short> list = new ArrayList<>(tables.keySet());
     Collections.sort(list);
     for (short key : list) {
       beans.add(new CodeTableBean(tables.get( key)));
@@ -125,13 +122,12 @@ public class BufrWmoCodesPanel extends JPanel {
     //prefs.putBeanObject("InfoWindowBounds2", infoWindow2.getBounds());
     prefs.putInt("splitPos", split.getDividerLocation());
     //prefs.putInt("splitPos2", split2.getDividerLocation());
-    if (fileChooser != null) fileChooser.save();
   }
 
   public void setEntries(CodeFlagTables codeTable) {
     Map<Integer, String> map = codeTable.getMap();
-    java.util.List<EntryBean> beans = new ArrayList<EntryBean>(map.size());
-    List<Integer> list = new ArrayList<Integer>(map.keySet());
+    java.util.List<EntryBean> beans = new ArrayList<>(map.size());
+    List<Integer> list = new ArrayList<>(map.keySet());
     Collections.sort(list);
     for (int key : list) {
       beans.add(new EntryBean(key, map.get(key)));
@@ -179,10 +175,6 @@ public class BufrWmoCodesPanel extends JPanel {
   public class EntryBean {
     int code;
     String value;
-
-    // no-arg constructor
-    public EntryBean() {
-    }
 
     public EntryBean(int code, String value) {
       this.code = code;

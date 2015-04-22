@@ -1,102 +1,118 @@
-apply plugin: 'shadow'
-
-jar {
-    manifest {
-        attributes 'Implementation-Title': 'cdm'
-    }
-}
-
-sourceSets {
-    main {
-        java {
-            exclude 'ucar/nc2/util/reflect/*.java'
-        }
-    }
-    test {
-       java {
-           exclude 'thredds/catalog2/**/*.java'
-       }
-    }
-
-    integrationTest {
-      java.srcDir file('src/integration-test/java')
-      resources.srcDir file('src/integration-test/resources')
-  }
-}
-
-task integrationTest(type: Test, dependsOn: jar) {
-    testClassesDir = sourceSets.integrationTest.output.classesDir
-    classpath = sourceSets.integrationTest.runtimeClasspath
-    systemProperties['jar.path'] = jar.archivePath
-}
-
 dependencies {
-  compile project(':udunits')
-  compile project(':httpservices')
-  compile ('org.apache.httpcomponents:httpcore:4.2.5')
-  compile 'com.google.protobuf:protobuf-java:2.5.0'
-  compile 'joda-time:joda-time:2.2'
-  compile 'net.jcip:jcip-annotations:1.0'
-  compile 'org.jdom:jdom2:2.0.4'
-  compile ('org.quartz-scheduler:quartz:2.2.0') {   // eliminate c3p0
-    transitive = false
-  }
-  compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
-  runtime group: 'org.slf4j', name: 'jcl-over-slf4j', version: slf4jVersion
+    compile project(':udunits')
+    compile project(':httpservices')
+
+    compile libraries["httpcore"]
+    compile libraries["joda-time"]
+    compile libraries["jdom2"]
+    compile libraries["jcip-annotations"]
+    compile libraries["protobuf-java"]
+    compile libraries["guava"]
+    compile libraries["bzip2"]
+    compile libraries["jcommander"]
+
+    compile libraries["slf4j-api"]
+}
+
+test {
+    // Causes JUnit to throw an exception: "No tests found in ucar.nc2.util.UnitTestCommon"
+    exclude 'ucar/nc2/util/UnitTestCommon.class'
 }
 
 javadoc {
-  title = 'Public javadoc for netcdf-java version ' + version
-  source = fileTree(dir: 'src/main/java').matching {
-    include 'thredds/catalog/*.java'
-    include 'ucar/ma2/*.java'
-    include 'ucar/nc2/*.java'
-    include 'ucar/nc2/constants/*.java'
-    include 'ucar/nc2/dataset/**/*.java'
-    include 'ucar/nc2/dt/*.java'
-    include 'ucar/nc2/dt/grid/*.java'
-    include 'ucar/nc2/ft/*.java'
-    include 'ucar/nc2/ncml/*.java'
-    include 'ucar/nc2/time/*.java'
-    include 'ucar/nc2/units/*.java'
-    include 'ucar/nc2/util/*.java'
-    include 'ucar/unidata/**/*.java'
-  }
+    title = 'Public javadoc for netcdf-java version ' + version
+    source = fileTree(dir: 'src/main/java').matching {
+        include 'thredds/catalog/*.java'
+        include 'ucar/ma2/*.java'
+        include 'ucar/nc2/*.java'
+        include 'ucar/nc2/constants/*.java'
+        include 'ucar/nc2/dataset/**/*.java'
+        include 'ucar/nc2/dt/*.java'
+        include 'ucar/nc2/dt/grid/*.java'
+        include 'ucar/nc2/ft/*.java'
+        include 'ucar/nc2/ncml/*.java'
+        include 'ucar/nc2/time/*.java'
+        include 'ucar/nc2/units/*.java'
+        include 'ucar/nc2/util/*.java'
+        include 'ucar/unidata/**/*.java'
+    }
 }
 
 task releaseDocs(dependsOn: javadoc) << {
-  releaseDir = webdir + "javadoc"
+    def releaseDir = webdir + "javadoc"
 
-  ant.delete(dir: releaseDir)
-  ant.mkdir(dir: releaseDir)
+    ant.delete(dir: releaseDir)
+    ant.mkdir(dir: releaseDir)
 
-  copy {
-    println "copyDocs to " + releaseDir
-    from("build/docs/javadoc")
-    into releaseDir
-  }
-}
-
-/////////
-
-shadow {
-  outputFile = file("${destinationDir }/cdms-${version}.jar")
-  stats = true
-
-  exclude 'META-INF/*.DSA'
-  exclude 'META-INF/*.RSA'
-  exclude 'META-INF/NOTICE'
-  exclude 'META-INF/LICENSE'
-  exclude 'META-INF/*.txt'
-  exclude 'META-INF/*.xml'
-
-  artifactSet {
-      exclude 'commons-logging:commons-logging:*'
-  }
-
-  jar {
-    manifest {
-      attributes 'Main-Class': 'ucar.nc2.NCdumpW'
+    copy {
+        println "copyDocs to " + releaseDir
+        from("build/docs/javadoc")
+        into releaseDir
     }
-  }
 }
+
+//shadow {
+//    outputFile = file("${destinationDir}/cdms-${version}.jar")
+//    stats = true
+//
+//    exclude 'META-INF/*.DSA'
+//    exclude 'META-INF/*.RSA'
+//    exclude 'META-INF/NOTICE'
+//    exclude 'META-INF/LICENSE'
+//    exclude 'META-INF/*.txt'
+//    exclude 'META-INF/*.xml'
+//
+//    artifactSet {
+//        exclude 'commons-logging:commons-logging:*'
+//    }
+//
+//    jar {
+//        manifest {
+//            attributes 'Main-Class': 'ucar.nc2.NCdumpW'
+//        }
+//    }
+//}
+
+//////////////////////////////////////// Test artifacts ////////////////////////////////////////
+
+// This technique was inspired by:
+// https://softnoise.wordpress.com/2014/09/07/gradle-sub-project-test-dependencies-in-multi-project-builds/
+
+configurations {
+    // Define a custom configuration and fill it with our test code's runtime dependencies.
+    testArtifacts.extendsFrom testRuntime
+    testArtifacts.exclude(module: "slf4j-jdk14")  // Exclude the slf4j binding.
+}
+
+task testJar(type: Jar, dependsOn: testClasses,
+        group: 'build', description: 'Assembles a JAR containing the test utility classes.') {
+    from sourceSets.test.output.getAsFileTree().matching {
+        include 'ucar/nc2/TestLocal.class'
+        include 'ucar/nc2/util/UnitTestCommon.class'
+        include 'ucar/unidata/test/ma2/TestMa2Utils.class'
+        include 'ucar/unidata/test/ma2/TestStructureArray.class'
+        include 'ucar/unidata/test/util/CompareNetcdf.class'
+        include 'ucar/unidata/test/util/TestDir*.class'
+        include 'ucar/unidata/test/util/TestFileDirUtils.class'
+
+        // All 3 of these are included in the same source file: ucar/unidata/test/Diff.java
+        // Also, 2 of the class names aren't capitalized. Ugh.
+        include 'ucar/unidata/test/Diff.class'
+        include 'ucar/unidata/test/fileInfo.class'
+        include 'ucar/unidata/test/node.class'
+
+        // JUnit categories
+        include 'ucar/unidata/test/util/NeedsCdmUnitTest.class'
+        include 'ucar/unidata/test/util/NotTravis.class'
+    }
+    classifier = 'test'
+}
+
+artifacts {
+    // Add the result of the testJar task (i.e. cdm-<version>-test.jar) to the testArtifacts configuration.
+    // The config already contains the deps that our test classes require (added above in the configurations block).
+    testArtifacts testJar
+}
+
+// Other projects can depend on these artifacts using:
+//     testCompile project(path: ':cdm', configuration: 'testArtifacts')

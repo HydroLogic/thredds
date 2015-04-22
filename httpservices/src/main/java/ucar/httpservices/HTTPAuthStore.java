@@ -69,7 +69,7 @@ public class HTTPAuthStore implements Serializable
     //////////////////////////////////////////////////////////////////////////
 
     static public org.slf4j.Logger log
-        = org.slf4j.LoggerFactory.getLogger(HTTPSession.class);
+            = org.slf4j.LoggerFactory.getLogger(HTTPSession.class);
 
 
     //////////////////////////////////////////////////
@@ -80,16 +80,9 @@ public class HTTPAuthStore implements Serializable
     static public final String ANY_PRINCIPAL = null;
 
     //////////////////////////////////////////////////
-    // Class variables
-
-    static public boolean TESTING = false;
-
-    static public HTTPAuthStore DEFAULTS = new HTTPAuthStore(true);
-
-    //////////////////////////////////////////////////
     // Type Decls
-
-    static public class Entry implements Serializable
+    //Note: this class has a natural ordering that is inconsistent with equals.
+    static public class Entry implements Serializable, Comparable<Entry>
     {
         public String principal;
         public AuthScope scope;
@@ -109,7 +102,7 @@ public class HTTPAuthStore implements Serializable
         }
 
         private void writeObject(ObjectOutputStream oos)
-            throws IOException
+                throws IOException
         {
             oos.writeObject(principal);
             HTTPAuthScope.serializeScope(scope, oos);
@@ -120,7 +113,7 @@ public class HTTPAuthStore implements Serializable
         }
 
         private void readObject(ObjectInputStream ois)
-            throws IOException, ClassNotFoundException
+                throws IOException, ClassNotFoundException
         {
             try {
                 this.principal = (String) ois.readObject();
@@ -136,16 +129,13 @@ public class HTTPAuthStore implements Serializable
                 throw new IOException(e);
             }
         }
-    }
 
-    static protected class Compare implements Comparator<Entry>
-    {
-
-        public int compare(Entry e1, Entry e2)
+        public int compareTo(Entry e2)
         {
+            Entry e1 = this;
             // assert e1.scope equivalent e2.scope
             if(e1 == null || e2 == null
-                || e1.scope == null || e2.scope == null)
+                    || e1.scope == null || e2.scope == null)
                 throw new NullPointerException();
             String p1 = e1.principal;
             String p2 = e2.principal;
@@ -154,9 +144,18 @@ public class HTTPAuthStore implements Serializable
             return p1.compareTo(p2);
         }
 
-        public boolean equals(Object obj)
+        public boolean
+        equals(Object o)
         {
-            return (obj == this);     // never used
+            if(!(o instanceof Entry))
+                return false;
+            return (compareTo((Entry)o) == 0);
+        }
+
+        public int
+        hashCode()
+	{
+	    return this.principal.hashCode();
         }
 
     }
@@ -189,11 +188,25 @@ public class HTTPAuthStore implements Serializable
     }
 
     //////////////////////////////////////////////////
+    // Class variables    
+
+    static public boolean TESTING = false;
+
+    static protected HTTPAuthStore DEFAULT;
+
+    static {
+	    DEFAULT = new HTTPAuthStore(true);
+    }
+
+    //COVERITY[GUARDED_BY_VIOLATION]
+    static public synchronized HTTPAuthStore getDefault() {return DEFAULT;}
+
+    //////////////////////////////////////////////////
     // Instance variables
 
-    protected List<Entry> rows;
     protected boolean isdefault;
-    protected HTTPAuthStore defaults;
+
+    protected List<Entry> rows;
 
     //////////////////////////////////////////////////
     // Constructor(s)
@@ -206,39 +219,13 @@ public class HTTPAuthStore implements Serializable
     public HTTPAuthStore(boolean isdefault)
     {
         this.isdefault = isdefault;
-        if(!isdefault) this.defaults = HTTPAuthStore.DEFAULTS;
-
         this.rows = new ArrayList<Entry>();
-
         if(isdefault) {
-            // For back compatibility, check some system properties
+ 	    // For back compatibility, check key/trust store flags
             // and add appropriate entries
-            // 1. ESG keystore support
-            String kpath = System.getProperty("keystore");
-            if(kpath != null) {
-                String tpath = System.getProperty("truststore");
-                String kpwd = System.getProperty("keystorepassword");
-                String tpwd = System.getProperty("truststorepassword");
-                kpath = kpath.trim();
-                if(tpath != null) tpath = tpath.trim();
-                if(kpwd != null) kpwd = kpwd.trim();
-                if(tpwd != null) tpwd = tpwd.trim();
-                if(kpath.length() == 0) kpath = null;
-                if(tpath != null && tpath.length() == 0) tpath = null;
-                if(kpwd != null && kpwd.length() == 0) kpwd = null;
-                if(tpwd != null && tpwd.length() == 0) tpwd = null;
-
-                CredentialsProvider creds = new HTTPSSLProvider(kpath, kpwd, tpath, tpwd);
-                try {
-                    AuthScope scope = new AuthScope(ANY_HOST, ANY_PORT, ANY_REALM, HTTPAuthPolicy.SSL);
-                    insert(new Entry(ANY_PRINCIPAL, scope, creds));
-                } catch (HTTPException he) {
-                    log.error("HTTPAuthStore: could not insert default SSL data");
-                }
-            }
+   	    HTTPSession.setGlobalKeyStore();
         }
     }
-
 
     //////////////////////////////////////////////////
     // API
@@ -251,7 +238,7 @@ public class HTTPAuthStore implements Serializable
 
     synchronized public CredentialsProvider
     insert(String principal, AuthScope scope, CredentialsProvider provider)
-        throws HTTPException
+            throws HTTPException
     {
         return insert(new Entry(principal, scope, provider));
     }
@@ -262,7 +249,7 @@ public class HTTPAuthStore implements Serializable
      */
     synchronized public CredentialsProvider
     insert(Entry entry)
-        throws HTTPException
+            throws HTTPException
     {
         Entry found = null;
 
@@ -294,7 +281,7 @@ public class HTTPAuthStore implements Serializable
 
     synchronized public Entry
     remove(Entry entry)
-        throws HTTPException
+            throws HTTPException
     {
         Entry found = null;
 
@@ -323,10 +310,10 @@ public class HTTPAuthStore implements Serializable
     /**
      * Return all entries in the auth store
      */
-    public List<Entry>
+    synchronized public List<Entry>
     getAllRows()
     {
-        return rows;
+        return this.rows;
     }
 
     /**
@@ -339,22 +326,22 @@ public class HTTPAuthStore implements Serializable
     search(String principal, AuthScope scope)
     {
         List<Entry> matches;
-        if(defaults == null)
+        if(isdefault || DEFAULT == null)
             matches = new ArrayList<Entry>();
         else
-            matches = defaults.search(principal, scope);
+            matches = DEFAULT.search(principal, scope);
 
         if(scope == null || rows.size() == 0)
             return matches;
 
-        for(Entry e : rows) {
+        for(Entry e : getAllRows()) {
             if(principal != ANY_PRINCIPAL && e.principal.equals(principal))
                 continue;
             if(HTTPAuthScope.equivalent(scope, e.scope))
                 matches.add(e);
         }
 
-        Collections.sort(matches, new Compare());
+        Collections.sort(matches);
         return matches;
     }
 
@@ -421,19 +408,19 @@ public class HTTPAuthStore implements Serializable
 
     public void
     print(PrintStream p)
-        throws IOException
+            throws IOException
     {
-        print(new PrintWriter(new OutputStreamWriter(p,Escape.utf8Charset), true));
+        print(new PrintWriter(new OutputStreamWriter(p, Escape.utf8Charset), true));
     }
 
     public void
     print(PrintWriter p)
-        throws IOException
+            throws IOException
     {
         List<Entry> elist = getAllRows();
-        for(int i = 0;i < elist.size();i++) {
+        for(int i = 0; i < elist.size(); i++) {
             Entry e = elist.get(i);
-            p.printf("[%02d] %s\n", i, e.toString());
+            p.printf("[%02d] %s%n", i, e.toString());
         }
     }
 
@@ -443,17 +430,19 @@ public class HTTPAuthStore implements Serializable
 
     synchronized public void
     serialize(OutputStream ostream, String password)
-        throws HTTPException
+            throws HTTPException
     {
         try {
 
             // Create Key
             byte deskey[] = password.getBytes(Escape.utf8Charset);
             DESKeySpec desKeySpec = new DESKeySpec(deskey);
+            //Coverity[RISKY_CRYPTO]
             SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("DES");
             SecretKey secretKey = keyFactory.generateSecret(desKeySpec);
 
             // Create Cipher
+            //Coverity[RISKY_CRYPTO]
             Cipher desCipher = Cipher.getInstance("DES/ECB/PKCS5Padding");
             desCipher.init(Cipher.ENCRYPT_MODE, secretKey);
 
@@ -464,7 +453,7 @@ public class HTTPAuthStore implements Serializable
 
             oos.writeInt(getAllRows().size());
 
-            for(Entry e : rows) {
+            for(Entry e : getAllRows()) {
                 oos.writeObject(e);
             }
 
@@ -479,7 +468,7 @@ public class HTTPAuthStore implements Serializable
 
     synchronized public void
     deserialize(InputStream istream, String password)
-        throws HTTPException
+            throws HTTPException
     {
         ObjectInputStream ois = null;
         try {
@@ -497,7 +486,7 @@ public class HTTPAuthStore implements Serializable
 
     static public ObjectInputStream  // public to allow testing
     openobjectstream(InputStream istream, String password)
-        throws HTTPException
+            throws HTTPException
     {
         try {
             // Create Key
@@ -507,6 +496,7 @@ public class HTTPAuthStore implements Serializable
             SecretKey secretKey = keyFactory.generateSecret(desKeySpec);
 
             // Create Cipher
+            //Coverity[RISKY_CRYPTO]
             Cipher desCipher = Cipher.getInstance("DES/ECB/PKCS5Padding");
             desCipher.init(Cipher.DECRYPT_MODE, secretKey);
 
@@ -522,7 +512,7 @@ public class HTTPAuthStore implements Serializable
 
     static public HTTPAuthStore    // public to allow testing
     getDeserializedStore(ObjectInputStream ois)
-        throws HTTPException
+            throws HTTPException
     {
         List<Entry> entries = getDeserializedEntries(ois);
         HTTPAuthStore store = new HTTPAuthStore();
@@ -532,12 +522,12 @@ public class HTTPAuthStore implements Serializable
 
     static protected List<Entry>    // public to allow testing
     getDeserializedEntries(ObjectInputStream ois)
-        throws HTTPException
+            throws HTTPException
     {
         try {
             List<Entry> entries = new ArrayList<Entry>();
             int count = ois.readInt();
-            for(int i = 0;i < count;i++) {
+            for(int i = 0; i < count; i++) {
                 Entry e = (Entry) ois.readObject();
                 entries.add(e);
             }

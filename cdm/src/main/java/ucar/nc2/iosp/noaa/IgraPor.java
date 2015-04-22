@@ -34,7 +34,6 @@ package ucar.nc2.iosp.noaa;
 
 import ucar.ma2.*;
 import ucar.nc2.*;
-import ucar.nc2.constants.CDM;
 import ucar.nc2.iosp.AbstractIOServiceProvider;
 import ucar.nc2.ncml.NcmlConstructor;
 import ucar.nc2.util.CancelTask;
@@ -51,6 +50,7 @@ import java.util.regex.Pattern;
  * Can open all data by opening "igra-stations.txt", with data files in subdir "igra-por".
  * Can open single station data by opening <stationId>.dat with igra-stations.txt in same or parent directory.
  *  -	IGRA - Integrated Global Radiosonde Archive
+ *  LOOK probably file leaks
  * @author caron
  * @see "http://www.ncdc.noaa.gov/oa/climate/igra/"
  * @see "ftp://ftp.ncdc.noaa.gov/pub/data/igra"
@@ -99,20 +99,16 @@ public class IgraPor extends AbstractIOServiceProvider {
       if (!datFile.exists())
         return false;
       File stnFile = getStnFile(location);
-      if (!stnFile.exists())
+      if (stnFile == null || !stnFile.exists())
         return false;
 
       raf.seek(0);
-      byte[] b = new byte[MAGIC_START_IDX.length()];
-      raf.read(b);
-      String test = new String(b, CDM.utf8Charset);
+      String test = raf.readString(MAGIC_START_IDX.length());
       return test.equals(MAGIC_START_IDX);
 
     } else if (ext.equals(DAT_EXT)) {
       File stnFile = getStnFile(location);
-      if (stnFile == null)
-        return false;
-      return isValidFile(raf, dataHeaderPattern);
+      return stnFile != null && isValidFile(raf, dataHeaderPattern);
 
     } else {
       // data directory must exist
@@ -172,18 +168,20 @@ public class IgraPor extends AbstractIOServiceProvider {
 
   @Override
   public void open(RandomAccessFile raff, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
-    String location = raff.getLocation();
+    super.open(raff, ncfile, cancelTask);
     int pos = location.lastIndexOf(".");
     String ext = location.substring(pos);
 
     File file = new File(location);
     File stnFile = getStnFile(location);
+    if (stnFile == null)
+      throw new FileNotFoundException("Station File does not exist="+location);
 
     if (ext.equals(IDX_EXT)) {
-      stnRaf = new RandomAccessFile(stnFile.getPath(), "r");
+      stnRaf = RandomAccessFile.acquire(stnFile.getPath());
 
     } else if (ext.equals(DAT_EXT)) {
-      stnRaf = new RandomAccessFile(stnFile.getPath(), "r");
+      stnRaf = RandomAccessFile.acquire(stnFile.getPath());
       dataRaf = raff;
 
       //extract the station id
@@ -405,13 +403,9 @@ public class IgraPor extends AbstractIOServiceProvider {
   }
 
   private class StationData extends StructureDataRegexp {
-    StructureMembers members;
-    Matcher matcher;          // matcher on the station ascii
 
     StationData(StructureMembers members, Matcher matcher) {
       super(members, matcher);
-      this.members = members;
-      this.matcher = matcher;
     }
 
     @Override
@@ -447,7 +441,7 @@ public class IgraPor extends AbstractIOServiceProvider {
         if (dataRaf != null)
           this.timeSeriesRaf = dataRaf; // single station case - data file already open
         else
-          this.timeSeriesRaf = new RandomAccessFile(file.getPath(), "r");
+          this.timeSeriesRaf = RandomAccessFile.acquire(file.getPath());
 
         totalBytes = timeSeriesRaf.length();
         timeSeriesRaf.seek(0);

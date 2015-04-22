@@ -62,7 +62,6 @@ import java.text.ParseException;
  * @since 2004-08-13T13:21:19 MDT
  */
 public class DMSPiosp extends AbstractIOServiceProvider {
-  private NetcdfFile ncfile;
 
   DMSPHeader header = null;
 
@@ -99,24 +98,22 @@ public class DMSPiosp extends AbstractIOServiceProvider {
 
   public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
     super.open(raf, ncfile, cancelTask);
-    this.ncfile = ncfile;
-
     this.raf.order(ucar.unidata.io.RandomAccessFile.BIG_ENDIAN); // DMSP files are XDR
 
     this.header = new DMSPHeader();
     this.header.read(this.raf, this.ncfile);
 
     // Create dimension lists for adding to variables.
-    List<Dimension> nonScanDimList = new ArrayList<Dimension>();
+    List<Dimension> nonScanDimList = new ArrayList<>();
     nonScanDimList.add(this.header.getNumDataRecordsDim());
 
-    List<Dimension> scanDimList = new ArrayList<Dimension>();
+    List<Dimension> scanDimList = new ArrayList<>();
     scanDimList.add(this.header.getNumDataRecordsDim());
     scanDimList.add(this.header.getNumSamplesPerBandDim());
 
     Iterator varInfoIt = VariableInfo.getAll().iterator();
-    VariableInfo curVarInfo = null;
-    Variable curVariable = null;
+    VariableInfo curVarInfo;
+    Variable curVariable;
     while (varInfoIt.hasNext()) {
       curVarInfo = (VariableInfo) varInfoIt.next();
       curVariable = new Variable(this.ncfile, this.ncfile.getRootGroup(), null, curVarInfo.getName());
@@ -454,7 +451,7 @@ public class DMSPiosp extends AbstractIOServiceProvider {
     this.raf.seek(header.getRecordSizeInBytes() * header.getNumHeaderRecords() + offsetInRecord);
 
     for (int i = 0; i < header.getNumDataRecords(); i++) {
-      this.raf.read(elementArray);
+      this.raf.readFully(elementArray);
       array[i] = elementArray[3];
       this.raf.skipBytes(header.getRecordSizeInBytes() - elementSizeInBytes);
     }
@@ -513,7 +510,7 @@ public class DMSPiosp extends AbstractIOServiceProvider {
     this.raf.seek(header.getRecordSizeInBytes() * header.getNumHeaderRecords() + offsetInRecord);
 
     for (int i = 0; i < header.getNumDataRecords(); i++) {
-      this.raf.read(array, i * numElementsInRecord, numElementsInRecord);
+      this.raf.readFully(array, i * numElementsInRecord, numElementsInRecord);
       this.raf.skipBytes(header.getRecordSizeInBytes() - numElementsInRecord);
     }
 
@@ -759,7 +756,7 @@ public class DMSPiosp extends AbstractIOServiceProvider {
       // The altitude of the satellite.
       // The satellites position.
       //-----
-      double subSatPoint[] = new double[3];
+      double subSatPoint[];
       double surfaceNormal[] = new double[3];
       double satAltitude;
       double satPoint[] = new double[3];
@@ -768,7 +765,7 @@ public class DMSPiosp extends AbstractIOServiceProvider {
       // Unit vectors in tangent plane pointing north and west.
       //-----
       double north[] = new double[3];
-      double west[] = new double[3];
+      double west[];
       double projectMag;
 
       //-----
@@ -786,7 +783,7 @@ public class DMSPiosp extends AbstractIOServiceProvider {
       // (assume the scanner runs perpendicular to heading).
       // Point on scanLine that line-of-sight intersects.
       //-----
-      double scanLine[] = new double[3];
+      double scanLine[];
       double scannerAngle;
       double scanPoint[] = new double[3];
       double scanPointMag;

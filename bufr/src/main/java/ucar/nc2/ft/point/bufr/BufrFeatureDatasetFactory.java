@@ -34,8 +34,12 @@
 package ucar.nc2.ft.point.bufr;
 
 import org.jdom2.Element;
+import thredds.client.catalog.Catalog;
 import ucar.ma2.*;
-import ucar.nc2.*;
+import ucar.nc2.Attribute;
+import ucar.nc2.Structure;
+import ucar.nc2.Variable;
+import ucar.nc2.VariableSimpleIF;
 import ucar.nc2.constants.FeatureType;
 import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.dataset.SequenceDS;
@@ -44,7 +48,6 @@ import ucar.nc2.ft.*;
 import ucar.nc2.ft.point.*;
 import ucar.nc2.iosp.IOServiceProvider;
 import ucar.nc2.iosp.bufr.BufrIosp2;
-import ucar.nc2.ncml.NcMLReader;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarDateRange;
 import ucar.nc2.units.DateUnit;
@@ -52,7 +55,6 @@ import ucar.nc2.util.CancelTask;
 import ucar.nc2.util.Indent;
 import ucar.unidata.geoloc.EarthLocation;
 import ucar.unidata.geoloc.LatLonRect;
-import ucar.unidata.geoloc.Station;
 
 import java.io.File;
 import java.io.IOException;
@@ -77,7 +79,7 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
   }
 
   @Override
-  public FeatureType[] getFeatureType() {
+  public FeatureType[] getFeatureTypes() {
     return new FeatureType[]{FeatureType.ANY_POINT};
   }
 
@@ -108,7 +110,7 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
 
   private void show(Element parent, Indent indent) {
     if (parent == null) return;
-    for (Element child : parent.getChildren("fld", NcMLReader.ncNS)) {
+    for (Element child : parent.getChildren("fld", Catalog.ncmlNS)) {
       String idx = child.getAttributeValue("idx");
       String fxy = child.getAttributeValue("fxy");
       String name = child.getAttributeValue("name");
@@ -123,7 +125,7 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
   private void processSeq(Structure struct, Element parent) throws IOException {
     if (parent == null || struct == null) return;
     List<Variable> vars = struct.getVariables();
-    for (Element child : parent.getChildren("fld", NcMLReader.ncNS)) {
+    for (Element child : parent.getChildren("fld", Catalog.ncmlNS)) {
       String idxS = child.getAttributeValue("idx");
       int idx = Integer.parseInt(idxS);
       if (idx < 0 || idx >= vars.size()) {
@@ -136,7 +138,7 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
     }
   }
 
-  private class BufrStationDataset extends PointDatasetImpl {
+  private static class BufrStationDataset extends PointDatasetImpl {
     private Munge munger;
     private BufrCdmIndex index;
     private SequenceDS obs;
@@ -175,7 +177,7 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
         super(name, null, null);
 
         // need  the center id to match the standard fields
-        Attribute centerAtt = ncfile.findGlobalAttribute(BufrIosp2.centerId);
+        Attribute centerAtt = netcdfDataset.findGlobalAttribute(BufrIosp2.centerId);
         int center = (centerAtt == null) ? 0 : centerAtt.getNumericValue().intValue();
         this.extract = new StandardFields.StandardFieldsFromStructure(center, obs);
 
@@ -189,12 +191,10 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
       }
 
       @Override
-      protected StationHelper initStationHelper() {
-        if (stationHelper == null) {
-          stationHelper = new StationHelper();
-          for (BufrCdmIndexProto.Station s : index.stations)
-            stationHelper.addStation(new BufrStation(s));
-        }
+      protected StationHelper createStationHelper() throws IOException {
+        StationHelper stationHelper = new StationHelper();
+        for (BufrCdmIndexProto.Station s : index.stations)
+          stationHelper.addStation(new BufrStation(s));
 
         return stationHelper;
       }
@@ -216,8 +216,6 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
 
         // iterates over the records for this station
         public class BufrStationIterator extends PointIteratorFromStructureData {
-          int countRecords = 0;
-
           public BufrStationIterator(StructureDataIterator structIter, PointFeatureIterator.Filter filter) throws IOException {
             super(structIter, filter);
           }
@@ -268,8 +266,8 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
           super("BufrPointFeatureCollection", bufrDateUnits, bufrAltUnits);
           setBoundingBox(boundingBox);
           setCalendarDateRange(dateRange);
-          initStationHelper();
-          stationsWanted = stationHelper.subset(boundingBox);
+          createStationHelper();
+          stationsWanted = getStationHelper().subset(boundingBox);
           if (dateRange != null) filter = new PointIteratorAbstract.Filter(null, dateRange);
         }
 
@@ -333,14 +331,14 @@ public class BufrFeatureDatasetFactory implements FeatureDatasetFactory {
     }
   }
 
-  private class Action {
+  private static class Action {
     BufrCdmIndexProto.FldAction what;
     private Action(BufrCdmIndexProto.FldAction what) {
       this.what = what;
     }
   }
 
-  private class Munge {
+  private static class Munge {
     String sdataName;
     boolean needed;
     protected Map<String, Action> actions = new HashMap<>(32);

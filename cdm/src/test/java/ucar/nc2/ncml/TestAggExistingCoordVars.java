@@ -45,7 +45,7 @@ import java.io.StringReader;
 import java.util.Date;
 
 /** Test NcML AggExisting ways to define coordinate variable values
- * @see "http://www.unidata.ucar.edu/software/netcdf/ncml/v2.2/Aggregation.html#JoinExistingTypes"
+ * @see "http://www.unidata.ucar.edu/software/netcdf/ncml/Aggregation.html#JoinExistingTypes"
  **/
 
 public class TestAggExistingCoordVars extends TestCase {
@@ -253,7 +253,7 @@ public class TestAggExistingCoordVars extends TestCase {
       assert data.getShape()[0] == 3;
       assert data.getElementType() == String.class;
 
-      NCdump.printArray(data, "time coord", System.out, null);
+      NCdumpW.printArray(data, "time coord", System.out, null);
 
       int count = 0;
       IndexIterator dataI = data.getIndexIterator();
@@ -299,7 +299,7 @@ public class TestAggExistingCoordVars extends TestCase {
       assert data.getShape()[0] == 3;
       assert data.getElementType() == double.class;
 
-      NCdump.printArray(data, "time coord", System.out, null);
+      NCdumpW.printArray(data, "time coord", System.out, null);
 
       int count = 0;
       IndexIterator dataI = data.getIndexIterator();

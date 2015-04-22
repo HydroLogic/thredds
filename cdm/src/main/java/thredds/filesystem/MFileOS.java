@@ -59,7 +59,7 @@ public class MFileOS implements MFile {
     return null;
   }
 
-  private final java.io.File file;
+  private final File file;
   private final long lastModified;
   private Object auxInfo;
 
@@ -100,6 +100,11 @@ public class MFileOS implements MFile {
   }
 
   @Override
+  public MFile getParent() {
+    return new MFileOS(file.getParentFile());
+  }
+
+  @Override
   public int compareTo(MFile o) {
     return getPath().compareTo( o.getPath());
   }
@@ -121,5 +126,9 @@ public class MFileOS implements MFile {
     sb.append(", lastModified=").append(lastModified);
     sb.append('}');
     return sb.toString();
+  }
+
+  public File getFile() {
+    return file;
   }
 }

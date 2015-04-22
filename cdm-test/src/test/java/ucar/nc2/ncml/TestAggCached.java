@@ -1,11 +1,13 @@
 package ucar.nc2.ncml;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import ucar.ma2.InvalidRangeException;
 import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.ft.FeatureDataset;
 import ucar.nc2.util.CompareNetcdf2;
-import ucar.nc2.util.cache.FileCache;
+import ucar.nc2.util.cache.FileCacheIF;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
 import java.io.IOException;
@@ -13,11 +15,12 @@ import java.util.EnumSet;
 import java.util.Formatter;
 
 /**
- * Description
+ * Test caching of NetcdfDataset in context of aggregation
  *
  * @author John
  * @since 9/11/13
  */
+@Category(NeedsCdmUnitTest.class)
 public class TestAggCached {
 
   @Test
@@ -33,7 +36,7 @@ public class TestAggCached {
       NetcdfDataset ncd = NetcdfDataset.acquireDataset(filename, null);
       NetcdfDataset ncd2 = NetcdfDataset.wrap(ncd, NetcdfDataset.getEnhanceAll());
       Formatter out = new Formatter();
-      ok &= CompareNetcdf2.compareFiles(ncd, ncd2, out, false, true, false);
+      ok &= CompareNetcdf2.compareFiles(ncd, ncd2, out, false, false, false);
       System.out.printf("----------------%nfile=%s%n%s%n", filename, out);
 
       EnumSet<NetcdfDataset.Enhance> modes =  ncd2.getEnhanceMode();
@@ -42,7 +45,7 @@ public class TestAggCached {
       System.out.printf("==========%n");
     }
 
-    FileCache cache = NetcdfDataset.getNetcdfFileCache();
+    FileCacheIF cache = NetcdfDataset.getNetcdfFileCache();
     cache.showCache();
     assert ok;
   }
@@ -97,7 +100,7 @@ public class TestAggCached {
       nc1.close();
     }
 
-    FileCache cache = NetcdfDataset.getNetcdfFileCache();
+    FileCacheIF cache = NetcdfDataset.getNetcdfFileCache();
     cache.showCache();
   }
 

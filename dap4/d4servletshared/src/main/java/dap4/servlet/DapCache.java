@@ -37,11 +37,22 @@ abstract public class DapCache
      */
     static protected List<DSP> lru = new ArrayList<DSP>();
 
-    //////////////////////////////////////////////////
-    // API
+    // This should be set by any subclass
+    static protected DSPFactory factory = null;
 
-    static public synchronized DSP
-    open(String path)
+    static public void setFactory(DSPFactory f)
+    {
+        factory = f;
+    }
+
+    static public DSPFactory getFactory()
+    {
+        return factory;
+    }
+
+    //////////////////////////////////////////////////
+
+    static public synchronized DSP open(String path)
             throws IOException
     {
         int lrusize = lru.size();
@@ -63,19 +74,18 @@ abstract public class DapCache
             CEConstraint.release(lru.get(0).getDMR());
         }
         // Find dsp that can process this path
-        DSP dsp = DSPFactory.create(path);
+        DSP dsp = factory.create(path);
         lru.add(dsp);
         return dsp;
     }
 
-    static public void flush() // for testing
+    static synchronized public void flush() // for testing
+            throws Exception
     {
         while(lru.size() > 0) {
-            try {
-                DSP dsp = lru.get(0);
-                CEConstraint.release(dsp.getDMR());
-                dsp.close();
-            } catch (Exception e) {/*ignore*/}
+            DSP dsp = lru.get(0);
+            CEConstraint.release(dsp.getDMR());
+            dsp.close();
             lru.remove(0);
         }
     }

@@ -17,13 +17,15 @@ public class Grib2SectionDataRepresentation {
   private final long startingPosition;
   private final int dataPoints;
   private final int dataTemplate;
-  private int length; // dont have length in index
+  private final int length; // dont have length in index
 
   public Grib2SectionDataRepresentation(RandomAccessFile raf) throws IOException {
     startingPosition = raf.getFilePointer();
 
     // octets 1-4 (Length of DRS)
     length = GribNumbers.int4(raf);
+    if (length == 0)
+      throw new IllegalArgumentException("Not a GRIB-2 Data representation section");
 
    // octet 5
     int section = raf.read();
@@ -44,8 +46,13 @@ public class Grib2SectionDataRepresentation {
     this.startingPosition = startingPosition;
     this.dataPoints = dataPoints;
     this.dataTemplate = dataTemplate;
+    this.length = 0;
   }
 
+  /*
+  Number of data points where one or more values are specified in Section 7 when a bit map
+  is present, total number of data points when a bit map is absent.
+   */
   public int getDataPoints() {
     return dataPoints;
   }
@@ -62,8 +69,7 @@ public class Grib2SectionDataRepresentation {
   public long getLength(RandomAccessFile raf) throws IOException {
     if (length == 0) {
       raf.seek(startingPosition);
-      length = GribNumbers.int4(raf);
-
+      return GribNumbers.int4(raf);
     }
     return length;
   }

@@ -1,41 +1,39 @@
 /*
- * Copyright (c) 1998 - 2010. University Corporation for Atmospheric Research/Unidata
- * Portions of this software were developed by the Unidata Program at the
- * University Corporation for Atmospheric Research.
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- * Access and use of this software shall impose the following obligations
- * and understandings on the user. The user is granted the right, without
- * any fee or cost, to use, copy, modify, alter, enhance and distribute
- * this software, and any derivative works thereof, and its supporting
- * documentation for any purpose whatsoever, provided that this entire
- * notice appears in all copies of the software, derivative works and
- * supporting documentation.  Further, UCAR requests that the user credit
- * UCAR/Unidata in any publications that result from the use of this
- * software or in any product that includes this software. The names UCAR
- * and/or Unidata, however, may not be used in any advertising or publicity
- * to endorse or promote any products or commercial entity unless specific
- * written permission is obtained from UCAR/Unidata. The user also
- * understands that UCAR/Unidata is not obligated to provide the user with
- * any support, consulting, training or assistance of any kind with regard
- * to the use, operation and performance of this software nor to provide
- * the user with any updates, revisions, new versions or "bug fixes."
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
- * THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- * WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 package ucar.unidata.geoloc.projection.sat;
 
 import ucar.nc2.constants.CF;
 import ucar.unidata.geoloc.*;
-
-import java.util.List;
-import java.util.ArrayList;
 
 /**
  * Port Eumetsat MSG_navigation.c to java.
@@ -377,13 +375,13 @@ public class MSGnavigation extends ProjectionImpl {
 
   @Override
   public ProjectionPoint latLonToProj(LatLonPoint latlon, ProjectionPointImpl destPoint) {
-    int status = geocoord2pixcoord(latlon.getLatitude(), latlon.getLongitude(), destPoint);
+    geocoord2pixcoord(latlon.getLatitude(), latlon.getLongitude(), destPoint);
     return destPoint;
   }
 
   @Override
   public LatLonPoint projToLatLon(ProjectionPoint ppt, LatLonPointImpl destPoint) {
-    int status = pixcoord2geocoord(ppt.getX(), ppt.getY(), destPoint);
+    pixcoord2geocoord(ppt.getX(), ppt.getY(), destPoint);
     return destPoint;
   }
 
@@ -398,7 +396,43 @@ public class MSGnavigation extends ProjectionImpl {
   }
 
   @Override
-  public boolean equals(Object proj) {
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    MSGnavigation that = (MSGnavigation) o;
+
+    if (Double.compare(that.lat0, lat0) != 0) return false;
+    if (Double.compare(that.lon0, lon0) != 0) return false;
+    if (Double.compare(that.major_axis, major_axis) != 0) return false;
+    if (Double.compare(that.minor_axis, minor_axis) != 0) return false;
+    if (Double.compare(that.sat_height, sat_height) != 0) return false;
+    if (Double.compare(that.scale_x, scale_x) != 0) return false;
+    return Double.compare(that.scale_y, scale_y) == 0;
+  }
+
+  @Override
+  public int hashCode() {
+    int result;
+    long temp;
+    temp = Double.doubleToLongBits(lat0);
+    result = (int) (temp ^ (temp >>> 32));
+    temp = Double.doubleToLongBits(lon0);
+    result = 31 * result + (int) (temp ^ (temp >>> 32));
+    temp = Double.doubleToLongBits(major_axis);
+    result = 31 * result + (int) (temp ^ (temp >>> 32));
+    temp = Double.doubleToLongBits(minor_axis);
+    result = 31 * result + (int) (temp ^ (temp >>> 32));
+    temp = Double.doubleToLongBits(sat_height);
+    result = 31 * result + (int) (temp ^ (temp >>> 32));
+    temp = Double.doubleToLongBits(scale_x);
+    result = 31 * result + (int) (temp ^ (temp >>> 32));
+    temp = Double.doubleToLongBits(scale_y);
+    result = 31 * result + (int) (temp ^ (temp >>> 32));
+    return result;
+  }
+
+  /* public boolean equals2(Object proj) {
       if (this == proj) return true;
       if (proj == null || getClass() != proj.getClass()) return false;
 
@@ -409,7 +443,7 @@ public class MSGnavigation extends ProjectionImpl {
       if (defaultMapArea != null && !that.defaultMapArea.equals(defaultMapArea)) return false;
 
       return proj instanceof MSGnavigation;
-  }
+  }  */
 
   /**
    * Create a ProjectionRect from the given LatLonRect.

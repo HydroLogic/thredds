@@ -11,6 +11,7 @@ import dap4.dap4shared.*;
 import ucar.ma2.*;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * CDMArrayAtomic wraps a D4DataAtomic object to present
@@ -44,12 +45,12 @@ public class CDMArrayAtomic extends Array implements CDMArray
     protected boolean isbytestring = false; // string and/or opaque
 
     // Following two fields only defined if isbytestring is true
-    protected int totalbytestringsize = 0;  // total space used by the bytestrings
     protected int[] bytestrings = null; // List of the absolute start positions of
     // an array of e.g. opaque,  or string atomictypes.
     // The value is the offset of object's count.
 
-    protected boolean usevardim = false;
+    //Coverity[FB.URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD]
+    protected int totalbytestringsize = 0;  // total space used by the bytestrings
 
     //////////////////////////////////////////////////
     // Constructor(s)
@@ -79,7 +80,7 @@ public class CDMArrayAtomic extends Array implements CDMArray
     }
 
     //////////////////////////////////////////////////
-    // CDMArry Interface
+    // CDMArray Interface
 
     @Override
     public DSP getDSP()
@@ -172,6 +173,8 @@ public class CDMArrayAtomic extends Array implements CDMArray
     getElementType()
     {
         DataType dt = CDMUtil.daptype2cdmtype(this.basetype);
+        if(dt == null)
+            throw new IllegalArgumentException("Unknown datatype: "+this.basetype);
         return CDMUtil.cdmElementClass(dt);
     }
 

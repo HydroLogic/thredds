@@ -1,23 +1,8 @@
-jar {
-    manifest {
-        attributes 'Implementation-Title': 'bufr'
-    }
-}
-
-sourceSets {
-    main {
-        java {
-            exclude 'ucar/nc2/iosp/bufr/writer/BufrSplitter.java'
-        }
-    }
-}
-
 dependencies {
-  compile project(':cdm')
-  //compile ('com.lexicalscope.jewelcli:jewelcli:0.8.5')
-  testCompile project(':cdm').sourceSets.test.output
-}
-
-task show {
-  println project(':cdm').sourceSets.test.output.each {println it}
+    compile project(":cdm")
+    compile libraries["jdom2"]
+    compile libraries["jcip-annotations"]
+    compile libraries["jcommander"]
+    compile libraries["protobuf-java"]
+    compile libraries["slf4j-api"]
 }

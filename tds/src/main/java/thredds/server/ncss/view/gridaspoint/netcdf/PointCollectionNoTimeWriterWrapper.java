@@ -91,7 +91,7 @@ class PointCollectionNoTimeWriterWrapper implements CFPointWriterWrapper {
 
     boolean headerDone = false;
     List<Attribute> atts = new ArrayList<>();
-    atts.add(new Attribute(CDM.TITLE, "Extract point data from Grid file " + gds.getLocationURI()));
+    atts.add(new Attribute(CDM.TITLE, "Extract point data from Grid file " + gds.getLocation()));
 
     NetcdfDataset ncfile = (NetcdfDataset) gds.getNetcdfFile(); // fake-arino
     List<String> vars = (new ArrayList<>(groupedVars.values())).get(0);
@@ -110,7 +110,7 @@ class PointCollectionNoTimeWriterWrapper implements CFPointWriterWrapper {
     List<Station> stnList = new ArrayList<>();
     stnList.add(s);
 
-
+    /*  LoOK WTF ?
     try {
 
       // LOOK fake
@@ -120,7 +120,7 @@ class PointCollectionNoTimeWriterWrapper implements CFPointWriterWrapper {
 
     } catch (IOException ioe) {
       log.error("Error writing header", ioe);
-    }
+    }  */
 
     return headerDone;
 

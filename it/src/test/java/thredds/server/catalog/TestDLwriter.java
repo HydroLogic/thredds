@@ -34,23 +34,25 @@
 
 package thredds.server.catalog;
 
-import junit.framework.*;
-import java.io.IOException;
-
+import junit.framework.TestCase;
+import org.junit.experimental.categories.Category;
 import thredds.TestWithLocalServer;
 import ucar.nc2.util.IO;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
+import java.io.IOException;
 
+@Category(NeedsCdmUnitTest.class)
 public class TestDLwriter extends TestCase {
-
   public TestDLwriter( String name) {
     super(name);
   }
 
+  // This test sucks: a 404 response will yield success.
   public void testDLwriter() throws IOException {
     String url = "/DLwriter?type=ADN&catalog=/thredds/catalog/testEnhanced/catalog.xml";
 
-    System.out.println("Response from "+ TestWithLocalServer.server +url);
-    String result = IO.readURLcontents(TestWithLocalServer.server +url);
+    System.out.println("Response from "+ TestWithLocalServer.withPath(url));
+    String result = IO.readURLcontents(TestWithLocalServer.withPath(url));
     assert result != null;
     System.out.println(result);
   }

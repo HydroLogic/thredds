@@ -35,6 +35,7 @@ package ucar.nc2.grib.grib1.tables;
 
 import net.jcip.annotations.Immutable;
 
+import ucar.nc2.constants.CDM;
 import ucar.nc2.grib.GribResourceReader;
 import ucar.nc2.grib.grib1.Grib1Parameter;
 import ucar.nc2.grib.grib1.Grib1Record;
@@ -65,8 +66,8 @@ public class Grib1ParamTables {
   static private final Object lock = new Object();
   static private int standardTablesStart = 0; // heres where the standard tables start - keep track so user additions can go first
 
-  static private final Lookup standardLookup;
-  static private final Grib1ParamTableReader defaultTable;
+  static private Lookup standardLookup;
+  static private Grib1ParamTableReader defaultTable;
 
   static {
     try {
@@ -82,8 +83,8 @@ public class Grib1ParamTables {
       standardLookup.tables = new CopyOnWriteArrayList<>(standardLookup.tables); // in case user adds tables
       defaultTable = standardLookup.getParameterTable(0, -1, -1); // user cannot override default
 
-    } catch (IOException ioe) {
-      throw new RuntimeException(ioe);
+    } catch (Throwable t) {
+      logger.warn("Grib1ParamTables init failed: ", t);
     }
   }
 
@@ -118,7 +119,7 @@ public class Grib1ParamTables {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  private static Map<String, Grib1ParamTableReader> localTableHash;
+  private static final Map<String, Grib1ParamTableReader> localTableHash = new ConcurrentHashMap<>();
 
   /**
    * Get a Grib1ParamTables object, optionally specifying a parameter table or lookup table specific to this dataset.
@@ -130,26 +131,26 @@ public class Grib1ParamTables {
    */
   static public Grib1ParamTables factory(String paramTablePath, String lookupTablePath) throws IOException {
     if (paramTablePath == null && lookupTablePath == null) return new Grib1ParamTables();
-    Grib1ParamTables result = new Grib1ParamTables();
+    Lookup lookup = null;
+    Grib1ParamTableReader override = null;
 
     Grib1ParamTableReader table;
     if (paramTablePath != null) {
-      if (localTableHash == null) localTableHash = new HashMap<>();
       table = localTableHash.get(paramTablePath);
       if (table == null) {
         table = new Grib1ParamTableReader(paramTablePath);
         localTableHash.put(paramTablePath, table);
+        override = table;
       }
-      result.override = table;
     }
 
     if (lookupTablePath != null) {
-      result.lookup = new Lookup();
-      if (!result.lookup.readLookupTable(lookupTablePath))
+      lookup = new Lookup();
+      if (!lookup.readLookupTable(lookupTablePath))
         throw new FileNotFoundException("cant read lookup table=" + lookupTablePath);
     }
 
-    return result;
+    return new Grib1ParamTables(lookup, override);
   }
 
   /**
@@ -161,19 +162,22 @@ public class Grib1ParamTables {
    */
   static public Grib1ParamTables factory(org.jdom2.Element paramTableElem) throws IOException {
     if (paramTableElem == null) return new Grib1ParamTables();
-
-    Grib1ParamTables result = new Grib1ParamTables();
-    result.override = new Grib1ParamTableReader(paramTableElem);
-
-    return result;
+    return new Grib1ParamTables(null, new Grib1ParamTableReader(paramTableElem));
   }
 
   ///////////////////////////////////////////////////////////////////////////
 
-  private Lookup lookup; // if lookup table was set
-  private Grib1ParamTableReader override; // if parameter table was set
+  private final Lookup lookup; // if lookup table was set
+  private final Grib1ParamTableReader override; // if parameter table was set
 
   public Grib1ParamTables() {
+    this.lookup = null;
+    this.override = null;
+  }
+
+  public Grib1ParamTables(Lookup lookup, Grib1ParamTableReader override) {
+    this.lookup = lookup;
+    this.override = override;
   }
 
   public Grib1Parameter getParameter(Grib1Record record) {
@@ -283,7 +287,7 @@ public class Grib1ParamTables {
         return false;
 
       File parent = new File(lookupFile).getParentFile();
-      InputStreamReader isr = new InputStreamReader(is);
+      InputStreamReader isr = new InputStreamReader(is, CDM.utf8Charset);
       BufferedReader br = new BufferedReader(isr);
 
       String line;
@@ -345,7 +349,7 @@ public class Grib1ParamTables {
         return defaultTable;
       }
 
-      tableMap.put(key, table);
+      tableMap.put(key, table); // assume we would get the same table in any thread, so race condition is ok
       return table;
     }
 

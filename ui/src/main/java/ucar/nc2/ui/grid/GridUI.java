@@ -32,35 +32,36 @@
  */
 package ucar.nc2.ui.grid;
 
-import thredds.catalog.*;
-import ucar.nc2.ui.geoloc.ProjectionManager;
-import ucar.nc2.ui.gis.MapBean;
-import ucar.nc2.ui.geoloc.NavigatedPanel;
-import ucar.nc2.ui.util.Renderer;
-
-import ucar.nc2.dataset.*;
-
-import ucar.nc2.dt.GridDatatype;
+import thredds.client.catalog.ServiceType;
+import thredds.client.catalog.Dataset;
+import thredds.client.catalog.tools.DataFactory;
+import ucar.nc2.constants.FeatureType;
+import ucar.nc2.dataset.CoordinateAxis1D;
+import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.dt.GridCoordSystem;
 import ucar.nc2.dt.GridDataset;
+import ucar.nc2.dt.GridDatatype;
+import ucar.nc2.ui.geoloc.NavigatedPanel;
+import ucar.nc2.ui.geoloc.ProjectionManager;
+import ucar.nc2.ui.gis.MapBean;
+import ucar.nc2.ui.util.Renderer;
 import ucar.nc2.ui.widget.*;
 import ucar.nc2.ui.widget.PopupMenu;
 import ucar.nc2.ui.widget.ProgressMonitor;
 import ucar.nc2.util.NamedObject;
-import ucar.nc2.constants.FeatureType;
-
 import ucar.unidata.geoloc.ProjectionImpl;
 import ucar.util.prefs.PreferencesExt;
 
+import javax.swing.*;
+import javax.swing.border.EtchedBorder;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Formatter;
-import java.beans.PropertyChangeListener;
-import javax.swing.*;
-import javax.swing.border.*;
+import java.util.List;
 
 /**
  * This is the thredds Data Viewer application User Interface for Grids.
@@ -73,7 +74,6 @@ public class GridUI extends JPanel {
 
   //private TopLevel topLevel;
   private PreferencesExt store;
-  private JFrame parent;
   private FileManager fileChooser;
 
   // Package private access
@@ -170,7 +170,7 @@ public class GridUI extends JPanel {
       controller.finishInit();
 
           // other components
-      geotiffFileChooser = new FileManager( parent);
+      geotiffFileChooser = new FileManager(null);
       geotiffFileChooser.setCurrentDirectory( store.get(GEOTIFF_FILECHOOSER_DEFAULTDIR, "."));
 
     } catch (Exception e) {
@@ -274,7 +274,7 @@ public class GridUI extends JPanel {
     gridTable.clear();
   }
 
-  public void setDataset(InvDataset ds) {
+  public void setDataset(Dataset ds) {
      if (ds == null) return;
 
      OpenDatasetTask openTask = new OpenDatasetTask(ds);
@@ -382,9 +382,9 @@ public class GridUI extends JPanel {
         String filename = fileChooser.chooseFilename();
         if (filename == null) return;
 
-        InvDataset invDs;
+        Dataset invDs;
         try {
-          invDs = new InvDatasetImpl(filename, FeatureType.GRID, ServiceType.NETCDF);
+          invDs = Dataset.makeStandalone(filename, FeatureType.GRID.toString(), "", ServiceType.File.toString());
         } catch (Exception ue) {
           JOptionPane.showMessageDialog(GridUI.this, "Invalid filename = <" + filename + ">\n" + ue.getMessage());
           ue.printStackTrace();
@@ -663,7 +663,7 @@ public class GridUI extends JPanel {
     if (null != projManager)
       return projManager;
 
-    projManager = new ProjectionManager(parent, store);
+    projManager = new ProjectionManager(null, store);
     projManager.addPropertyChangeListener(  new java.beans.PropertyChangeListener() {
       public void propertyChange( java.beans.PropertyChangeEvent e) {
         if (e.getPropertyName().equals("ProjectionImpl")) {
@@ -800,7 +800,7 @@ public class GridUI extends JPanel {
     }
   }
 
-  private class Chooser {
+  private static class Chooser {
     Chooser(String name, SuperComboBox field, boolean want){
       this.name = name;
       this.field = field;
@@ -882,7 +882,7 @@ public class GridUI extends JPanel {
     toolMenu.add(zoomMenu);
   }
 
-  private class LoopControlAction extends AbstractAction {
+  private static class LoopControlAction extends AbstractAction {
     SuperComboBox scbox;
     LoopControlAction( SuperComboBox cbox) {
       this.scbox = cbox;
@@ -894,11 +894,11 @@ public class GridUI extends JPanel {
   }
 
   private class OpenDatasetTask extends ProgressMonitorTask implements ucar.nc2.util.CancelTask {
-    ucar.nc2.thredds.ThreddsDataFactory factory;
-    thredds.catalog.InvDataset invds;
+    DataFactory factory;
+    Dataset invds;
 
-    OpenDatasetTask(thredds.catalog.InvDataset ds) {
-      factory = new ucar.nc2.thredds.ThreddsDataFactory();
+    OpenDatasetTask(Dataset ds) {
+      factory = new DataFactory();
       this.invds = ds;
     }
 

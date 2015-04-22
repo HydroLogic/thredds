@@ -69,15 +69,22 @@ public class Grib1SectionBitMap {
    * Read the bitmap array when needed
    */
   public byte[] getBitmap(RandomAccessFile raf) throws IOException {
-    if (startingPosition <= 0) return null;
+    if (startingPosition <= 0) {
+      throw new IllegalStateException("Grib1 Bit map has bad starting position");
+    }
 
     raf.seek(startingPosition);
 
     // octet 1-3 (length of section)
     int length = GribNumbers.uint3(raf);
 
+    // seeing a -1, bail out
+    if (length <= 6 || length > 10e6) {   // look max  ??
+      return null;
+    }
+
     // octet 4 unused bits
-    int unused = raf.read();
+    raf.read();   // unused
 
     // octets 5-6
     int bm = raf.readShort();
@@ -88,7 +95,7 @@ public class Grib1SectionBitMap {
     // read the bits as integers
     int n = length - 6;
     byte[] data = new byte[n];
-    raf.read(data);
+    raf.readFully(data);
     return data;
 
     // create new bit map, octet 4 contains number of unused bits at the end
@@ -106,6 +113,11 @@ public class Grib1SectionBitMap {
     System.out.printf("bitmap count = %d / %d (%f)%n", count, 8*n,  r);
 
     return bitmap;  */
+  }
+
+  int getLength(RandomAccessFile raf) throws IOException {
+    raf.seek(startingPosition);
+    return GribNumbers.uint3(raf);
   }
 
 }

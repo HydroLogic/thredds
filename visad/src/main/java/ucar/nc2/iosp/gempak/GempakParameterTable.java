@@ -1,52 +1,49 @@
 /*
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- *  * Copyright 1998-2013 University Corporation for Atmospheric Research/Unidata
- *  *
- *  *  Portions of this software were developed by the Unidata Program at the
- *  *  University Corporation for Atmospheric Research.
- *  *
- *  *  Access and use of this software shall impose the following obligations
- *  *  and understandings on the user. The user is granted the right, without
- *  *  any fee or cost, to use, copy, modify, alter, enhance and distribute
- *  *  this software, and any derivative works thereof, and its supporting
- *  *  documentation for any purpose whatsoever, provided that this entire
- *  *  notice appears in all copies of the software, derivative works and
- *  *  supporting documentation.  Further, UCAR requests that the user credit
- *  *  UCAR/Unidata in any publications that result from the use of this
- *  *  software or in any product that includes this software. The names UCAR
- *  *  and/or Unidata, however, may not be used in any advertising or publicity
- *  *  to endorse or promote any products or commercial entity unless specific
- *  *  written permission is obtained from UCAR/Unidata. The user also
- *  *  understands that UCAR/Unidata is not obligated to provide the user with
- *  *  any support, consulting, training or assistance of any kind with regard
- *  *  to the use, operation and performance of this software nor to provide
- *  *  the user with any updates, revisions, new versions or "bug fixes."
- *  *
- *  *  THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- *  *  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- *  *  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- *  *  DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- *  *  INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- *  *  FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- *  *  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- *  *  WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 
 package ucar.nc2.iosp.gempak;
 
 
+import ucar.nc2.constants.CDM;
+
 import java.io.*;
 
-// When ucar.unidata.util is in common, revert to using this
-//import ucar.unidata.util.IOUtil;
 import java.net.URL;
 import java.net.URLConnection;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -101,12 +98,11 @@ ID# NAME                             UNITS                GNAM         SCALE   M
    * @throws IOException problem reading table.
    */
   public void addParameters(String tbl) throws IOException {
-    //String content = IOUtil.readContents(tbl, GempakParameterTable.class);
     try (InputStream is = getInputStream(tbl)) {
       if (is == null) {
         throw new IOException("Unable to open " + tbl);
       }
-      String content = readContents(is);
+      String content = readContents(is);   // LOOK this is silly - should just read one line at a time
       // List           lines   = StringUtil.split(content, "\n", false);
       String[] lines = content.split("\n");
       List<String[]> result = new ArrayList<>();
@@ -136,8 +132,8 @@ ID# NAME                             UNITS                GNAM         SCALE   M
         }
         result.add(words);
       }
-      for (int i = 0; i < result.size(); i++) {
-        GempakParameter p = makeParameter( result.get(i));
+      for (String[] aResult : result) {
+        GempakParameter p = makeParameter(aResult);
         if (p != null) {
           if (p.getName().contains("(")) {
             templateParamMap.put(p.getName(), p);
@@ -191,7 +187,7 @@ ID# NAME                             UNITS                GNAM         SCALE   M
         unit = "";
       }
     }
-    int decimalScale = 0;
+    int decimalScale;
     try {
       decimalScale = Integer.parseInt(words[4].trim());
     } catch (NumberFormatException ne) {
@@ -263,7 +259,7 @@ ID# NAME                             UNITS                GNAM         SCALE   M
    * @throws IOException problem reading contents
    */
   private String readContents(InputStream is) throws IOException {
-    return new String(readBytes(is));
+    return new String(readBytes(is), CDM.utf8Charset);
   }
 
   /**
@@ -308,7 +304,7 @@ ID# NAME                             UNITS                GNAM         SCALE   M
    *                     java resource, etc.
    * @return The input stream to the resource
    */
-  private InputStream getInputStream(String resourceName) {
+  private InputStream getInputStream(String resourceName) throws IOException {
 
     // Try class loader to get resource
     ClassLoader cl = GempakParameterTable.class.getClassLoader();
@@ -320,26 +316,18 @@ ID# NAME                             UNITS                GNAM         SCALE   M
     //Try the file system
     File f = new File(resourceName);
     if (f.exists()) {
-      try {
         s = new FileInputStream(f);
-      } catch (Exception e) {
-      }
     }
     if (s != null) {
       return s;
     }
 
     //Try it as a url
-    try {
-      Matcher m = Pattern.compile(" ").matcher(resourceName);
-      String encodedUrl = m.replaceAll("%20");
-      URL dataUrl = new URL(encodedUrl);
-      URLConnection connection = dataUrl.openConnection();
-      s = connection.getInputStream();
-    } catch (Exception exc) {
-    }
-
-    return s;
+    Matcher m = Pattern.compile(" ").matcher(resourceName);
+    String encodedUrl = m.replaceAll("%20");
+    URL dataUrl = new URL(encodedUrl);
+    URLConnection connection = dataUrl.openConnection();
+    return connection.getInputStream();
   }
 
 

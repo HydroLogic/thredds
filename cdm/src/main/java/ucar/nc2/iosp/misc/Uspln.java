@@ -227,9 +227,7 @@ public class Uspln extends AbstractLightningIOSP {
       return false;
     }
 
-    byte[] b = new byte[n];
-    raf.readFully(b);
-    String got = new String(b);
+    String got = raf.readString(n);
 
     return (pMAGIC.matcher(got).find() || pMAGIC_OLD.matcher(got).find());
   }
@@ -817,26 +815,6 @@ public class Uspln extends AbstractLightningIOSP {
               : lat + " " + lon + " " + amp + " " + n;
     }
 
-  }
-
-  /**
-   * Class to hold index information
-   */
-  private class IospData {
-
-    /**
-     * the variable number
-     */
-    int varno;
-
-    /**
-     * Create a holder for the variable number
-     *
-     * @param varno the number
-     */
-    IospData(int varno) {
-      this.varno = varno;
-    }
   }
 
 }

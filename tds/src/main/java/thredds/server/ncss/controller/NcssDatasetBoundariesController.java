@@ -42,7 +42,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import thredds.server.ncss.dataservice.FeatureDatasetService;
+import thredds.core.TdsRequestedDataset;
 import thredds.server.ncss.exception.UnsupportedResponseFormatException;
 import thredds.server.ncss.format.SupportedFormat;
 import thredds.server.ncss.format.SupportedOperation;
@@ -58,27 +58,35 @@ import ucar.nc2.ft.FeatureDataset;
  */
 @Controller
 @Scope("request")
-@RequestMapping(value = "/ncss/**/datasetBoundaries.xml")
+// @RequestMapping(value = "/ncss/**/datasetBoundaries.xml")
 public class NcssDatasetBoundariesController extends AbstractNcssController {
 
-  //static private final Logger log = LoggerFactory.getLogger(NcssDatasetBoundariesController.class);
+  //@Autowired
+  //FeatureDatasetService datasetService;
 
-  @Autowired
-  FeatureDatasetService datasetService;
+  /* @RequestMapping("/ncss/grid/**")
+  public String forwardGrid(HttpServletRequest req) {
+    String reqString = req.getServletPath();
+    assert reqString.startsWith("/ncss/grid");
+    reqString = reqString.substring(10);
+    String forwardString = "forward:/ncss" + reqString;  // strip off '?/grid
+    if (null != req.getQueryString())
+      forwardString += "?"+req.getQueryString();
 
-  @RequestMapping(value = {"datasetBoundaries"})
+     return forwardString;
+  }   */
+
+  @RequestMapping("/ncss/**/datasetBoundaries.xml")
   void getDatasetBoundaries(NcssParamsBean params, HttpServletRequest req, HttpServletResponse res) throws IOException, UnsupportedResponseFormatException {
 
     //Checking request format...
     SupportedFormat sf = getSupportedFormat(params, SupportedOperation.DATASET_BOUNDARIES_REQUEST);
-
     String datasetPath = getDatasetPath(req);
-    FeatureDataset fd = null;
-    try {
-      fd = datasetService.findDatasetByPath(req, res, datasetPath);
 
+    try (FeatureDataset fd = TdsRequestedDataset.getFeatureDataset(req, res, datasetPath)) {
       if (fd == null)
-        throw new UnsupportedOperationException("Feature Type not supported");
+        return;
+
       if (fd.getFeatureType() != FeatureType.GRID)
         throw new UnsupportedOperationException("Dataset Boundaries request is only supported on Grid features");
 
@@ -87,8 +95,6 @@ public class NcssDatasetBoundariesController extends AbstractNcssController {
       res.setContentType(sf.getResponseContentType());
       res.getWriter().write(boundaries);
       res.getWriter().flush();
-    } finally {
-      if (fd != null) fd.close();
     }
   }
 

@@ -216,14 +216,14 @@ public class DateUnit { // extends SimpleUnit {
     return new Date( getDateOrigin().getTime() + (long)(1000*secs));
   }
 
- /** Create the equivilent value from this base unit and the given Date.
+ /** Create the equivalent value from this base unit and the given Date.
   * Inverse of makeDate.
    * @param date to convert.
    * @return value in units of this base unit.
    */
   public double makeValue(Date date) {
-    double secs = date.getTime() / 1000;
-    double origin_secs =  getDateOrigin().getTime() / 1000;
+    double secs = date.getTime() / 1000.0;
+    double origin_secs =  getDateOrigin().getTime() / 1000.0;
     double diff = secs - origin_secs;
 
    try {

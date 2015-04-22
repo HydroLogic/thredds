@@ -85,14 +85,10 @@ public class Grib2SectionGridDefinition {
    * @return CRC  of the entire byte array
    */
   public long calcCRC() {
-    if (crc == 0) {
-      CRC32 crc32 = new CRC32();
-      crc32.update(rawData);
-      crc = crc32.getValue();
-    }
-    return crc;
+    CRC32 crc32 = new CRC32();
+    crc32.update(rawData);
+    return crc32.getValue();
   }
-  private long crc = 0;
 
   public int getLength() {
     return rawData.length;
@@ -142,11 +138,8 @@ public class Grib2SectionGridDefinition {
     return rawData[index-1] & 0xff;
   }
 
-  private Grib2Gds gds = null;
   public Grib2Gds getGDS() {
-    if (gds == null)
-      gds = Grib2Gds.factory(templateNumber, rawData);
-    return gds;
+    return Grib2Gds.factory(templateNumber, rawData);
   }
 
 }

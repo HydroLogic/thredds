@@ -1,73 +1,97 @@
 apply plugin: 'war'
 
 dependencies {
-  compile project(':bufr')
-  compile project(':cdm')
-  compile project(':clcommon')
-  compile project(':grib')
-  compile project(':netcdf4')
-  compile (project(':opendap')) { transitive = false }
-  compile (project(':tdcommon')) {
-    exclude group: "commons-logging"
-  }
-  compile (project(':visad')) { transitive = false }
+    compile project(":cdm")
+    compile project(":clcommon")
+    compile project(":grib")
+    compile project(":netcdf4")
+    compile project(":opendap")
+    compile project(":tdcommon")
+    runtime project(":visad")
+    compile project(":waterml")
+    compile project(":dap4:d4core")
+    compile project(":dap4:d4servletshared")
 
-  compile group: 'org.springframework', name: 'spring-context', version:springVersion
-  compile group: 'org.springframework', name: 'spring-beans', version:springVersion
-  compile group: 'org.springframework', name: 'spring-webmvc', version:springVersion
+    compile libraries["coverity-escapers"]
+    compile libraries["httpclient"]
+    compile libraries["httpcore"]
+    compile libraries["commons-fileupload"]
+    compile libraries["jdom2"]
+    compile libraries["quartz"]
+    compile libraries["commons-lang3"]
+    compile libraries["commons-io"]
+    compile libraries["jcip-annotations"]
+    compile libraries["guava"]
+    compile libraries["joda-time"]
+    compile libraries["52n-xml-waterML-v20"]
 
-  /* compile (group: 'org.jasig.cas', name: 'cas-client-core', version: "3.1.10") {
-    transitive = false
-  } */
-  compile group: 'commons-fileupload', name: 'commons-fileupload', version: "1.3"
+    compile libraries["spring-core"]
+    compile libraries["spring-context"]
+    compile libraries["spring-beans"]
+    compile libraries["spring-web"]
+    compile libraries["spring-webmvc"]
 
-  // plug-in
-  runtime (group: 'EDS', name: 'threddsIso', version: "2.3.1")
+    runtime libraries["threddsIso"]
+    compile libraries["ncwms"]
+    compile libraries["geoapi-pending"]
+    compile libraries["oro"]
 
-  // ncss
-  // JSR 303 with Hibernate Validator
-  compile group: 'javax.validation', name: 'validation-api', version: "1.0.0.GA"
-  compile group: 'org.hibernate', name: 'hibernate-validator', version: "4.1.0.Final"
-  compile (group: 'org.jfree', name: 'jfreechart', version: jfreechartVersion) {
-    exclude group: 'com.lowagie'
-  }
+    providedCompile libraries["javax.servlet-api"]
+    runtime libraries["jstl"]
+    compile libraries["validation-api"]
+    runtime libraries["hibernate-validator"]
+    runtime libraries["jaxen"]
 
-  // wms
-  compile (group: 'uk.ac.rdg.resc', name: 'ncwms', version: "1.0.tds.4.4.20130828.1500-SNAPSHOT") {
-    exclude group: 'commons-logging'
-    exclude group: 'edu.ucar'
-    exclude group: 'joda-time'
-    exclude group: 'org.jfree'
-    exclude group: 'org.springframework'
-    exclude group: 'org.slf4j'
-  }
-  compile group: 'oro', name: 'oro', version: "2.0.8"
+    testCompile libraries["spring-test"]
+    testCompile libraries["hamcrest-core"]
+    testCompile libraries["httpunit"]
 
-  providedCompile group: 'javax.servlet', name: 'javax.servlet-api', version:servletVersion
-  testCompile project(':cdm').sourceSets.test.output
-  testCompile group: 'org.springframework', name: 'spring-test', version:springVersion
-  testCompile group: 'httpunit', name: 'httpunit', version:'1.7'
-
-  // logging
-  runtime group: 'org.apache.logging.log4j', name: 'log4j-core', version: log4jVersion
-  runtime group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: log4jVersion
-  runtime group: 'org.slf4j', name: 'jcl-over-slf4j', version: slf4jVersion
+    compile libraries["slf4j-api"]
+    runtime libraries["log4j-slf4j-impl"]
+    runtime libraries["log4j-core"]
+    runtime libraries["log4j-web"]
 }
 
 war {
-  manifest {
-    attributes 'Implementation-Version': version,
-            'Implementation-Title': 'THREDDS Data Server (TDS)',
-            'Implementation-Vendor': 'UCAR/Unidata',
-            'Implementation-Vendor-Id': 'edu.ucar',
-            'Built-On': new Date(),
-            'Build-Jdk': System.properties['java.version']
-  }
+    archiveName = 'thredds.war'
+
+    manifest {
+        attributes 'Implementation-Version': project.version,
+                'Implementation-Title': 'THREDDS Data Server (TDS)',
+                'Implementation-Vendor': 'UCAR/Unidata',
+                'Implementation-Vendor-Id': project.version,
+                // Commented out to avoid unnecessary re-compilation and re-jarring: http://goo.gl/kbVWXR
+                // I think I can fix this by writing a builtOn.txt file in compileJava,
+                // and then reading in its value here.
+                // 'Built-On': new Date(),
+                'Build-Jdk': JavaVersion.current()
+    }
 
 }
 
 task printProps << {
-  println System.properties['java.version'];
-  for (prop in System.properties.propertyNames()) printf("%s = %s%n", prop, System.properties[prop])
+    println System.properties['java.version'];
+    for (prop in System.properties.propertyNames()) printf("%s = %s%n", prop, System.properties[prop])
 }
 
+// Adds ':tds:prepareInplaceWebAppClasses', which ':it:integrationTest' depends on.
+apply plugin: 'org.akhikhl.gretty'
+
+test {
+    // From TDS's pom.xml. I guess these are excluded because they're pretty crufty?
+    exclude 'thredds/tds/**'
+
+//    def contentRoot = 'C:/Users/cwardgar/dev/tools/apache-tomcat-8.0.12/content'
+//    def contentRoot = 'Q:/cdmUnitTest/it/content'
+
+//    systemProperty 'tds.content.root.path', contentRoot
+//    systemProperty 'tds.dir.cdmUnitTest', 'Q:/cdmUnitTest'
+}
+
+// Tests expect for test resources to be copied to the same directory as the test classes.
+processTestResources.destinationDir = compileTestJava.destinationDir
+
+processTestResources {
+    from "src/main/webapp"
+    from "src/main/webapp/WEB-INF/classes"
+}

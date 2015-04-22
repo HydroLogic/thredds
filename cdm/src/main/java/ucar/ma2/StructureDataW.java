@@ -171,10 +171,6 @@ public class StructureDataW extends StructureData {
    */
   public byte getScalarByte(StructureMembers.Member m) {
     Array data = getArray(m);
-    if (data == null) {
-      System.out.println("StructureDataW HEY");
-      data = getArray(m);
-    }
     return data.getByte(Index.scalarIndexImmutable);
   }
 
@@ -219,9 +215,6 @@ public class StructureDataW extends StructureData {
    */
   public short getScalarShort(StructureMembers.Member m) {
     Array data = getArray(m);
-    if (data == null) {
-      getArray(m);
-    }
     return data.getShort(Index.scalarIndexImmutable);
   }
 

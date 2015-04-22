@@ -35,6 +35,7 @@ package thredds.logs;
 
 import ucar.unidata.util.StringUtil2;
 
+import java.io.Serializable;
 import java.util.TreeMap;
 import java.util.Iterator;
 import java.util.SortedMap;
@@ -50,27 +51,24 @@ public class PathMatcher {
 
   private final TreeMap<String, Match> treeMap;
 
-  public class Match {
+  public static class Match {
     public String root;
-    public String dir;
 
-    Match(String root, String dir) {
+    Match(String root) {
       this.root = root;
-      this.dir = dir;
     }
   }
 
   public PathMatcher() {
-    treeMap = new TreeMap<String, Match>( new PathComparator());
+    treeMap = new TreeMap<>(new PathComparator());
   }
 
   /**
    * Add an object to the collection to be searched by a String key.
    * @param root sort key
-   * @param dir add this object to the list to be searched.
    */
-  public void put(String root, String dir) {
-    treeMap.put( root, new Match(root, dir));
+  public void put(String root) {
+    treeMap.put( root, new Match(root));
   }
 
   /**
@@ -92,13 +90,13 @@ public class PathMatcher {
 
   /**
    * Find the longest match.
-   * @param path find object with longesh match where path.startsWith( key)
+   * @param path find object with longest match where path.startsWith( key)
    * @return the value whose key is the longest that matches path, or null if none
    */
   public Match match( String path) {
     SortedMap<String, Match> tail = treeMap.tailMap( path);
     if (tail.isEmpty()) return null;
-    String after = (String) tail.firstKey();
+    String after = tail.firstKey();
     //System.out.println("  "+path+"; after="+afterPath);
     if (path.startsWith( after)) // common case
       return treeMap.get( after);
@@ -107,7 +105,7 @@ public class PathMatcher {
     for (String key : tail.keySet()) {
       if (path.startsWith(key))
         return treeMap.get(key);
-      // terminate when theres no match at all.
+      // terminate when there's no match at all.
       if (StringUtil2.match(path, key) == 0)
         break;
     }
@@ -116,9 +114,9 @@ public class PathMatcher {
   }
 
 
-  private class PathComparator implements Comparator {
-    public int compare(Object o1, Object o2) {
-      int compare = -1 * o1.toString().compareTo( o2.toString()); // reverse sort
+  private static class PathComparator implements Comparator<String>, Serializable {
+    public int compare(String o1, String o2) {
+      int compare = -1 * o1.compareTo(o2); // reverse sort
       if (debug) System.out.println(" compare "+o1+" to "+o2+" = "+compare);
       return compare;
     }
@@ -132,15 +130,15 @@ public class PathMatcher {
   static private boolean debug = false;
   static public void main( String[] args) {
     PathMatcher m = new PathMatcher();
-    m.put("/thredds/dods/test/longer", null);
-    m.put("/thredds/dods/test", null);
-    m.put("/thredds/dods/tester", null);
-    m.put("/thredds/dods/short", null);
-    m.put("/actionable", null);
-    m.put("myworld", null);
-    m.put("mynot", null);
-    m.put("ncmodels", null);
-    m.put("ncmodels/bzipped", null);
+    m.put("/thredds/dods/test/longer");
+    m.put("/thredds/dods/test");
+    m.put("/thredds/dods/tester");
+    m.put("/thredds/dods/short");
+    m.put("/actionable");
+    m.put("myworld");
+    m.put("mynot");
+    m.put("ncmodels");
+    m.put("ncmodels/bzipped");
 
 
     m.doit("nope");
@@ -153,7 +151,5 @@ public class PathMatcher {
 
     debug = true;
     m.doit("ncmodels/canonical");
-
   }
-
 }

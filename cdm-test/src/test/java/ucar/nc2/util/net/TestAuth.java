@@ -597,6 +597,7 @@ public class TestAuth extends UnitTestCommon
                 "http://ceda.ac.uk";
 
         scope = new AuthScope(testurl1, AuthScope.ANY_PORT, AuthScope.ANY_REALM, HTTPAuthPolicy.BASIC);
+
         // Add some entries to an HTTPAuthStore
         HTTPAuthStore store = new HTTPAuthStore();
 

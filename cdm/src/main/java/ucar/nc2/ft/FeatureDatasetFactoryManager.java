@@ -33,6 +33,7 @@
 
 package ucar.nc2.ft;
 
+import thredds.client.catalog.tools.DataFactory;
 import thredds.inventory.CollectionManager;
 import thredds.inventory.MFileCollectionManager;
 import ucar.nc2.NetcdfFile;
@@ -43,10 +44,8 @@ import ucar.nc2.dataset.CoordinateSystem;
 import ucar.nc2.dataset.CoordinateAxis;
 import ucar.nc2.ft.point.standard.PointDatasetStandardFactory;
 import ucar.nc2.ft.point.collection.CompositeDatasetFactory;
-import ucar.nc2.ft.grid.GridDatasetStandardFactory;
 import ucar.nc2.ft.radial.RadialDatasetStandardFactory;
 import ucar.nc2.ft.swath.SwathDatasetFactory;
-import ucar.nc2.thredds.ThreddsDataFactory;
 import ucar.nc2.stream.CdmrFeatureDataset;
 
 import java.util.List;
@@ -58,7 +57,8 @@ import java.util.ServiceLoader;
 
 /**
  * Manager of factories for FeatureDatasets.
- * This supercedes ucar.nc2.dt.TypedDatasetFactory
+ * <p> Grids and Swaths are using GridDatasetStandardFactory</p>
+ * <p> Radial data uses RadialDatasetStandardFactory</p>
  * <p> All point datasets are going through PointDatasetStandardFactory, which uses TableAnalyzer to deal
  * with specific dataset conventions.
  *
@@ -173,7 +173,7 @@ public class FeatureDatasetFactoryManager {
 
     // find out what type of Features
     try {
-      Method m = c.getMethod("getFeatureType", new Class[0]);
+      Method m = c.getMethod("getFeatureTypes", new Class[0]);
       FeatureType[] result = (FeatureType[]) m.invoke(instance, new Object[0]);
       for (FeatureType ft : result) {
         if (userMode)
@@ -199,10 +199,7 @@ public class FeatureDatasetFactoryManager {
 
     @Override
     public String toString() {
-      final StringBuilder sb = new StringBuilder();
-      sb.append("featureType=").append(featureType);
-      sb.append(", factory=").append(factory.getClass());
-      return sb.toString();
+      return "featureType=" + featureType + ", factory=" + factory.getClass();
     }
   }
 
@@ -225,8 +222,8 @@ public class FeatureDatasetFactoryManager {
    */
   static public FeatureDataset open(FeatureType wantFeatureType, String location, ucar.nc2.util.CancelTask task, Formatter errlog) throws IOException {
     // special processing for thredds: datasets
-    if (location.startsWith(ThreddsDataFactory.SCHEME)) {
-      ThreddsDataFactory.Result result = new ThreddsDataFactory().openFeatureDataset(wantFeatureType, location, task);
+    if (location.startsWith(DataFactory.SCHEME)) {
+      DataFactory.Result result = new DataFactory().openFeatureDataset(wantFeatureType, location, task);
       errlog.format("%s", result.errLog);
       if (!featureTypeOk(wantFeatureType, result.featureType)) {
         errlog.format("wanted %s but dataset is of type %s%n", wantFeatureType, result.featureType);
@@ -241,7 +238,7 @@ public class FeatureDatasetFactoryManager {
       // special processing for collection: datasets
     } else if (location.startsWith(ucar.nc2.ft.point.collection.CompositeDatasetFactory.SCHEME)) {
       String spec = location.substring(CompositeDatasetFactory.SCHEME.length());
-      CollectionManager dcm = MFileCollectionManager.open(spec, spec, null, errlog); // look we dont have a name
+      CollectionManager dcm = MFileCollectionManager.open(spec, spec, null, errlog); // LOOK we dont have a name
       return CompositeDatasetFactory.factory(location, wantFeatureType, dcm, errlog);
     }
 

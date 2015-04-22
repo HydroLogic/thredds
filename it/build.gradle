@@ -1,0 +1,137 @@
+dependencies {
+    testCompile project(":cdm")
+    testRuntime project(":clcommon")
+    testRuntime project(":grib")
+    testCompile project(":httpservices")
+    testRuntime project(":opendap")
+    testRuntime project(":visad")
+
+    testRuntime libraries["jaxen"]
+    testCompile libraries["jdom2"]
+    testCompile libraries["commons-io"]
+    testCompile libraries["joda-time"]
+    testCompile libraries["httpcore"]
+    testCompile libraries["httpclient"]
+    testCompile libraries["commons-lang3"]
+
+    testCompile libraries["com.eclipsesource.restfuse"]
+
+    // Unlike the other subprojects, we do not need to add an SLF4J binding to testRuntime;
+    // we're overlaying tds (see below), so we're already getting the binding that it declares.
+}
+
+test.enabled = false  // We're doing integrationTest instead.
+
+apply plugin: 'org.akhikhl.gretty'
+
+gretty {
+    servletContainer = 'tomcat7'
+    httpPort = 8081
+    contextPath = '/thredds'
+
+    // Overlay the "tds" webapp onto this project's webapp.
+    // This is how we're able to have tds integration tests outside of the tds project.
+    // See http://akhikhl.github.io/gretty-doc/Web-app-overlays.html
+    overlay ':tds'
+
+    integrationTestTask = 'integrationTest' // The name of an existing gradle task.
+
+    // By default, this field is 'false', which causes Gretty to start the embedded Tomcat process with a non-blocking
+    // entropy source. It is intended to make startup faster.
+    // See http://wiki.apache.org/tomcat/HowTo/FasterStartUp#Entropy_Source and http://goo.gl/NnJtpZ
+    //
+    // However, setting the "java.security.egd" system property as described in the Tomcat doc causes an error
+    // message when running tests on Windows: https://bz.apache.org/bugzilla/show_bug.cgi?id=56139
+    //
+    // Making this field 'true' prevents Gretty from setting that property, and thus avoids the error message.
+    // It turns out to have negligible effect on startup time, at least in this integration testing context.
+    //
+    // Also, a comment in the bug report mentions that this issue has been fixed as of Tomcat 7.0.53.
+    // However, it is actually still present as of 7.0.55
+    secureRandom = true
+
+    // Causes the org.akhikhl.gretty.ServerConfig.systemProperties field to be initialized.
+    // We don't actually care about the key-value-pair; we just want that field to be non-null to avoid an NPE.
+    // TODO: Reduce this bug to a minimum test case and submit to Gretty project.
+    systemProperty 'foo', 'bar'
+}
+
+// Gretty will start the webapp before this task and shut it down afterward.
+task integrationTest(type: Test) {
+    // From TDS's pom.xml. I guess these are excluded because they're pretty crufty?
+    exclude 'thredds/tds/**'
+
+    doLast {
+        // Remove the system properties that Gretty added in AppBeforeIntegrationTestTask.integrationTestTask().
+        // org.gradle.api.internal.changedetection.changes.DefaultTaskArtifactStateRepository.TaskArtifactStateImpl.afterTask()
+        // seems to indicate that input/output snapshots are taken AFTER a task is executed, whereas snapshot checking
+        // occurs BEFORE. So, in order for the UP-TO-DATE machinery to work properly, we must undo the changes to
+        // input that Gretty made during the execution phase.
+        // TODO: Can I find anything more authoritive vis-a-vis snapshot time? Ask at the Gradle forums?
+        // TODO: Open an issue--or even a pull request--for this problem on the Gretty Github.
+        systemProperties.keySet().removeAll { it.startsWith("gretty.") }
+    }
+}
+
+task integrationTestReport(type: JacocoReport, dependsOn: "integrationTest") {
+    // executionData must be closure, because appBeforeIntegrationTest is not defined yet.
+    // We must pass jacoco.destinationFile, not appBeforeIntegrationTest itself,
+    // because otherwise JacocoReport would translate task argument to closure and Project.files(...)
+    // (which is used internally by executionData) is not able to resolve recursive closures.
+    executionData { tasks.appBeforeIntegrationTest.jacoco.destinationFile }
+
+    reports {
+        html.destination = reporting.file("jacoco/integrationTest/html")
+    }
+}
+
+import org.gradle.api.internal.changedetection.TaskArtifactStateRepository
+import org.gradle.api.internal.changedetection.TaskArtifactState
+
+// We want to modify the "appBeforeIntegrationTest" and "appAfterIntegrationTest" tasks, but like all Gretty tasks,
+// they won't be added to the project until after evaluation: http://goo.gl/qlFXTD
+// So, our modifications must also occur after evaluation.
+afterEvaluate {
+    // This task starts the embedded Tomcat server. It's expensive to do.
+    appBeforeIntegrationTest {
+        // We're trying hard to only execute appBeforeIntegrationTest if integrationTest will execute.
+        // We won't execute if integrationTest is disabled--that's simple.
+        // We also won't execute if integrationTest is considered UP-TO-DATE. That's much harder to determine, and we
+        // had to dig into internal Gradle APIs to find that info. Expect this to break in the future.
+        // There are still other cases where integrationTest execution could be skipped that we don't or can't check
+        // (e.g. one of its onlyIf()s returns false), but those situations are rare.
+        onlyIf {
+            Task task = tasks.integrationTest
+            if (!task.enabled) {
+                return false;
+            }
+
+            TaskArtifactState state = task.services.get(TaskArtifactStateRepository).getStateFor(task)
+            return !state.isUpToDate([])
+        }
+
+        // "jacoco" extension is created automatically for all AppBeforeIntegrationTest tasks
+        // and has type org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+        jacoco {
+            // appBeforeIntegrationTest.exec gets larger every run if we don't do this. That breaks UP-TO-DATE
+            // checking. LOOK: The Test tasks have "true" here, yet I don't notice the undesirable behavior. Why?
+            append = false
+
+            // Don't use the same name as our integration task's execution data.
+            // That data may be useless (is it?), but overwriting it during execution foils UP-TO-DATE checking.
+            // destinationFile = new File(buildDir, 'jacoco/integrationTest.exec')
+        }
+
+        doFirst {
+            // tomcatBaseDir is the working directory for embedded tomcat. We want to write our logs there as well.
+            File tomcatBaseDir = launcherConfig.baseDir
+            gretty.logDir = new File(tomcatBaseDir, "logs").absolutePath
+        }
+    }
+
+    // This task stops the embedded Tomcat server.
+    appAfterIntegrationTest {
+        // Only run if appBeforeIntegrationTest did work.
+        onlyIf { tasks.appBeforeIntegrationTest.getDidWork() }
+    }
+}

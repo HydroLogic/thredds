@@ -33,8 +33,9 @@
 
 package ucar.atd.dorade;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import ucar.nc2.constants.CDM;
+
+import java.io.*;
 
 /**
  * A dumper for DORADE radar data
@@ -65,8 +66,8 @@ public class DoradeAsciiDump {
       }
       float[] azimuths = sweep.getAzimuths();
       float[] elevations = sweep.getElevations();
-      StringBuilder sb = new StringBuilder();
 
+      StringBuilder sb = new StringBuilder();
       System.err.println("File:" + sourceFile + " #rays:" + nRays + " #cells:" + nCells);
       for (int rayIdx = 0; rayIdx < nRays; rayIdx++) {
         sb.append("ray:").append(rayIdx).append(" ").append(elevations[rayIdx]).append(" ").append(azimuths[rayIdx]).append("\n");
@@ -80,7 +81,8 @@ public class DoradeAsciiDump {
       }
 
       try (FileOutputStream out = new FileOutputStream(destFile)) {
-        out.write(sb.toString().getBytes());
+        PrintWriter ps = new PrintWriter( new OutputStreamWriter(out, CDM.utf8Charset));
+        ps.append(sb.toString());
         out.flush();
       }
     }

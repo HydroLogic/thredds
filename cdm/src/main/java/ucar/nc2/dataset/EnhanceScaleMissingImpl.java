@@ -233,7 +233,9 @@ class EnhanceScaleMissingImpl implements EnhanceScaleMissing {
       } else { // not a string
         missingValue = getValueAsDouble(att);
         missType = att.getDataType();
-        hasMissingValue = true;
+        for (double mv : missingValue)
+          if (!Double.isNaN(mv))
+            hasMissingValue = true;   // dont need to do anything if its already a NaN
       }
       if (hasScaleOffset) forVar.remove(att);
     }
@@ -275,7 +277,7 @@ class EnhanceScaleMissingImpl implements EnhanceScaleMissing {
         // scale_factor and add_offset) and this is wider than the external data, then it
         // will be interpreted as being in the units of the internal (unpacked) data.
         // Otherwise it is in the units of the external (unpacked) data.
-        // we assumed unpacked data above, redo if its realy packed data
+        // we assumed unpacked data above, redo if its really packed data
         if (!((rank(validType) == rank(scaleType)) && (rank(scaleType) >= rank(orgType)))) {
           if (validRangeAtt != null) {
             double[] values = getValueAsDouble(validRangeAtt);

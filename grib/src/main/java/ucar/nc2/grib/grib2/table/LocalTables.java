@@ -49,8 +49,14 @@ public abstract class LocalTables extends Grib2Customizer {
   //////////////////////////////////////////////////////////////////////
   protected Map<Integer, Grib2Parameter> local = new HashMap<>(100);  // subclass must set
 
-  LocalTables(int center, int subCenter, int masterVersion, int localVersion) {
-    super(center, subCenter, masterVersion, localVersion);
+  LocalTables(Grib2Table grib2Table) {
+    super(grib2Table);
+  }
+
+  @Override
+  public String getTablePath(int discipline, int category, int number) {
+    if ((category <= 191) && (number <= 191)) return super.getTablePath(discipline, category, number);
+    return grib2Table.getPath();
   }
 
   @Override
@@ -61,7 +67,7 @@ public abstract class LocalTables extends Grib2Customizer {
     return result;
   }
 
-  private static class ParameterSort implements Comparator<Parameter> {
+  protected static class ParameterSort implements Comparator<Parameter> {
     public int compare(Parameter p1, Parameter p2) {
       int c = p1.getDiscipline() - p2.getDiscipline();
       if (c != 0) return c;
@@ -85,15 +91,15 @@ public abstract class LocalTables extends Grib2Customizer {
 
   @Override
   public GribTables.Parameter getParameter(int discipline, int category, int number) {
-    Grib2Parameter plocal = local.get(makeHash(discipline, category, number));
+    Grib2Parameter plocal = local.get(makeParamId(discipline, category, number));
 
     if ((category <= 191) && (number <= 191))  {
       GribTables.Parameter pwmo = WmoCodeTable.getParameterEntry(discipline, category, number);
       if (plocal == null) return pwmo;
+      if (pwmo == null) return plocal;
 
-      // allow local table to override all but name, units  LOOK WTF ??
-      plocal.name = pwmo.getName();
-      plocal.unit = pwmo.getUnit();
+      // allow local table to override all but name, units
+      return new Grib2Parameter(plocal, pwmo.getName(), pwmo.getUnit());
     }
 
     return plocal;
@@ -101,7 +107,7 @@ public abstract class LocalTables extends Grib2Customizer {
 
   @Override
   public GribTables.Parameter getParameterRaw(int discipline, int category, int number) {
-     return local.get(makeHash(discipline, category, number));
+    return local.get(makeParamId(discipline, category, number));
    }
 
  }

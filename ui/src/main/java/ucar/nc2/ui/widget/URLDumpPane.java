@@ -33,24 +33,34 @@
 
 package ucar.nc2.ui.widget;
 
-import org.apache.http.entity.StringEntity;
-import ucar.httpservices.*;
 import org.apache.http.Header;
+import org.apache.http.entity.StringEntity;
+import ucar.httpservices.HTTPException;
+import ucar.httpservices.HTTPFactory;
+import ucar.httpservices.HTTPMethod;
+import ucar.httpservices.HTTPSession;
 import ucar.nc2.constants.CDM;
 import ucar.nc2.util.IO;
 import ucar.unidata.util.Urlencoded;
-import ucar.util.prefs.*;
-import ucar.util.prefs.ui.*;
+import ucar.util.prefs.PreferencesExt;
+import ucar.util.prefs.XMLStore;
+import ucar.util.prefs.ui.ComboBox;
 
+import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
-import javax.swing.*;
 
 
 /**
@@ -81,7 +91,7 @@ public class URLDumpPane extends TextHistoryPane {
     cb = new ComboBox(prefs);
 
     // holds Library impl enum
-    implCB = new JComboBox();
+    implCB = new JComboBox<Library>();
     for (Library e : Library.values())
       implCB.addItem(e);
 
@@ -253,15 +263,29 @@ public class URLDumpPane extends TextHistoryPane {
       appendLine(" " + key + ": " + value);
   }  */
 
+  private HTTPMethod processMethod (HTTPSession httpclient, Command cmd) throws HTTPException, UnsupportedEncodingException {
+      HTTPMethod m = null;
+      if (cmd == Command.GET)
+          m = HTTPFactory.Get(httpclient);
+      else if (cmd == Command.HEAD)
+          m = HTTPFactory.Head(httpclient);
+      else if (cmd == Command.OPTIONS)
+          m = HTTPFactory.Options(httpclient);
+      else if (cmd == Command.PUT) {
+          m = HTTPFactory.Put(httpclient);
+          m.setRequestContent(new StringEntity(ta.getText())); // was  setRequestContentAsString(ta.getText());
+      }
+
+      return m;
+  }
   ///////////////////////////////////////////////////////
   // Uses apache commons HttpClient
   @Urlencoded
   private void openURL2(String urlString, Command cmd) {
 
-    HTTPSession httpclient = null;
-    HTTPMethod m = null;
+    HTTPMethod m;
 
-    try {
+    try (HTTPSession httpclient = HTTPFactory.newSession(urlString)) {
       /* you might think this works, but it doesnt:
       URI raw = new URI(urlString.trim());
       appendLine("raw scheme= " + raw.getScheme() + "\n auth= " + raw.getRawAuthority() + "\n path= " + raw.getRawPath() +
@@ -277,7 +301,6 @@ public class URLDumpPane extends TextHistoryPane {
               */
 
       //urlString = URLnaming.escapeQuery(urlString);
-      httpclient = HTTPFactory.newSession(urlString);
       if (cmd == Command.GET)
           m = HTTPFactory.Get(httpclient);
       else if (cmd == Command.HEAD)
@@ -287,6 +310,8 @@ public class URLDumpPane extends TextHistoryPane {
       else if (cmd == Command.PUT) {
           m = HTTPFactory.Put(httpclient);
           m.setRequestContent(new StringEntity(ta.getText())); // was  setRequestContentAsString(ta.getText());
+      } else {
+          throw new IOException("Unsupported command: " + cmd);
       }
 
       m.setAllowCompression();
@@ -319,7 +344,7 @@ public class URLDumpPane extends TextHistoryPane {
 
         String charset = m.getResponseCharSet();
         if (charset == null) charset = CDM.UTF8;
-        String contents = null;
+        String contents;
 
         /* no longer needed
         // check for deflate and gzip compression
@@ -353,25 +378,21 @@ public class URLDumpPane extends TextHistoryPane {
         appendLine(contents);
 
       } else if (cmd == Command.OPTIONS)
-        printSet("AllowedMethods = ", m.getAllowedMethods());
+        printSet("AllowedMethods = ", HTTPMethod.getAllowedMethods());
 
-    } catch (Exception e) {
-      ByteArrayOutputStream bos = new ByteArrayOutputStream(5000);
-      e.printStackTrace(new PrintStream(bos));
-      appendLine(bos.toString());
-
-    } finally {
-      if (httpclient != null) httpclient.close();
+    } catch (IOException e) {
+      StringWriter sw = new StringWriter(5000);
+      e.printStackTrace(new PrintWriter(sw));
+      appendLine(sw.toString());
     }
   }
 
   private void printHeaders(String title, Header[] heads) {
     if (heads == null) return;
     appendLine(title);
-    for (int i = 0; i < heads.length; i++) {
-      Header head = heads[i];
-      append("  " + head.toString() +"\n");
-    }
+      for (Header head : heads) {
+          append("  " + head.toString() + "\n");
+      }
   }
 
   private void printSet(String title, Set<String> en) {
@@ -399,9 +420,9 @@ public class URLDumpPane extends TextHistoryPane {
 
       // request headers
       Map<String, List<String>> reqs = currentConnection.getRequestProperties();
-      for (String key : reqs.keySet()) {
-        append(" " + key + ": ");
-        for (String v : reqs.get(key))
+      for (Map.Entry<String, List<String>> ent : reqs.entrySet()) {
+        append(" " + ent.getKey() + ": ");
+        for (String v : ent.getValue())
           append(v + " ");
         appendLine("");
       }
@@ -437,7 +458,7 @@ public class URLDumpPane extends TextHistoryPane {
       IO.copy(is, bout);
       is.close();
 
-      append(new String(bout.toByteArray()));
+      append(new String(bout.toByteArray(), CDM.utf8Charset));
       appendLine("end contents");
 
     } catch (MalformedURLException e) {
@@ -445,7 +466,6 @@ public class URLDumpPane extends TextHistoryPane {
     }
     catch (IOException e) {
       e.printStackTrace();
-      System.err.println(e);
     }
   }
 
@@ -461,9 +481,9 @@ public class URLDumpPane extends TextHistoryPane {
 
       // request headers
       Map<String, List<String>> reqs = currentConnection.getRequestProperties();
-      for (String key : reqs.keySet()) {
-        append(" " + key + ": ");
-        for (String v : reqs.get(key))
+      for (Map.Entry<String, List<String>> ent : reqs.entrySet()) {
+        append(" " + ent.getKey() + ": ");
+        for (String v : ent.getValue())
           append(v + " ");
         appendLine("");
       }
@@ -489,7 +509,7 @@ public class URLDumpPane extends TextHistoryPane {
       IO.copy(is, bout);
       is.close();
 
-      append(new String(bout.toByteArray()));
+      append(new String(bout.toByteArray(), CDM.utf8Charset));
 
     } catch (MalformedURLException e) {
       append(urlString + " is not a parseable URL");
@@ -592,28 +612,6 @@ public class URLDumpPane extends TextHistoryPane {
     }
   } */
 
-  private class GetContentsTask extends ProgressMonitorTask {
-    String urlString;
-    String contents;
-
-    GetContentsTask(String urlString) {
-      this.urlString = urlString;
-    }
-
-    public void run() {
-      try {
-        contents = IO.readURLcontentsWithException(urlString);
-      } catch (IOException e) {
-        setError(e.getMessage());
-        done = true;
-        return;
-      }
-
-      success = !cancel;
-      done = true;
-    }
-  }
-
   private static XMLStore xstore;
   private static URLDumpPane main;
 
@@ -625,6 +623,7 @@ public class URLDumpPane extends TextHistoryPane {
           main.save();
           xstore.save();
         } catch (IOException ioe) {
+          ioe.printStackTrace();
         }
         System.exit(0);
       }

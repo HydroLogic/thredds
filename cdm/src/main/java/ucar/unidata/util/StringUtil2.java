@@ -186,24 +186,24 @@ public class StringUtil2 {
   } */
 
   /**
-    * Remove all but printable ascii
-    *
-    * @param s filter this string
-    * @return filtered string.
-    */
-   static public String filter7bits(String s) {
-     if (s == null) return null;
-     char[] bo = new char[s.length()];
-     int count = 0;
-     for (int i = 0; i < s.length(); i++) {
-       char c = s.charAt(i);
-       if ((c < 128) && (c > 31) || ((c == '\n') || (c == '\t'))) {
-         bo[count++] = c;
-       }
-     }
+   * Remove all but printable ascii
+   *
+   * @param s filter this string
+   * @return filtered string.
+   */
+  static public String filter7bits(String s) {
+    if (s == null) return null;
+    char[] bo = new char[s.length()];
+    int count = 0;
+    for (int i = 0; i < s.length(); i++) {
+      char c = s.charAt(i);
+      if ((c < 128) && (c > 31) || ((c == '\n') || (c == '\t'))) {
+        bo[count++] = c;
+      }
+    }
 
-     return new String(bo, 0, count);
-   }
+    return new String(bo, 0, count);
+  }
 
   // remove leading and trailing blanks
   // remove control characters (< 0x20)
@@ -315,10 +315,11 @@ public class StringUtil2 {
    */
   public static String padRight(String s, int desiredLength,
                                 String padString) {
-    while (s.length() < desiredLength) {
-      s = s + padString;
+    StringBuilder ret = new StringBuilder(s);
+    while (ret.length() < desiredLength) {
+      ret.append(padString);
     }
-    return s;
+    return ret.toString();
   }
 
   private static final char[] htmlIn = {'&', '"', '\'', '<', '>', '\n'};
@@ -337,6 +338,10 @@ public class StringUtil2 {
    */
   static public String quoteHtmlContent(String x) {
     return replace(x, htmlIn, htmlOut);
+  }
+
+  static public String unquoteHtmlContent(String x) {
+    return unreplace(x, htmlOut, htmlIn);
   }
 
   /**
@@ -433,7 +438,7 @@ public class StringUtil2 {
       return s;
 
     int len = s.length();
-    while (s.charAt(len - 1) == c)
+    while ((s.charAt(len - 1) == c) && (len > 0))
       len--;
 
     if (len == s.length())
@@ -442,12 +447,11 @@ public class StringUtil2 {
   }
 
   static public String removeFromEnd(String s, String suffix) {
-  if (s.endsWith(suffix))
-     return s.substring(0, s.length() - suffix.length());
+    if (s.endsWith(suffix))
+      return s.substring(0, s.length() - suffix.length());
 
     return s;
   }
-
 
 
   /**
@@ -625,7 +629,6 @@ public class StringUtil2 {
     return s;
   }
 
-
   /**
    * Escape any char not alphanumeric or in okChars.
    * Escape by replacing char with %xx (hex).
@@ -635,20 +638,22 @@ public class StringUtil2 {
    * @return equivilent escaped string.
    */
   static public String escape(String x, String okChars) {
-    String newname = "";
+    StringBuilder newname = new StringBuilder();
     for (char c : x.toCharArray()) {
       if (c == '%') {
-        newname = newname + "%%";
+        newname.append("%%");
       } else if (!Character.isLetterOrDigit(c) && okChars.indexOf(c) < 0) {
-        newname = newname + '%' + Integer.toHexString((0xFF & (int) c));
+        newname.append('%');
+        newname.append(Integer.toHexString((0xFF & (int) c)));
       } else
-        newname = newname + c;
+        newname.append(c);
     }
-    return newname;
+    return newname.toString();
   }
 
   /**
-   * This finds any '%xx' and converts to the equivilent char. Inverse of escape().
+   * This finds any '%xx' and converts to the equivalent char. Inverse of
+   * escape().
    *
    * @param x operate on this String
    * @return original String.
@@ -729,40 +734,43 @@ public class StringUtil2 {
 
   static public List<String> getTokens(String fullString, String sep) throws Exception {
 
-      List<String> strs = new ArrayList<>();
-      if (sep != null) {
-          int sepLength = sep.length();
-          switch (sepLength) {
-              case 0:  String[] tokens = splitString(fullString);   // default to use white space if separator is ""
-                       strs = Arrays.asList(tokens);
-                       break;
-
-              case 1:  StringTokenizer tokenizer = new StringTokenizer(fullString, sep);       // maybe use StreamTokenizer?
-                       while (tokenizer.hasMoreTokens())
-                       strs.add(tokenizer.nextToken());
-                       break;
-
-              default:  String remainderString = fullString;    // multicharacter separator
-                        int location = remainderString.indexOf(sep);
-                        while (location != -1) {    // watch out for off-by-one errors on the string splitting indices!!!
-                          if (location == 0) {    // remainderString starts with the separator, cut it off
-                            remainderString = remainderString.substring(location + sepLength);
-                            location = remainderString.indexOf(sep);
-                          } else {
-                              String token = remainderString.substring(0,location); // pull the token off the front of the string
-                              strs.add(token);    // add the token to our list
-                              remainderString = remainderString.substring(location + sepLength); // cut out both the token and the separator
-                              location = remainderString.indexOf(sep);
-                          }
-                        }  //close while loop
-                        if (remainderString.length() > 0) strs.add(remainderString);    // add the last token, post last separator
-          }  //close switch (sepLength)
-      } else {  // default to white space separator if sep is null
-          String[] tokens = splitString(fullString);
+    List<String> strs = new ArrayList<>();
+    if (sep != null) {
+      int sepLength = sep.length();
+      switch (sepLength) {
+        case 0:
+          String[] tokens = splitString(fullString);   // default to use white space if separator is ""
           strs = Arrays.asList(tokens);
-      }
-      if (strs.size() == 0) strs.add(""); // maybe thrown an exception instead?  return null?
-      return strs;
+          break;
+
+        case 1:
+          StringTokenizer tokenizer = new StringTokenizer(fullString, sep);       // maybe use StreamTokenizer?
+          while (tokenizer.hasMoreTokens())
+            strs.add(tokenizer.nextToken());
+          break;
+
+        default:
+          String remainderString = fullString;    // multicharacter separator
+          int location = remainderString.indexOf(sep);
+          while (location != -1) {    // watch out for off-by-one errors on the string splitting indices!!!
+            if (location == 0) {    // remainderString starts with the separator, cut it off
+              remainderString = remainderString.substring(location + sepLength);
+              location = remainderString.indexOf(sep);
+            } else {
+              String token = remainderString.substring(0, location); // pull the token off the front of the string
+              strs.add(token);    // add the token to our list
+              remainderString = remainderString.substring(location + sepLength); // cut out both the token and the separator
+              location = remainderString.indexOf(sep);
+            }
+          }  //close while loop
+          if (remainderString.length() > 0) strs.add(remainderString);    // add the last token, post last separator
+      }  //close switch (sepLength)
+    } else {  // default to white space separator if sep is null
+      String[] tokens = splitString(fullString);
+      strs = Arrays.asList(tokens);
+    }
+    if (strs.size() == 0) strs.add(""); // maybe thrown an exception instead?  return null?
+    return strs;
   }
 
   ////////////////////////////////////////////////////
@@ -857,29 +865,52 @@ public class StringUtil2 {
     }
   }
 
+  /**
+   * Remove bad char from beginning or end of string
+   * @param s operate on this
+   * @return trimmed string
+   */
 
-  static public StringBuilder trim(StringBuilder sb) {
-    int count = 0;
-    for (int i = 0; i < sb.length(); i++) {
-      int c = sb.charAt(i);
-      if (c == ' ') count++;
-      else break;
-    }
-    if (count > 0) sb = sb.delete(0, count);
+  static public String trim(String s, int bad) {
+      int len = s.length();
+      int st = 0;
 
-    count = 0;
-    for (int i = sb.length() - 1; i >= 0; i--) {
-      int c = sb.charAt(i);
-      if (c == ' ') count++;
-      else break;
-    }
-    if (count > 0)
-      sb.setLength(sb.length() - count);
-
-    return sb;
+      while ((st < len) && (s.charAt(st) == bad)) {
+          st++;
+      }
+      while ((st < len) && (s.charAt(len - 1) == bad)) {
+          len--;
+      }
+      return ((st > 0) || (len < s.length())) ? s.substring(st, len) : s;
   }
 
-  ////////
+  /*
+  static public StringBuilder trim(StringBuilder sb) {
+     return trim(sb, ' ');
+  }
+
+   static public StringBuilder trim(StringBuilder sb, int bad) {
+     int count = 0;
+     for (int i = 0; i < sb.length(); i++) {
+       int c = sb.charAt(i);
+       if (c == bad) count++;
+       else break;
+     }
+     if (count > 0) sb = sb.delete(0, count);
+
+     count = 0;
+     for (int i = sb.length() - 1; i >= 0; i--) {
+       int c = sb.charAt(i);
+       if (c == bad) count++;
+       else break;
+     }
+     if (count > 0)
+       sb.setLength(sb.length() - count);
+
+     return sb;
+   } */
+
+   ////////
 
 
   /**
@@ -913,8 +944,6 @@ public class StringUtil2 {
   }
 
   public static void main3() {
-    byte[] b = new byte[]{10};
-    //String s = new String(b);
     String s = "\n";
     System.out.printf("quoteXmlAttribute(%s) == %s%n", s, StringUtil2.quoteXmlAttribute(s));
     String s2 = StringUtil2.quoteXmlAttribute(s);
@@ -923,13 +952,13 @@ public class StringUtil2 {
 
   public static void main(String[] args) throws UnsupportedEncodingException {
     String org = "http://dataserver.nccs.nasa.gov/thredds/ncss/nex/netcdf/pr_amon_BCSD_rcp85_r1i1p1_CONUS_CESM1-CAM5_207101-207512.nc?var=pr&latitude=48.9983&longitude=247.212&time_start=2071-01-01T00%3A00%3A00Z&time_end=2072-01-01T00%3A00%3A00Z&timeStride=1&accept=csv";
-    System.out.printf("org = '%s'%n",org );
+    System.out.printf("org = '%s'%n", org);
     String unescapedQuery = EscapeStrings.unescapeURLQuery(org);
-    System.out.printf(" EscapeStrings.unescapeURLQuery(org) = '%s'%n%n",unescapedQuery );
+    System.out.printf(" EscapeStrings.unescapeURLQuery(org) = '%s'%n%n", unescapedQuery);
     String decodedQuery = URLDecoder.decode(org, "UTF-8");
-    System.out.printf("decodedQuery = '%s'%n",decodedQuery );
+    System.out.printf("decodedQuery = '%s'%n", decodedQuery);
     String decodedQuery2 = URLDecoder.decode(decodedQuery, "UTF-8");
-    System.out.printf("decodedQuery^2 = '%s'%n", decodedQuery2 );
+    System.out.printf("decodedQuery^2 = '%s'%n", decodedQuery2);
   }
 
 
@@ -946,16 +975,16 @@ public class StringUtil2 {
    * @return equivilent escaped string.
    */
   static public String escape2(String x, String reservedChars) {
-    String newname = "";
+    StringBuilder newname = new StringBuilder();
     for (char c : x.toCharArray()) {
       if (c == '%') {
-        newname = newname + "%%";
+        newname.append("%%");
       } else if (reservedChars.indexOf(c) >= 0) {
-        newname = newname + '%' + Integer.toHexString((0xFF & (int) c));
+        newname.append('%' + Integer.toHexString((0xFF & (int) c)));
       } else
-        newname = newname + c;
+        newname.append(c);
     }
-    return newname;
+    return newname.toString();
   }
 
   static public String ignoreescape2(String x, String reservedChars) {

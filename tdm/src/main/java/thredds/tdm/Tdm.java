@@ -38,17 +38,18 @@ package thredds.tdm;
 import org.apache.http.auth.*;
 import org.apache.http.client.CredentialsProvider;
 import org.slf4j.Logger;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.FileSystemXmlApplicationContext;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+
+import thredds.featurecollection.CollectionUpdater;
 import thredds.featurecollection.FeatureCollectionConfig;
 import thredds.featurecollection.FeatureCollectionType;
 import thredds.inventory.*;
 import thredds.util.*;
 import ucar.nc2.constants.CDM;
+import ucar.nc2.grib.GribIndexCache;
 import ucar.nc2.grib.collection.GribCdmIndex;
-import ucar.nc2.grib.collection.GribCollection;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.util.DiskCache2;
 import ucar.nc2.util.log.LoggerFactory;
@@ -76,8 +77,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @since 12/13/13
  */
 public class Tdm {
-  private static org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger( Tdm.class);
+  private static org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Tdm.class);
   private static final boolean debug = false;
+  private static final boolean debugOpenFiles = false;
 
   private Path contentDir;
   private Path contentThreddsDir;
@@ -96,6 +98,7 @@ public class Tdm {
   private boolean forceOnStartup = false; // if true, just show dirs and exit
 
   LoggerFactory loggerFactory;
+  List<Resource> catalogRoots = new ArrayList<>();
 
   private static class Server {
     String name;
@@ -105,7 +108,7 @@ public class Tdm {
       this.name = name;
       this.session = session;
       System.out.printf("Server added %s%n", name);
-      log.info("Server added "+name);
+      log.info("TDS server added " + name);
     }
   }
 
@@ -125,6 +128,7 @@ public class Tdm {
 
   public void setNThreads(int n) {
     executor = Executors.newFixedThreadPool(n);
+    log.info(" TDM nthreads= {}", n);
   }
 
   public void setForceOnStartup(boolean forceOnStartup) {
@@ -155,14 +159,17 @@ public class Tdm {
       HTTPSession session = new HTTPSession(name);
       // AuthScope scope = new AuthScope(ANY_HOST, -1, ANY_REALM, "Digest");
       session.setCredentialsProvider(new CredentialsProvider() {
-         public Credentials getCredentials(AuthScope scope)
-         {
-           //System.out.printf("getCredentials called %s %s%n", user, pass);
-           return new UsernamePasswordCredentials(user, pass);
-         }
-         public void setCredentials(AuthScope scope, Credentials creds) {}
-         public void clear() {}
-       });
+        public Credentials getCredentials(AuthScope scope) {
+          //System.out.printf("getCredentials called %s %s%n", user, pass);
+          return new UsernamePasswordCredentials(user, pass);
+        }
+
+        public void setCredentials(AuthScope scope, Credentials creds) {
+        }
+
+        public void clear() {
+        }
+      });
 
       session.setUserAgent("TDM");
       servers.add(new Server(name, session));
@@ -170,6 +177,7 @@ public class Tdm {
   }
 
   AliasHandler aliasHandler;
+
   public void setPathAliasReplacements(List<PathAliasReplacement> aliasExpanders) {
     aliasHandler = new AliasHandler(aliasExpanders);
   }
@@ -184,8 +192,12 @@ public class Tdm {
     }
     ThreddsConfigReader reader = new ThreddsConfigReader(threddsConfig.toString(), log);
 
-   // LOOK following has been duplicated from tds cdmInit
+    for (String location : reader.getRootList("catalogRoot")) {
+      Resource r = new FileSystemResource(contentThreddsDir.toString() + "/" + location);
+      catalogRoots.add(r);
+    }
 
+    // LOOK following has been duplicated from tds cdmInit
     // 4.3.17
     long maxFileSize = reader.getBytes("FeatureCollection.RollingFileAppender.MaxFileSize", 1000 * 1000);
     int maxBackupIndex = reader.getInt("FeatureCollection.RollingFileAppender.MaxBackups", 10);
@@ -202,49 +214,56 @@ public class Tdm {
     gribCache.setPolicy(gribIndexPolicy);
     gribCache.setAlwaysUseCache(gribIndexAlwaysUse);
     gribCache.setNeverUseCache(gribIndexNeverUse);
-    GribCollection.setDiskCache2(gribCache);
+    GribIndexCache.setDiskCache2(gribCache);
+    log.info("TDM set " + gribCache);
 
     return true;
   }
 
   void start() throws IOException {
-     System.out.printf("Tdm startup at %s%n", new Date());
+    System.out.printf("Tdm startup at %s%n", new Date());
 
-     //CatalogConfigReader reader = new CatalogConfigReader(catalog, aliasExpanders);
-     CatalogConfigReader reader = new CatalogConfigReader(catalog, aliasHandler);
-     List<FeatureCollectionConfig> fcList = reader.getFcList();
+    List<FeatureCollectionConfig> fcList = new ArrayList<>();
+    CatalogConfigReader reader = new CatalogConfigReader(catalog, aliasHandler);
+    fcList.addAll(reader.getFcList());
 
-     if (showOnly) {
-       List<String> result = new ArrayList<>();
-       for (FeatureCollectionConfig config : fcList) {
-         result.add(config.name);
-       }
-       Collections.sort(result);
+    // do the catalogRoots
+    for (Resource catr : catalogRoots) {
+      CatalogConfigReader r = new CatalogConfigReader(catr, aliasHandler);
+      fcList.addAll(r.getFcList());
+    }
 
-       System.out.printf("Feature Collection names:%n");
-       for (String name : result)
-         System.out.printf(" %s%n", name);
+    if (showOnly) {
+      List<String> result = new ArrayList<>();
+      for (FeatureCollectionConfig config : fcList) {
+        result.add(config.collectionName);
+      }
+      Collections.sort(result);
 
-       System.out.printf("%nTriggers:%n");
-       for (String name : result)
-         System.out.printf(" %s%n", makeTriggerUrl(name));
-       return;
-     }
+      System.out.printf("%nFeature Collection names:%n");
+      for (String name : result)
+        System.out.printf(" %s%n", name);
 
-     for (FeatureCollectionConfig config : fcList) {
-       if (config.type != FeatureCollectionType.GRIB1 && config.type != FeatureCollectionType.GRIB2) continue;
-       System.out.printf("FeatureCollection %s scheduled %n", config.name);
-       /* CollectionManager dcm = fc.getDatasetCollectionManager(); // LOOK this will fail
-       if (config != null && config.gribConfig != null && config.gribConfig.gdsHash != null)
-         dcm.putAuxInfo("gdsHash", config.gribConfig.gdsHash); // sneak in extra config info  */
+      System.out.printf("%nTriggers:%n");
+      for (String name : result)
+        System.out.printf(" %s%n", makeTriggerUrl(name));
 
-       if (forceOnStartup) // on startup, force rewrite of indexes
-         config.tdmConfig.startupType = CollectionUpdateType.always;
+      executor.shutdown();
+      CollectionUpdater.INSTANCE.shutdown();
+      return;
+    }
 
-       Logger logger = loggerFactory.getLogger("fc." + config.name); // seperate log file for each feature collection (!!)
-       logger.info("FeatureCollection config=" + config);
-       CollectionUpdater.INSTANCE.scheduleTasks(config, new Listener(config, logger), logger); // now wired for events
-     }
+    for (FeatureCollectionConfig config : fcList) {
+      if (config.type != FeatureCollectionType.GRIB1 && config.type != FeatureCollectionType.GRIB2) continue;
+      System.out.printf("FeatureCollection %s scheduled %n", config.collectionName);
+
+      if (forceOnStartup) // on startup, force rewrite of indexes
+        config.tdmConfig.startupType = CollectionUpdateType.always;
+
+      Logger logger = loggerFactory.getLogger("fc." + config.collectionName); // seperate log file for each feature collection (!!)
+      logger.info("FeatureCollection config=" + config);
+      CollectionUpdater.INSTANCE.scheduleTasks(config, new Listener(config, logger), logger); // now wired for events
+    }
 
      /* show whats up
      Formatter f = new Formatter();
@@ -254,7 +273,7 @@ public class Tdm {
        f.format("  %s == %s%n%s%n%n", fc, fc.getClass().getName(), dcm);
      }
      System.out.printf("%s%n", f.toString()); */
-   }
+  }
 
   // these objects listen for schedule events from quartz.
   // one listener for each fc.
@@ -285,7 +304,7 @@ public class Tdm {
 
     @Override
     public String getCollectionName() {
-      return config.name;
+      return config.collectionName;
     }
 
     @Override
@@ -309,7 +328,7 @@ public class Tdm {
     org.slf4j.Logger logger;
 
     private IndexTask(FeatureCollectionConfig config, Listener liz, CollectionUpdateType updateType, org.slf4j.Logger logger) {
-      this.name = config.name;
+      this.name = config.collectionName;
       this.config = config;
       this.liz = liz;
       this.updateType = updateType;
@@ -319,11 +338,13 @@ public class Tdm {
     @Override
     public void run() {
       try {
-        if (debug) System.out.printf("---------------------%nIndexTask updateGribCollection %s%n", config.name);
+        // log.info("Tdm call GribCdmIndex.updateGribCollection "+config.collectionName);
+        if (debug) System.out.printf("---------------------%nIndexTask updateGribCollection %s%n", config.collectionName);
         boolean changed = GribCdmIndex.updateGribCollection(config, updateType, logger);
+        log.info("GribCdmIndex.updateGribCollection {} changed {}", config.collectionName, changed);
 
-        logger.debug("{} {} changed {}", CalendarDate.present(), config.name, changed);
-        if (changed) System.out.printf("%s %s changed%n", CalendarDate.present(), config.name);
+        logger.debug("{} {} changed {}", CalendarDate.present(), config.collectionName, changed);
+        if (changed) System.out.printf("%s %s changed%n", CalendarDate.present(), config.collectionName);
 
         if (changed && config.tdmConfig.triggerOk && sendTriggers) { // send a trigger if enabled
           String path = makeTriggerUrl(name);
@@ -340,13 +361,15 @@ public class Tdm {
           logger.warn("Listener InUse should have been set");
       }
 
-      List<String> openFiles = RandomAccessFile.getOpenFiles();
-      if (openFiles.size() > 0) {
-        System.out.printf("Open Files%n");
-        for (String filename : RandomAccessFile.getOpenFiles()) {
-          System.out.printf("  %s%n", filename);
+      if (debugOpenFiles) {
+        List<String> openFiles = RandomAccessFile.getOpenFiles();
+        if (openFiles.size() > 0) {
+          System.out.printf("Open Files%n");
+          for (String filename : RandomAccessFile.getOpenFiles()) {
+            System.out.printf("  %s%n", filename);
+          }
+          System.out.printf("End Open Files%n");
         }
-        System.out.printf("End Open Files%n");
       }
 
     }
@@ -414,7 +437,7 @@ public class Tdm {
   }
 
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /* public static void main2(String[] args) throws IOException {
     long start = System.currentTimeMillis();
@@ -445,105 +468,93 @@ public class Tdm {
   } */
 
   public static void main(String args[]) throws IOException, InterruptedException {
-    ApplicationContext springContext = new FileSystemXmlApplicationContext("classpath:resources/application-config.xml");
-    Tdm driver = (Tdm) springContext.getBean("testDriver2");
+    try (FileSystemXmlApplicationContext springContext = new FileSystemXmlApplicationContext("classpath:resources/application-config.xml")) {
+      Tdm driver = (Tdm) springContext.getBean("testDriver2");
 
-    Map<String, String> aliases = (Map<String, String> ) springContext.getBean("dataRootLocationAliasExpanders");
-    List<PathAliasReplacement> aliasExpanders = PathAliasReplacementImpl.makePathAliasReplacements(aliases);
-    driver.setPathAliasReplacements( aliasExpanders);
-    CollectionUpdater.INSTANCE.setTdm(true);
+      Map<String, String> aliases = (Map<String, String>) springContext.getBean("dataRootLocationAliasExpanders");
+      List<PathAliasReplacement> aliasExpanders = PathAliasReplacementImpl.makePathAliasReplacements(aliases);
+      driver.setPathAliasReplacements(aliasExpanders);
+      CollectionUpdater.INSTANCE.setTdm(true);
 
-    String contentDir = System.getProperty("tds.content.root.path");
-    if (contentDir == null)  contentDir = "../content";
-    driver.setContentDir(contentDir);
+      String contentDir = System.getProperty("tds.content.root.path");
+      if (contentDir == null) contentDir = "../content";
+      driver.setContentDir(contentDir);
 
-    RandomAccessFile.setDebugLeaks(true);
-    HTTPSession.setGlobalUserAgent("TDM v4.5");
-    // GribCollection.getDiskCache2().setNeverUseCache(true);
-    String logLevel;
+      RandomAccessFile.setDebugLeaks(true);
+      HTTPSession.setGlobalUserAgent("TDM v4.6");
+      // GribCollection.getDiskCache2().setNeverUseCache(true);
+      String logLevel;
 
-    // /opt/jdk/bin/java -d64 -Xmx3g -jar -Dtds.content.root.path=/opt/tds-dev/content tdm-4.5.jar -cred tdm:trigger -tds "http://thredds-dev.unidata.ucar.edu/"
-    for (int i = 0; i < args.length; i++) {
-      if (args[i].equalsIgnoreCase("-help")) {
-        System.out.printf("usage: <Java> <Java_OPTS> -Dtds.content.root.path=<contentDir> [-catalog <cat>] [-tds <tdsServer>] [-cred <user:passwd>] [-showOnly] [-forceOnStartup]%n");
-        System.out.printf("example: /opt/jdk/bin/java -Xmx3g -Dtds.content.root.path=/my/content -jar tdm-4.5.jar -tds http://thredds-dev.unidata.ucar.edu/%n");
-        System.exit(0);
-      }
+      // /opt/jdk/bin/java -d64 -Xmx3g -jar -Dtds.content.root.path=/opt/tds-dev/content tdm-4.5.jar -cred tdm:trigger -tds "http://thredds-dev.unidata.ucar.edu/"
+      for (int i = 0; i < args.length; i++) {
+        if (args[i].equalsIgnoreCase("-help")) {
+          System.out.printf("usage: <Java> <Java_OPTS> -Dtds.content.root.path=<contentDir> [-catalog <cat>] [-tds <tdsServer>] [-cred <user:passwd>] [-showOnly] [-forceOnStartup]%n");
+          System.out.printf("example: /opt/jdk/bin/java -Xmx3g -Dtds.content.root.path=/my/content -jar tdm-4.5.jar -tds http://thredds-dev.unidata.ucar.edu/%n");
+          System.exit(0);
+        }
 
-      if (args[i].equalsIgnoreCase("-contentDir")) {
-        driver.setContentDir(args[i+1]);
-        i++;
-      }
+        if (args[i].equalsIgnoreCase("-contentDir")) {
+          driver.setContentDir(args[i + 1]);
+          i++;
+        } else if (args[i].equalsIgnoreCase("-catalog")) {
+          Resource cat = new FileSystemResource(args[i + 1]);
+          driver.setCatalog(cat);
+        } else if (args[i].equalsIgnoreCase("-tds")) {
+          String tds = args[i + 1];
+          if (tds.equalsIgnoreCase("none")) {
+            driver.setServerNames(null);
+            driver.sendTriggers = false;
 
-      else if (args[i].equalsIgnoreCase("-catalog")) {
-        Resource cat = new FileSystemResource(args[i + 1]);
-        driver.setCatalog(cat);
-      }
-
-      else if (args[i].equalsIgnoreCase("-tds")) {
-        String tds = args[i + 1];
-        if (tds.equalsIgnoreCase("none")) {
-          driver.setServerNames(null);
-          driver.sendTriggers = false;
-
-        } else {
-          String[] tdss = tds.split(","); // comma separated
-          driver.setServerNames( tdss);
+          } else {
+            String[] tdss = tds.split(","); // comma separated
+            driver.setServerNames(tdss);
+            driver.sendTriggers = true;
+          }
+        }
+        // scheme://username:password@domain:port/path?query_string#fragment_id
+        else if (args[i].equalsIgnoreCase("-cred")) {  // LOOK could be http://user:password@server
+          String cred = args[i + 1];
+          String[] split = cred.split(":");
+          driver.user = split[0];
+          driver.pass = split[1];
           driver.sendTriggers = true;
+        } else if (args[i].equalsIgnoreCase("-nthreads")) {
+          int n = Integer.parseInt(args[i + 1]);
+          driver.setNThreads(n);
+        } else if (args[i].equalsIgnoreCase("-showOnly")) {
+          driver.setShowOnly(true);
+        } else if (args[i].equalsIgnoreCase("-log")) {
+          logLevel = args[i + 1];
+          driver.setLoglevel(logLevel);
+        } else if (args[i].equalsIgnoreCase("-forceOnStartup")) {
+          driver.setForceOnStartup(true);
         }
       }
-                                                     // scheme://username:password@domain:port/path?query_string#fragment_id
-      else if (args[i].equalsIgnoreCase("-cred")) {  // LOOK could be http://user:password@server
-        String cred = args[i + 1];
-        String[] split = cred.split(":");
-        driver.user = split[0];
-        driver.pass = split[1];
-        driver.sendTriggers = true;
+
+      if (!driver.showOnly && driver.pass == null && driver.sendTriggers) {
+        Scanner scanner = new Scanner(System.in, CDM.UTF8);
+        String passw;
+        while (true) {
+          System.out.printf("%nEnter password for tds trigger: ");
+          passw = scanner.nextLine();
+          System.out.printf("%nPassword = '%s' OK (Y/N)?", passw);
+          String ok = scanner.nextLine();
+          if (ok.equalsIgnoreCase("Y")) break;
+        }
+        if (passw != null) {
+          driver.pass = passw;
+          driver.user = "tdm";
+        } else {
+          driver.sendTriggers = false;
+        }
       }
 
-      else if (args[i].equalsIgnoreCase("-nthreads")) {
-        int n = Integer.parseInt(args[i + 1]);
-        driver.setNThreads(n);
-      }
-
-      else if (args[i].equalsIgnoreCase("-showOnly")) {
-        driver.setShowOnly(true);
-      }
-
-      else if (args[i].equalsIgnoreCase("-log")) {
-        logLevel = args[i + 1];
-        driver.setLoglevel(logLevel);
-      }
-
-      else if (args[i].equalsIgnoreCase("-forceOnStartup")) {
-        driver.setForceOnStartup(true);
-      }
-    }
-
-    if (driver.pass == null && driver.sendTriggers) {
-      Scanner scanner = new Scanner( System.in, CDM.UTF8 );
-      String passw;
-      while (true) {
-        System.out.printf("%nEnter password for tds trigger: ");
-        passw = scanner.nextLine();
-        System.out.printf( "%nPassword = '%s' OK (Y/N)?", passw );
-        String ok = scanner.nextLine();
-        if (ok.equalsIgnoreCase("Y")) break;
-      }
-      if (passw != null) {
-        driver.pass = passw;
-        driver.user = "tdm";
+      if (driver.init()) {
+        driver.start();
       } else {
-        driver.sendTriggers = false;
+        System.out.printf("%nEXIT DUE TO ERRORS");
       }
     }
-
-    if (driver.init()) {
-      driver.start();
-    } else {
-      System.out.printf("EXIT DUE TO ERRORS%n");
-    }
-
   }
 
 }

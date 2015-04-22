@@ -32,7 +32,7 @@
  */
 package ucar.nc2.iosp.nexrad2;
 
-import thredds.catalog.DataFormatType;
+import ucar.nc2.constants.DataFormatType;
 import ucar.ma2.*;
 import ucar.nc2.*;
 import ucar.nc2.constants.*;
@@ -79,10 +79,12 @@ public class Nexrad2IOServiceProvider extends AbstractIOServiceProvider {
   private boolean overMidNight = false;
 
   public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
+    super.open(raf, ncfile, cancelTask);
     NexradStationDB.init();
 
     volScan = new Level2VolumeScan( raf, cancelTask); // note raf may change when compressed
     this.raf = volScan.raf;
+    this.location = volScan.raf.getLocation();
 
     if (volScan.hasDifferentDopplarResolutions())
       throw new IllegalStateException("volScan.hasDifferentDopplarResolutions");
@@ -618,7 +620,7 @@ public class Nexrad2IOServiceProvider extends AbstractIOServiceProvider {
 
 
   public String getFileTypeId() {
-    return DataFormatType.NEXRAD2.toString();
+    return DataFormatType.NEXRAD2.getDescription();
   }
 
   public String getFileTypeDescription() {

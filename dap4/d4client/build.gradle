@@ -1,0 +1,7 @@
+dependencies {
+    compile project(':dap4:d4core')
+    compile project(':dap4:d4shared')
+    compile libraries["jcommander"]
+    compile libraries["slf4j-api"]
+    runtime libraries["slf4j-jdk14"]
+}

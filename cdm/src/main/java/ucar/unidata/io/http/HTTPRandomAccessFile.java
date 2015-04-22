@@ -53,14 +53,15 @@ import java.nio.ByteBuffer;
  */
 
 public class HTTPRandomAccessFile extends ucar.unidata.io.RandomAccessFile {
-  static public int defaultHTTPBufferSize = 20000;
+  static public final int defaultHTTPBufferSize = 20 * 1000;       // 20K
+  static public final int maxHTTPBufferSize = 10 * 1000 * 1000;     // 10 M
+  static private final boolean debug = false, debugDetails = false;
 
   ///////////////////////////////////////////////////////////////////////////////////
 
   private String url;
   private HTTPSession session = null;
   private long total_length = 0;
-  private final boolean debug = false, debugDetails = false;
 
   public HTTPRandomAccessFile(String url) throws IOException {
     this(url, defaultHTTPBufferSize);
@@ -104,6 +105,9 @@ public class HTTPRandomAccessFile extends ucar.unidata.io.RandomAccessFile {
 
       try {
         total_length = Long.parseLong(head.getValue());
+        /* Some HTTP server report 0 bytes length. 
+         * Do the Range bytes test if the server is reporting 0 bytes length*/
+        if (total_length==0) needtest = true;
       } catch (NumberFormatException e) {
         throw new IOException("Server has malformed Content-Length header");
       }
@@ -115,15 +119,17 @@ public class HTTPRandomAccessFile extends ucar.unidata.io.RandomAccessFile {
     if (needtest && !rangeOk(url))
       throw new IOException("Server does not support byte Ranges");
 
+    if (total_length > 0) {
+      // this means that we will read the file in one gulp then deal with it in memory
+      int useBuffer = (int) Math.min(total_length, maxHTTPBufferSize); // entire file size if possible
+      useBuffer = Math.max(useBuffer, defaultHTTPBufferSize); // minimum buffer
+      setBufferSize(useBuffer);
+    }
+
     if (debugLeaks) openFiles.add(location);
   }
 
   public void close() throws IOException {
-    if (fileCache != null) {
-      fileCache.release(this);
-      return;
-    }
-
     if (debugLeaks)
       openFiles.remove(location);
 
@@ -137,13 +143,14 @@ public class HTTPRandomAccessFile extends ucar.unidata.io.RandomAccessFile {
     HTTPMethod method = null;
     try {
       method = HTTPFactory.Get(session,url);
-      method.setRequestHeader("Range", "bytes=" + 0 + "-" + 1);
+      method.setRequestHeader("Range", "bytes=" + 0 + "-" + 0);
       doConnect(method);
 
       int code = method.getStatusCode();
       if (code != 206)
         throw new IOException("Server does not support Range requests, code= " + code);
-
+      Header head = method.getResponseHeader("Content-Range");
+      total_length = Long.parseLong(head.getValue().substring(head.getValue().lastIndexOf("/")+1));
       // clear stream
       method.close();
       return true;

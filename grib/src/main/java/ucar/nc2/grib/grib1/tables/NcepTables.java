@@ -40,15 +40,19 @@ import ucar.nc2.grib.GribResourceReader;
 import ucar.nc2.grib.GribLevelType;
 import ucar.nc2.grib.GribStatType;
 import ucar.nc2.grib.VertCoord;
+import ucar.nc2.grib.grib1.Grib1ParamTime;
+import ucar.nc2.grib.grib1.Grib1SectionProductDefinition;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * NCEP overrides of GRIB tables
+ * LOOK: Why not a singleton?
  *
  * @author caron
  * @since 1/13/12
@@ -57,7 +61,7 @@ public class NcepTables extends Grib1Customizer {
   static private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(NcepTables.class);
 
   private static Map<Integer, String> genProcessMap;  // shared by all instances
-  private static HashMap<Integer, GribLevelType> levelTypesMap;  // shared by all instances
+  private static Map<Integer, GribLevelType> levelTypesMap;  // shared by all instances
 
   NcepTables(Grib1ParamTables tables) {
     super(7, tables);
@@ -67,10 +71,10 @@ public class NcepTables extends Grib1Customizer {
     super(center, tables);
   }
 
+  ////////////// time types ////////////////////////////////////
   // http://www.nco.ncep.noaa.gov/pmb/docs/on388/table5.html
   @Override
   public GribStatType getStatType(int timeRangeIndicator) {
-    if (timeRangeIndicator < 128) return super.getStatType(timeRangeIndicator);
 
     switch (timeRangeIndicator) {
       case 128:
@@ -90,13 +94,58 @@ public class NcepTables extends Grib1Customizer {
       case 136:
         return GribStatType.StandardDeviation;
       default:
-        return null;
+        return super.getStatType(timeRangeIndicator);
     }
+  }
+
+    /////////////////// local time types
+  @Override
+  public Grib1ParamTime getParamTime(Grib1SectionProductDefinition pds) {
+    int p1 = pds.getTimeValue1();  // octet 19
+    int p2 = pds.getTimeValue2();  // octet 20
+    int timeRangeIndicator = pds.getTimeRangeIndicator(); // octet 21
+    int n = pds.getNincluded();
+
+    int start = 0;
+    int end = 0;
+    int forecastTime = 0;
+    boolean isInterval = false;
+
+    switch (timeRangeIndicator) {
+
+      case 128:
+      case 129:
+      case 130:
+      case 131:
+      case 137:
+      case 138:
+      case 139:
+      case 140:
+        isInterval = true;
+        start = p1;
+        end = p2;
+        break;
+
+      case 132:
+      case 133:
+      case 134:
+      case 135:
+      case 136:
+        forecastTime = p1;
+        start = p1;
+        end = (n > 0) ? p1 + (n-1) * p2 : p1;  // LOOK ??
+        isInterval = (n > 0);
+        break;
+
+      default:
+        return super.getParamTime(pds);
+    }
+
+    return new Grib1ParamTime(this, timeRangeIndicator, isInterval, start, end, forecastTime);
   }
 
   @Override
   public String getTimeTypeName(int timeRangeIndicator) {
-    if (timeRangeIndicator < 128) return super.getTimeTypeName(timeRangeIndicator);
 
     switch (timeRangeIndicator) {
       case 128:
@@ -163,16 +212,18 @@ public class NcepTables extends Grib1Customizer {
         return "Average of forecast averages at 12 hour intervals, period = (RT + P1) to (RT + P2)";
 
       default:
-        return null;
+        return super.getTimeTypeName(timeRangeIndicator);
     }
   }
 
-  // genProcess
+  //////////////////////////////////////////// genProcess
 
   @Override
   public String getGeneratingProcessName(int genProcess) {
-    if (genProcessMap == null) genProcessMap = getNcepGenProcess();
+    if (genProcessMap == null)
+        genProcessMap = getNcepGenProcess();
     if (genProcessMap == null) return null;
+
     return genProcessMap.get(genProcess);
   }
 
@@ -199,7 +250,7 @@ public class NcepTables extends Grib1Customizer {
         result.put(code, desc);
       }
 
-      return result;  // all at once - thread safe
+      return Collections.unmodifiableMap(result);  // all at once - thread safe
 
     } catch (IOException ioe) {
       logger.error("Cant read NCEP Table 1 = " + path, ioe);
@@ -210,59 +261,20 @@ public class NcepTables extends Grib1Customizer {
     }
   }
 
-  /// levels
-
-  @Override
-  protected VertCoord.VertUnit makeVertUnit(int code) {
-    GribLevelType lt = getLevelType(code);
-    return (lt != null) ? lt : super.makeVertUnit(code);
-  }
-
-  @Override
-  public String getLevelNameShort(int code) {
-    GribLevelType lt = getLevelType(code);
-    return (lt == null) ? super.getLevelNameShort(code) : lt.getAbbrev();
-  }
-
-  @Override
-  public String getLevelDescription(int code) {
-    GribLevelType lt = getLevelType(code);
-    return (lt == null) ? super.getLevelDescription(code) : lt.getDesc();
-  }
-
-  @Override
-  public String getLevelUnits(int code) {
-    GribLevelType lt = getLevelType(code);
-    return (lt == null) ? super.getLevelUnits(code) : lt.getUnits();
-  }
-
-  @Override
-  public boolean isLayer(int code) {
-    GribLevelType lt = getLevelType(code);
-    return (lt == null) ? super.isLayer(code) : lt.isLayer();
-  }
-
-  @Override
-  public boolean isPositiveUp(int code) {
-    GribLevelType lt = getLevelType(code);
-    return (lt == null) ? super.isPositiveUp(code) : lt.isPositiveUp();
-  }
-
-  @Override
-  public String getLevelDatum(int code) {
-    GribLevelType lt = getLevelType(code);
-    return (lt == null) ? super.getLevelDatum(code) : lt.getDatum();
-  }
-
-  private GribLevelType getLevelType(int code) {
+  ///////////////////////////////////////// levels
+  protected GribLevelType getLevelType(int code) {
     if (code < 129)
-      return null; // LOOK dont let NCEP override standard tables (??) looks like a conflict with level code 210 (!)
+      return super.getLevelType(code); // LOOK dont let NCEP override standard tables (??) looks like a conflict with level code 210 (!)
+
     if (levelTypesMap == null)
       levelTypesMap = readTable3("resources/grib1/ncep/ncepTable3.xml");
     if (levelTypesMap == null)
-      return null;
+      return super.getLevelType(code);
 
-    return levelTypesMap.get(code);
+    GribLevelType levelType = levelTypesMap.get(code);
+    if (levelType != null) return levelType;
+
+    return super.getLevelType(code);
   }
 
 

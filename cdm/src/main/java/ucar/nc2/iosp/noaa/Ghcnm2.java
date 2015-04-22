@@ -52,7 +52,7 @@ import java.util.regex.Pattern;
 
 /**
  * NOMADS Ghcnm2
- *
+ * LOOK probable file leaks
  * @author caron
  * @since Feb 26, 2011
  */
@@ -508,9 +508,7 @@ public class Ghcnm2 extends AbstractIOServiceProvider {
         return false;
 
       raf.seek(0);
-      byte[] b = new byte[MAGIC_START_IDX.length()];
-      raf.read(b);
-      String test = new String(b, CDM.utf8Charset);
+      String test = raf.readString(MAGIC_START_IDX.length());
       return test.equals(MAGIC_START_IDX);
 
     } else if (ext.equals(DAT_EXT)) {
@@ -568,16 +566,16 @@ public class Ghcnm2 extends AbstractIOServiceProvider {
     String ext = dataFile.substring(pos);
 
     if (ext.equals(IDX_EXT)) {
-      dataRaf = new RandomAccessFile(base+DAT_EXT, "r");
-      stnRaf = new RandomAccessFile(base+STN_EXT, "r");
+      dataRaf = RandomAccessFile.acquire(base+DAT_EXT);
+      stnRaf = RandomAccessFile.acquire(base+STN_EXT);
 
      } else if (ext.equals(DAT_EXT)) {
       dataRaf = raff;
-      stnRaf = new RandomAccessFile(base+STN_EXT, "r");
+      stnRaf = RandomAccessFile.acquire(base+STN_EXT);
 
      } else {
       stnRaf = raff;
-      dataRaf = new RandomAccessFile(base+DAT_EXT, "r");
+      dataRaf = RandomAccessFile.acquire(base+DAT_EXT);
      }
 
     NcmlConstructor ncmlc = new NcmlConstructor();
@@ -891,7 +889,7 @@ public class Ghcnm2 extends AbstractIOServiceProvider {
         }
         currStn = s;
       }
-      currStn.dataCount++;
+      if (currStn != null) currStn.dataCount++;
     }
     //System.out.printf("ok stns=%s data=%d%n", stnCount, totalCount);
 
@@ -926,7 +924,7 @@ public class Ghcnm2 extends AbstractIOServiceProvider {
     return new StationIndex(proto);
   }
 
-  private class StationIndex {
+  private static class StationIndex {
     long stnId;
     long stnPos; // file pos in inv file
     long dataPos; // file pos of first data line in the data file

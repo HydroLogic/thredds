@@ -33,12 +33,14 @@
 package ucar.nc2.dt.grid;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import ucar.nc2.Variable;
 import ucar.nc2.dt.GridDatatype;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarDateRange;
 import ucar.unidata.geoloc.LatLonRect;
 import ucar.unidata.geoloc.LatLonPointImpl;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
 import java.util.List;
@@ -47,11 +49,12 @@ import java.util.ArrayList;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Use NetcdfCFWriter to write a netcdf-3 file
+ * Use CFGridWriter to write a netcdf-3 file
  *
  * @author caron
  * @since May 28, 2009
  */
+@Category(NeedsCdmUnitTest.class)
 public class TestCFWriter {
 
   @Test
@@ -61,7 +64,7 @@ public class TestCFWriter {
     String varName = "Temperature";
 
     ucar.nc2.dt.grid.GridDataset gds = GridDataset.open(fileIn);
-    List<String> gridList = new ArrayList<String>();
+    List<String> gridList = new ArrayList<>();
     gridList.add(varName);
 
     CFGridWriter writer = new CFGridWriter();

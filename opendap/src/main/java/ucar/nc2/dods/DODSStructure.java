@@ -46,6 +46,7 @@ import java.io.IOException;
  * @author caron
  */
 
+//Coverity[FB.EQ_DOESNT_OVERRIDE_EQUALS]
 public class DODSStructure extends ucar.nc2.Structure implements DODSNode
 {
   private DConstructor ds;
@@ -172,9 +173,9 @@ public class DODSStructure extends ucar.nc2.Structure implements DODSNode
       }
   }
 
-
-  //////////////////////////////////////////////////
+  ////////////////////////////////////////////
   // DODSNode Interface
+  //Coverity[FB.UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD]
   String dodsName = null;
   public String getDODSName() {return dodsName;}
   public void setDODSName(String name) {this.dodsName = name;}

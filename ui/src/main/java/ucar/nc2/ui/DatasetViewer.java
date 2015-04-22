@@ -34,6 +34,7 @@
 package ucar.nc2.ui;
 
 import ucar.ma2.Array;
+import ucar.ma2.InvalidRangeException;
 import ucar.nc2.*;
 import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.stream.NcStreamWriter;
@@ -50,12 +51,16 @@ import ucar.util.prefs.ui.Debug;
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.List;
@@ -86,6 +91,7 @@ public class DatasetViewer extends JPanel {
   private DatasetTreeView datasetTree;
   private NCdumpPane dumpPane;
   private VariablePlot dataPlot;
+  private VariableTable variableTable;
 
   private TextHistoryPane infoTA;
   private StructureTable dataTable;
@@ -125,8 +131,9 @@ public class DatasetViewer extends JPanel {
 
     // the data Table
     dataTable = new StructureTable( (PreferencesExt) prefs.node("structTable"));
+    variableTable = new VariableTable( (PreferencesExt) prefs.node("variableTable"));
     dataWindow = new IndependentWindow("Data Table", BAMutil.getImage( "netcdfUI"), dataTable);
-    dataWindow.setBounds( (Rectangle) prefs.getBean("dataWindow", new Rectangle( 50, 300, 1000, 600)));
+    dataWindow.setBounds( (Rectangle) prefs.getBean("dataWindowBounds", new Rectangle( 50, 300, 1000, 1200)));
 
     // the ncdump Pane
     dumpPane = new NCdumpPane((PreferencesExt) prefs.node("dumpPane"));
@@ -137,6 +144,12 @@ public class DatasetViewer extends JPanel {
     dataPlot = new VariablePlot((PreferencesExt) prefs.node("plotPane"));
     plotWindow = new IndependentWindow("Plot Variable Data", BAMutil.getImage( "netcdfUI"), dataPlot);
     plotWindow.setBounds( (Rectangle) prefs.getBean("PlotWindowBounds", new Rectangle( 300, 300, 300, 200)));    
+    plotWindow.addWindowListener(new WindowAdapter() {
+        @Override
+        public void windowClosing(WindowEvent e) {
+            dataPlot.clear();
+        }
+    });
   }
 
   NetcdfOutputChooser outChooser;
@@ -200,9 +213,9 @@ public class DatasetViewer extends JPanel {
   void writeNcstream(String filename) {
     try {
       NcStreamWriter writer = new NcStreamWriter(ds, null);
-      OutputStream fos = new BufferedOutputStream( new FileOutputStream(filename), 50 * 1000);
-      writer.streamAll(fos);
-      fos.close();
+      try (OutputStream fos = new BufferedOutputStream( new FileOutputStream(filename), 50 * 1000)) {
+        writer.streamAll(fos);
+      }
       JOptionPane.showMessageDialog(this, "File successfully written");
     } catch (Exception ioe) {
       JOptionPane.showMessageDialog(this, "ERROR: " + ioe.getMessage());
@@ -213,9 +226,9 @@ public class DatasetViewer extends JPanel {
   void writeNcstreamHeader(String filename) {
     try {
       NcStreamWriter writer = new NcStreamWriter(ds, null);
-      FileOutputStream fos = new FileOutputStream(filename);
-      writer.sendHeader(fos);
-      fos.close();
+      try (FileOutputStream fos = new FileOutputStream(filename)) {
+        writer.sendHeader(fos);
+      }
       JOptionPane.showMessageDialog(this, "File successfully written");
     } catch (Exception ioe) {
       JOptionPane.showMessageDialog(this, "ERROR: " + ioe.getMessage());
@@ -246,12 +259,18 @@ public class DatasetViewer extends JPanel {
     NetcdfFile compareFile = null;
     try {
       compareFile = NetcdfDataset.openFile(data.name, null);
-
       Formatter f = new Formatter();
+
       CompareNetcdf2 cn = new CompareNetcdf2(f, data.showCompare, data.showDetails, data.readData);
       if (data.howMuch == CompareDialog.HowMuch.All)
         cn.compare(ds, compareFile);
-      else {
+
+      else if (data.howMuch == CompareDialog.HowMuch.varNameOnly) {
+        f.format(" First file = %s%n", ds.getLocation());
+        f.format(" Second file= %s%n", compareFile.getLocation());
+        CompareNetcdf2.compareLists(getVariableNames(ds), getVariableNames(compareFile), f);
+
+      } else {
         NestedTable nested = nestedTableList.get(0);
         Variable org = getCurrentVariable(nested.table);
         if (org == null) return;
@@ -266,9 +285,9 @@ public class DatasetViewer extends JPanel {
       infoWindow.show();
 
     } catch (Throwable ioe) {
-      ByteArrayOutputStream bos = new ByteArrayOutputStream(10000);
-      ioe.printStackTrace(new PrintStream(bos));
-      infoTA.setText(bos.toString());
+      StringWriter sw = new StringWriter(10000);
+      ioe.printStackTrace(new PrintWriter(sw));
+      infoTA.setText(sw.toString());
       infoTA.gotoTop();
       infoWindow.show();
 
@@ -277,8 +296,17 @@ public class DatasetViewer extends JPanel {
         try {
           compareFile.close();
         }
-        catch (Exception eek) { }
+        catch (Exception eek) {
+            eek.printStackTrace();
+        }
     }
+  }
+
+  private List<String> getVariableNames(NetcdfFile nc) {
+    List<String> result = new ArrayList<>();
+    for (Variable v : nc.getVariables())
+      result.add(v.getFullName());
+    return result;
   }
 
   ////////////////////////////////////////////////
@@ -407,6 +435,11 @@ public class DatasetViewer extends JPanel {
       csPopup.addAction("NCdump Data", "Dump", new AbstractAction() {
         public void actionPerformed(ActionEvent e) {
           dumpData(table);
+        }
+      });
+      csPopup.addAction("Write binary Data to file", new AbstractAction() {
+        public void actionPerformed(ActionEvent e) {
+          writeData(table);
         }
       });
       if (level == 0) {
@@ -557,6 +590,21 @@ public class DatasetViewer extends JPanel {
     dumpWindow.show();
   }
 
+  private void writeData(BeanTable from) {
+    Variable v = getCurrentVariable(from);
+    if (v == null) return;
+    String name = "C:/temp/file.bin";
+    try (FileOutputStream stream = new FileOutputStream(name)) {
+      WritableByteChannel channel = stream.getChannel();
+      v.readToByteChannel(v.getShapeAsSection(), channel);
+      System.out.printf("Write ok to %s%n", name);
+
+    } catch (InvalidRangeException | IOException e) {
+      e.printStackTrace();
+    }
+
+  }
+
   /* private void showMissingData(BeanTable from) {
     VariableBean vb = (VariableBean) from.getSelectedBean();
     if (vb == null) return;
@@ -668,39 +716,50 @@ public class DatasetViewer extends JPanel {
       catch (Exception ex) {
         ex.printStackTrace();
       }
-    }
-    else {
-        JOptionPane.showMessageDialog(this, "Variable '" + v.getShortName() + "' not a Structure");
-        return;
-    }
+      dataWindow.setComponent(dataTable);
+  	}
+  	else {
+	  List<VariableBean> l = from.getSelectedBeans();
+	  List<Variable> vl = new ArrayList<>();
 
-    dataWindow.show();
+	  for(VariableBean vb1  : l) {
+		  if (vb1 == null) return;
+		  v = vb1.vs;
+		  if (v != null) {
+			  vl.add(v);
+		  }
+		  else return;
+	  }
+ 
+	  variableTable.setDataset(ds);
+	  variableTable.setVariableList(vl);
+	  variableTable.createTable();
+ 
+	  dataWindow.setComponent(variableTable);
+    }
+    Rectangle r = (Rectangle) prefs.getBean("dataWindowBounds", new Rectangle( 50, 300, 1000, 1200));
+    dataWindow.setBounds( r );
+  	dataWindow.show();
   }
 
   private void dataPlot(BeanTable from) {
-	  	dataPlot.clear();
-	  	
-	    List<VariableBean> l = from.getSelectedBeans();
-	    
-	    for(VariableBean vb  : l) {
-		    if (vb == null) return;
-		    Variable v = vb.vs;
-		    if (v != null) {
-		      try {
-		    	  dataPlot.setDataset(ds);
-		        dataPlot.setVariable(v);
-		      }
-		      catch (Exception ex) {
-		        ex.printStackTrace();
-		      }
-		    }
-		    else return;
-	    }
+    List<VariableBean> l = from.getSelectedBeans();
 
-	    plotWindow.show();
-	  }
-  
-  
+    for (VariableBean vb : l) {
+      if (vb == null) return;
+      Variable v = vb.vs;
+      if (v != null) {
+        try {
+          dataPlot.setDataset(ds);
+          dataPlot.setVariable(v);
+        } catch (Exception ex) {
+          ex.printStackTrace();
+        }
+      } else return;
+    }
+    plotWindow.show();
+  }
+
   private Variable getCurrentVariable(BeanTable from) {
     VariableBean vb = (VariableBean) from.getSelectedBean();
     if (vb == null) return null;
@@ -715,6 +774,7 @@ public class DatasetViewer extends JPanel {
       nt.saveState();
     }
     prefs.putBeanObject("InfoWindowBounds", infoWindow.getBounds());
+    prefs.putBeanObject("dataWindowBounds", dataWindow.getBounds());
     prefs.putBeanObject("DumpWindowBounds", dumpWindow.getBounds());
     prefs.putBeanObject("PlotWindowBounds", plotWindow.getBounds());    
     if (attWindow != null) prefs.putBeanObject("AttWindowBounds", attWindow.getBounds());
@@ -742,10 +802,6 @@ public class DatasetViewer extends JPanel {
     // static public String editableProperties() { return "title include logging freq"; }
     private Variable vs;
     private String name, dimensions, desc, units, dataType, shape;
-    private String coordSys;
-
-    // no-arg constructor
-    public VariableBean() {}
 
     // create from a dataset
     public VariableBean( Variable vs) {
@@ -830,9 +886,6 @@ public class DatasetViewer extends JPanel {
 
   public class AttributeBean {
     private Attribute att;
-
-    // no-arg constructor
-    public AttributeBean() {}
 
     // create from a dataset
     public AttributeBean( Attribute att) {

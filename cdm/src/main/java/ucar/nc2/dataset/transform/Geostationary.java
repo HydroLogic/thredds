@@ -50,8 +50,9 @@ import ucar.unidata.geoloc.ProjectionImpl;
      latitude_of_projection_origin
      longitude_of_projection_origin
      perspective_point_height
-     false_easting
-     false_northing
+     semi_minor_axis
+     semi_major_axis
+     inverse_flattening
      sweep_angle_axis
      fixed_angle_axis
 
@@ -75,6 +76,11 @@ import ucar.unidata.geoloc.ProjectionImpl;
 
  The "fixed_angle_axis" attribute indicates which axis the instrument is fixed. The values are opposite to "sweep_angle_axis". Only one of those two attributes are
  mandatory.
+
+ latitude_of_projection_origin will be taken as zero (at the Equator).
+
+ inverse_flattening may be specified independent of the semi_minor/major axes (GRS80). If left unspecified it will be computed
+ from semi_minor/major_axis values.
  *
  * @author caron
  * @since 12/5/13
@@ -82,7 +88,7 @@ import ucar.unidata.geoloc.ProjectionImpl;
 public class Geostationary extends AbstractCoordTransBuilder {
 
     public String getTransformName() {
-      return "Geostationary";
+      return CF.GEOSTATIONARY;
     }
 
     public TransformType getTransformType() {
@@ -92,7 +98,26 @@ public class Geostationary extends AbstractCoordTransBuilder {
     public CoordinateTransform makeCoordinateTransform(NetcdfDataset ds, Variable ctv) {
       readStandardParams(ds, ctv);
 
-      double height = readAttributeDouble( ctv, CF.PERSPECTIVE_POINT_HEIGHT, Double.NaN);
+      double subLonDegrees = readAttributeDouble( ctv, CF.LONGITUDE_OF_PROJECTION_ORIGIN, Double.NaN);
+      if (Double.isNaN(subLonDegrees)) {
+         throw new IllegalArgumentException("Must specify "+CF.LONGITUDE_OF_PROJECTION_ORIGIN);
+      }
+      double perspective_point_height = readAttributeDouble( ctv, CF.PERSPECTIVE_POINT_HEIGHT, Double.NaN);
+      if (Double.isNaN(perspective_point_height)) {
+         throw new IllegalArgumentException("Must specify "+CF.PERSPECTIVE_POINT_HEIGHT);
+      }
+      double semi_minor_axis = readAttributeDouble( ctv, CF.SEMI_MINOR_AXIS, Double.NaN);
+      if (Double.isNaN(semi_minor_axis)) {
+         throw new IllegalArgumentException("Must specify "+CF.SEMI_MINOR_AXIS);
+      }
+      double semi_major_axis = readAttributeDouble( ctv, CF.SEMI_MAJOR_AXIS, Double.NaN);
+      if (Double.isNaN(semi_major_axis)) {
+         throw new IllegalArgumentException("Must specify "+CF.SEMI_MAJOR_AXIS);
+      }
+
+      double inv_flattening = readAttributeDouble( ctv, CF.INVERSE_FLATTENING, Double.NaN);
+
+
       String sweep_angle = readAttribute( ctv, CF.SWEEP_ANGLE_AXIS, null);
       String fixed_angle = readAttribute( ctv, CF.FIXED_ANGLE_AXIS, null);
 
@@ -104,7 +129,10 @@ public class Geostationary extends AbstractCoordTransBuilder {
       else
         isSweepX =  fixed_angle.equals("y");
 
-      ProjectionImpl proj = null; // new ucar.unidata.geoloc.projection.sat.Geostationary(lat0, lon0, height, false_easting, false_northing, isSweepX, earth);
+      // double subLonDegrees, double perspective_point_height, double semi_minor_axis, double semi_major_axis, double inv_flattening, boolean isSweepX
+      ProjectionImpl proj = new ucar.unidata.geoloc.projection.sat.Geostationary(
+              subLonDegrees, perspective_point_height, semi_minor_axis, semi_major_axis, inv_flattening, isSweepX);
+
       return new ProjectionCT(ctv.getShortName(), "FGDC", proj);
     }
 

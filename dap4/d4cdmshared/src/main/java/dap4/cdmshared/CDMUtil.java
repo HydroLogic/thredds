@@ -31,12 +31,13 @@ abstract public class CDMUtil
 
     /**
      * Convert a list of ucar.ma2.Range to a list of Slice
+     * More or less the inverst of create CDMRanges
      *
      * @param rangelist the set of ucar.ma2.Range
      * @result the equivalent list of Slice
      */
     static public List<Slice>
-    rangeConvert(List<Range> rangelist)
+    createSlices(List<Range> rangelist)
         throws DapException
     {
         List<Slice> slices = new ArrayList<Slice>(rangelist.size());
@@ -166,18 +167,27 @@ abstract public class CDMUtil
      */
     static public Variable unwrap(Variable var)
     {
-        for(;;) {
+/*        for(;;) {
             if(var instanceof VariableDS) {
                 VariableDS vds = (VariableDS) var;
                 var = vds.getOriginalVariable();
-                if(var == null) break;
+                if(var == null) {
+                    var = vds;
+                    break;
+                }
             } else if(var instanceof StructureDS) {
                 StructureDS sds = (StructureDS) var;
                 var = sds.getOriginalVariable();
-                if(var == null) break;
-            } else break;
+                if(var == null) {
+                    var = sds;
+                    break;
+                }
+            } else
+                break;
         }
         return var;
+        */
+        return (Variable)CDMNode.unwrap(var);
     }
 
     /**
@@ -235,6 +245,7 @@ abstract public class CDMUtil
         case UInt32:
             return DataType.ENUM4;
         case Enum:
+            //Coverity[FB.BC_UNCONFIRMED_CAST]
             return enumtypefor(((DapEnum)dt).getBaseType());
         default:
             break;
@@ -312,6 +323,7 @@ abstract public class CDMUtil
         case Opaque:
             return DataType.OPAQUE;
         case Enum:
+            //Coverity[FB.BC_UNCONFIRMED_CAST]
             DapEnum dapenum = (DapEnum) daptype;
             switch (dapenum.getBaseType().getAtomicType()) {
             case Char:
@@ -587,12 +599,11 @@ abstract public class CDMUtil
      * @return resulting array of values as an object
      */
 
+    /*
     static public Object
     extractVector(D4DataAtomic dataset, long index, long count, long offset)
         throws DataException
     {
-        int i;
-        int icount = (int) count;
         Object vector = createVector(dataset.getType().getPrimitiveType(),count);
         try {
             dataset.read(index, count, vector, offset);
@@ -601,6 +612,7 @@ abstract public class CDMUtil
         }
         return vector;
     }
+    */
 
     /**
      * Convert an array of one type of values to another type
@@ -1038,6 +1050,7 @@ abstract public class CDMUtil
                     }
                     bresult[i] = (byte) fsrc[i];
                 }
+                break;
             case Int16: //Float32->Int16
                 result = (shresult = new short[len]);
                 for(i = 0;i < len;i++) shresult[i] = (short) fsrc[i];
@@ -1273,11 +1286,9 @@ abstract public class CDMUtil
 
     /**
      * Convert a Section + variable to a constraint
-     *
-     * @param v       Leaf variable of interest
-     * @param section the sequence of ranges
-     */
-    /*static public View
+
+
+    static public View
     sectionToView(CDMDSP dsp, Variable v, Section section)
         throws DapException
     {
@@ -1313,4 +1324,36 @@ abstract public class CDMUtil
     }   */
 
 
+    static public List<Range>
+    dimsetToRanges(List<DapDimension> dimset)
+        throws DapException
+    {
+        if(dimset == null)
+             return null;
+        List<Range> ranges = new ArrayList<>();
+        for(int i=0;i<dimset.size();i++) {
+            DapDimension dim = dimset.get(i);
+            try {
+                Range r = new Range(dim.getShortName(), 0, (int) dim.getSize() - 1, 1);
+                ranges.add(r);
+            } catch(InvalidRangeException ire) {
+                throw new DapException(ire);
+            }
+        }
+        return ranges;
+    }
+
+    static public List<Slice>
+    shapeToSlices(int[] shape)
+        throws DapException
+    {
+        if(shape == null)
+            return null;
+        List<Slice> slices = new ArrayList<>(shape.length);
+        for(int i=0;i<shape.length;i++) {
+            Slice sl = new Slice(0,shape[i]-1,1);
+            slices.add(sl);
+        }
+        return slices;
+    }
 }

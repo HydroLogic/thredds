@@ -1,40 +1,40 @@
 /*
- * Copyright (c) 1998 - 2010. University Corporation for Atmospheric Research/Unidata
- * Portions of this software were developed by the Unidata Program at the
- * University Corporation for Atmospheric Research.
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- * Access and use of this software shall impose the following obligations
- * and understandings on the user. The user is granted the right, without
- * any fee or cost, to use, copy, modify, alter, enhance and distribute
- * this software, and any derivative works thereof, and its supporting
- * documentation for any purpose whatsoever, provided that this entire
- * notice appears in all copies of the software, derivative works and
- * supporting documentation.  Further, UCAR requests that the user credit
- * UCAR/Unidata in any publications that result from the use of this
- * software or in any product that includes this software. The names UCAR
- * and/or Unidata, however, may not be used in any advertising or publicity
- * to endorse or promote any products or commercial entity unless specific
- * written permission is obtained from UCAR/Unidata. The user also
- * understands that UCAR/Unidata is not obligated to provide the user with
- * any support, consulting, training or assistance of any kind with regard
- * to the use, operation and performance of this software nor to provide
- * the user with any updates, revisions, new versions or "bug fixes."
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
- * THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- * WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 package ucar.nc2.ft.fmrc;
 
 import net.jcip.annotations.Immutable;
 import ucar.nc2.time.CalendarDate;
-import ucar.nc2.time.CalendarDateRange;
 import ucar.nc2.time.CalendarPeriod;
 
 import java.util.*;
@@ -56,7 +56,7 @@ import java.util.*;
  */
 @Immutable
 public class FmrcInv {
-  static private org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FmrcInv.class);
+  static private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FmrcInv.class);
 
   /* public static CalendarDate addHour(CalendarDate d, double hour) {
     long msecs = d.getTime();
@@ -68,13 +68,13 @@ public class FmrcInv {
   private final String name; // name of ForecastModelRunCollection
 
   // this is where the time coordinates are normalized and missing data may occur
-  private final List<RunSeq> runSeqs = new ArrayList<RunSeq>();
+  private final List<RunSeq> runSeqs = new ArrayList<>();
 
   // list of unique EnsCoord
-  private final List<EnsCoord> ensCoords = new ArrayList<EnsCoord>();
+  private final List<EnsCoord> ensCoords = new ArrayList<>();
 
   // list of unique VertCoord
-  private final List<VertCoord> vertCoords = new ArrayList<VertCoord>();
+  private final List<VertCoord> vertCoords = new ArrayList<>();
 
   // the list of runs
   private final List<FmrInv> fmrList;
@@ -90,8 +90,6 @@ public class FmrcInv {
 
   // all forecast times
   private final List<CalendarDate> forecastTimeList;          // sorted list of Date : all forecast times
-
-  private Calendar cal;
 
   // use on motherlode to regularize the missing inventory
   private final boolean regularize;
@@ -109,14 +107,14 @@ public class FmrcInv {
     this.name = name;
     this.regularize = regularize;
 
-    this.fmrList = new ArrayList<FmrInv>(fmrList);
-    runTimeList = new ArrayList<CalendarDate>();
+    this.fmrList = new ArrayList<>(fmrList);
+    runTimeList = new ArrayList<>();
 
     CalendarDate firstDate = null;
-    Map<String, UberGrid> uvHash = new HashMap<String, UberGrid>();
-    Set<Double> offsetHash = new HashSet<Double>();
-    Set<TimeCoord.Tinv> intervalHash = new HashSet<TimeCoord.Tinv>();
-    Set<CalendarDate> forecastTimeHash = new HashSet<CalendarDate>();
+    Map<String, UberGrid> uvHash = new HashMap<>();
+    Set<Double> offsetHash = new HashSet<>();
+    Set<TimeCoord.Tinv> intervalHash = new HashSet<>();
+    Set<CalendarDate> forecastTimeHash = new HashSet<>();
     for (FmrInv fmrInv : fmrList) {
       runTimeList.add(fmrInv.getRunDate());
       if (firstDate == null) firstDate = fmrInv.getRunDate();
@@ -163,7 +161,7 @@ public class FmrcInv {
     baseDate = firstDate;
 
     // create the overall list of variables and coordinates
-    uberGridList = new ArrayList<UberGrid>(uvHash.values());
+    uberGridList = new ArrayList<>(uvHash.values());
     Collections.sort(uberGridList);
     for (UberGrid uv : uberGridList) {
       uv.finish();
@@ -278,7 +276,11 @@ public class FmrcInv {
    */
   public static double getOffsetInHours(CalendarDate base, CalendarDate forecast) {
     long diff = forecast.getDifferenceInMsecs(base);
-    return diff / 1000.0 / 60.0 / 60.0;
+    double result =  diff / 1000.0 / 60.0 / 60.0;                // LOOK why convert to double? precision may be lost ??
+    long testRoundoff = (long) ( result * 1000.0 * 60.0 * 60.0);
+    if (diff != testRoundoff)
+      System.out.println("HEY");
+    return result;
   }
 
   /**
@@ -297,10 +299,9 @@ public class FmrcInv {
   // immutable after finish() is called.
   public class UberGrid implements Comparable<UberGrid> {
     private final String gridName;
-    private final List<FmrInv.GridVariable> runs = new ArrayList<FmrInv.GridVariable>();
+    private final List<FmrInv.GridVariable> runs = new ArrayList<>();
 
     private VertCoord vertCoordUnion = null;
-    private EnsCoord ensCoordUnion = null;
     private RunSeq runSeq = null;
 
     UberGrid(String name) {
@@ -365,7 +366,6 @@ public class FmrcInv {
     void finish() {
       if (runs.size() == 1) {
         FmrInv.GridVariable grid = runs.get(0);
-        ensCoordUnion = EnsCoord.findEnsCoord(getEnsCoords(), grid.ensCoordUnion);
         vertCoordUnion = VertCoord.findVertCoord(getVertCoords(), grid.vertCoordUnion);
         //timeCoordUnion = TimeCoord.findTimeCoord(getTimeCoords(), grid.timeCoordUnion);
         //timeCoordUnion.addGridVariable(this);
@@ -376,7 +376,7 @@ public class FmrcInv {
       }
 
       // run over all ensCoords and construct the union
-      List<EnsCoord> ensList = new ArrayList<EnsCoord>();
+      List<EnsCoord> ensList = new ArrayList<>();
       EnsCoord ec_union = null;
       for (FmrInv.GridVariable grid : runs) {
         EnsCoord ec = grid.ensCoordUnion;
@@ -388,11 +388,10 @@ public class FmrcInv {
       }
       if (ec_union != null) {
         if (ensList.size() > 0) EnsCoord.normalize(ec_union, ensList); // add the other coords
-        ensCoordUnion = EnsCoord.findEnsCoord(getEnsCoords(), ec_union);  // find unique within collection
       }
 
       // run over all vertCoords and construct the union
-      List<VertCoord> vertList = new ArrayList<VertCoord>();
+      List<VertCoord> vertList = new ArrayList<>();
       VertCoord vc_union = null;
       for (FmrInv.GridVariable grid : runs) {
         VertCoord vc = grid.vertCoordUnion;
@@ -412,7 +411,7 @@ public class FmrcInv {
      // optionally calculate expected inventory based on matching run hours
       if (regularize) {
         // create groups of runs with the same runtime hour (integer offset from 0Z)
-        Map<Integer, HourGroup> hourMap = new HashMap<Integer, HourGroup>();
+        Map<Integer, HourGroup> hourMap = new HashMap<>();
         for (FmrInv.GridVariable grid : runs) {
           CalendarDate runDate = grid.getRunDate();
           int hour = runDate.getHourOfDay();
@@ -427,7 +426,7 @@ public class FmrcInv {
         // assume each hour group should have the same set of forecast time coords, as represented by their offset
         for (HourGroup hg : hourMap.values()) {
           // run over all timeCoords in this group and construct the union
-          List<TimeCoord> timeListExp = new ArrayList<TimeCoord>();
+          List<TimeCoord> timeListExp = new ArrayList<>();
           for (FmrInv.GridVariable run : hg.runs)
             timeListExp.add(run.timeCoordUnion);
           // note that in this case, the baseDates of the TimeCoords in timeListExp are not the same
@@ -472,9 +471,9 @@ public class FmrcInv {
   } // end UberGrid
 
   // immutable after UberGrid.finish() is called.
-  private class HourGroup {
+  private static class HourGroup {
     final int hour;
-    final List<FmrInv.GridVariable> runs = new ArrayList<FmrInv.GridVariable>();
+    final List<FmrInv.GridVariable> runs = new ArrayList<>();
     private TimeCoord expected;
 
     HourGroup(int hour) {
@@ -502,14 +501,14 @@ public class FmrcInv {
   // immutable after UberGrid.finish() is called.
   public class RunSeq {
     private final HashMap<CalendarDate, TimeCoord> coordMap; // runDate, timeExpected
-    private final List<UberGrid> vars = new ArrayList<UberGrid>(); // list of UberGrid that use this
+    private final List<UberGrid> vars = new ArrayList<>(); // list of UberGrid that use this
     private int id;
     private List<TimeCoord> timeList = null; // timeList has differing runDates
     private TimeCoord timeCoordUnion = null; // union of all offset hours
     private boolean isInterval;
 
     RunSeq(List<FmrInv.GridVariable> runs) {
-      this.coordMap = new HashMap<CalendarDate, TimeCoord>(2 * runs.size());
+      this.coordMap = new HashMap<>(2 * runs.size());
 
       // make sure every date has a slot
       for (CalendarDate d : runTimeList)
@@ -558,7 +557,7 @@ public class FmrcInv {
     public TimeCoord getUnionTimeCoord() {
       if (timeCoordUnion == null) { // deferred creation
         // eliminate the empties
-        timeList = new ArrayList<TimeCoord>();
+        timeList = new ArrayList<>();
         for (TimeCoord tc : coordMap.values()) {
           if ((tc != null) && (tc != TimeCoord.EMPTY))
             timeList.add(tc);
@@ -588,7 +587,7 @@ public class FmrcInv {
       for (FmrInv.GridVariable grid : oruns) {
         TimeCoord run = coordMap.get(grid.getRunDate());
         if (run == null) {
-          if (okAdd == null) okAdd = new ArrayList<FmrInv.GridVariable>();
+          if (okAdd == null) okAdd = new ArrayList<>();
           okAdd.add(grid);
         } else {
           TimeCoord orune = grid.getTimeExpected();

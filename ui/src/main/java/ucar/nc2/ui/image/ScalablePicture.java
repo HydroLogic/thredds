@@ -17,19 +17,20 @@ package ucar.nc2.ui.image;
 
 import org.imgscalr.Scalr;
 
-import java.util.*;
-import javax.swing.*;
-import java.awt.*;
-import java.awt.image.*;
-import java.awt.geom.AffineTransform;
 import javax.imageio.*;
-import javax.imageio.stream.*;
-import javax.imageio.plugins.jpeg.*;
-
-import java.io.*;
-import java.net.*;
-import java.util.Vector;
+import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
+import java.awt.image.RenderedImage;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URL;
 import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.Vector;
 
 /*
 ScalablePicture.java:  class that can load and save images
@@ -87,12 +88,6 @@ public class ScalablePicture implements SourcePictureListener {
   private String pictureStatusMessage;
 
   /**
-   * if true means that the image should be scaled so that it fits inside
-   * a given dimension (TargetSize). If false the ScaleFactor should be used.
-   */
-  private boolean scaleToSize;
-
-  /**
    * variable to record the size of the box that the scaled image must fit into.
    */
   private Dimension TargetSize;
@@ -147,12 +142,6 @@ public class ScalablePicture implements SourcePictureListener {
 
 
   /**
-   * which method to use on scaling, a fast one or a good quality one
-   */
-  public boolean fastScale = false;
-
-
-  /**
    * Rendering Hints object for good quality.
    */
   private static RenderingHints rh_quality = new RenderingHints(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -203,7 +192,7 @@ public class ScalablePicture implements SourcePictureListener {
 
     boolean alreadyLoading = false;
     Tools.log("ScalablePicture.loadAndScalePictureInThread: checking if picture " + imageUrl + " is already being loaded.");
-    if ((sourcePicture != null) && (sourcePicture.getUrl().equals(imageUrl))) {
+    if ((sourcePicture != null) && (sourcePicture.getUrl().toString().equals(imageUrl.toString()))) {
       Tools.log("ScalablePicture.loadAndScalePictureInThread: the SourcePicture is already loading the sourcePictureimage");
       alreadyLoading = true;
     } else if (PictureCache.isInCache(imageUrl)) {
@@ -410,95 +399,15 @@ public class ScalablePicture implements SourcePictureListener {
       ScaleFactor = 1.0;
     } else if (((double) PictureHeight / WindowHeight) > ((double) PictureWidth / WindowWidth)) {
       // Vertical scaling
-      ScaleFactor = ((double) WindowHeight / PictureHeight);
+      ScaleFactor = PictureHeight == 0 ? 0 : ((double) WindowHeight / PictureHeight);
     } else {
       // Horizontal scaling
-      ScaleFactor = ((double) WindowWidth / PictureWidth);
+      ScaleFactor = PictureWidth == 0 ? 0 : ((double) WindowWidth / PictureWidth);
     }
 
     //System.out.printf("pix=%d,%d%n", sourcePicture.getWidth(), sourcePicture.getHeight());
     //System.out.printf("target=%d,%d%n", TargetSize.width, TargetSize.height);
     //System.out.printf("ScaleFactor=%f%n", ScaleFactor);
-  }
-
-  /**
-   * method that is called to create a scaled version of the image.
-   */
-  public void scalePictureOld() {
-    Tools.log("ScalablePicture.scalePicture invoked");
-    try {
-      setStatus(SCALING, "Scaling picture.");
-
-      if ((sourcePicture != null) && (sourcePicture.getSourceBufferedImage() != null)) {
-        if (scaleToSize) {
-          int WindowWidth = TargetSize.width;
-          int WindowHeight = TargetSize.height;
-          Tools.log("ScalablePicture.scalePicture: scaleToSize: Windowsize: "
-              + Integer.toString(WindowWidth) + "x"
-              + Integer.toString(WindowHeight));
-
-
-          int PictureWidth = sourcePicture.getWidth();
-          int PictureHeight = sourcePicture.getHeight();
-
-          // Scale so that the entire picture fits in the component.
-          if ((WindowWidth == 0) || (WindowHeight == 0)) { // jc added: window not ready
-            ScaleFactor = 1.0;
-          } else if (((double) PictureHeight / WindowHeight) > ((double) PictureWidth / WindowWidth)) {
-            // Vertical scaling
-            ScaleFactor = ((double) WindowHeight / PictureHeight);
-          } else {
-            // Horizontal scaling
-            ScaleFactor = ((double) WindowWidth / PictureWidth);
-          }
-
-          //				if ( Settings.dontEnlargeSmallImages && ScaleFactor > 1 )
-          //					ScaleFactor = 1;
-        }
-
-        Tools.log("ScalablePicture.scalePicture: doing an AffineTransform with Factor: " + Double.toString(ScaleFactor));
-        AffineTransform af = AffineTransform.getScaleInstance(ScaleFactor, ScaleFactor);
-        /*
-    thingy to scale the image
-   */
-        AffineTransformOp op;
-        if (fastScale)
-          op = new AffineTransformOp(af, AffineTransformOp.TYPE_NEAREST_NEIGHBOR);
-        else
-          op = new AffineTransformOp(af, AffineTransformOp.TYPE_BILINEAR);
-        scaledPicture = op.filter(sourcePicture.getSourceBufferedImage(), null);
-
-        int PictureWidth = scaledPicture.getWidth();
-        int PictureHeight = scaledPicture.getHeight();
-
-        setStatus(READY, "Scaled Picture is ready.");
-      } else {
-        if (getStatusCode() == LOADING) {
-          Tools.log("ScalablePicture.scalePicture invoked while image is still loading. I wonder why?");
-          return;
-        } else {
-          setStatus(ERROR, "Could not scale image as SourceImage is null.");
-        }
-      }
-    } catch (OutOfMemoryError e) {
-      Tools.log("ScalablePicture.scalePicture caught an OutOfMemoryError while scaling an image.\n" + e.getMessage());
-
-      setStatus(ERROR, "Out of Memory Error while scaling " + imageUrl.toString());
-      scaledPicture = null;
-      PictureCache.clear();
-
-      JOptionPane.showMessageDialog(null, // Settings.anchorFrame,
-          "outOfMemoryError",
-          "genericError",
-          JOptionPane.ERROR_MESSAGE);
-
-      System.gc();
-      System.runFinalization();
-
-      Tools.log("ScalablePicture.scalePicture: JPO has now run a garbage collection and finalization.");
-    } catch (Exception e) {
-      System.out.println("Exception in ScalablePicture.scalePicture"+e);
-    }
   }
 
 
@@ -511,7 +420,6 @@ public class ScalablePicture implements SourcePictureListener {
    * Example: Original is 3000 x 2000 --> Scale Factor 0.10  --> Target Picutre is 300 x 200
    */
   public void setScaleFactor(double newFactor) {
-    scaleToSize = false;
     TargetSize = null;
     ScaleFactor = newFactor;
   }
@@ -522,7 +430,6 @@ public class ScalablePicture implements SourcePictureListener {
    * so that the image fits either by height or by width into the indicated dimension.
    */
   public void setScaleSize(Dimension newSize) {
-    scaleToSize = true;
     TargetSize = newSize;
   }
 
@@ -681,12 +588,10 @@ public class ScalablePicture implements SourcePictureListener {
     params.setDestinationType(new ImageTypeSpecifier(java.awt.image.IndexColorModel.getRGBdefault(),
         IndexColorModel.getRGBdefault().createCompatibleSampleModel(16, 16)));
 
-    try {
-      ImageOutputStream ios = ImageIO.createImageOutputStream(new FileOutputStream(writeFile));
+    try(ImageOutputStream ios = ImageIO.createImageOutputStream(new FileOutputStream(writeFile))) {
       writer.setOutput(ios);
       writer.write(null, new IIOImage(renderedImage, null, null), params);
       ios.close();
-
     } catch (IOException e) {
       //Tools.log("ScalablePicture.writeJpg caught IOException: " +  e.getMessage() + "\nwhile writing " + writeFile.toString());
       e.printStackTrace();
@@ -757,20 +662,4 @@ public class ScalablePicture implements SourcePictureListener {
       jpgQuality = quality;
     }
   }
-
-
-  /**
-   * sets the picture into fast scaling mode
-   */
-  public void setFastScale() {
-		fastScale = true;
-	}
-	
-	/**
-   * sets the picture into quality sacling mode
-   */
-	public void setQualityScale() {
-		fastScale = false;
-	}
-
 }

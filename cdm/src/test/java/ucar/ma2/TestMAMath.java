@@ -36,10 +36,6 @@ import junit.framework.*;
 import java.util.List;
 import java.io.PrintWriter;
 import java.io.IOException;
-import java.io.PrintStream;
-
-import ucar.nc2.util.CancelTask;
-import ucar.nc2.NCdump;
 import ucar.nc2.NCdumpW;
 
 /** Test ma2 section methods in the JUnit framework. */
@@ -212,7 +208,7 @@ public class TestMAMath extends TestCase {
     NCdumpW.printArray(datasection, "section", new PrintWriter(System.out), null);
 
     double sum = MAMath.sumDouble(datasection);
-    System.out.printf(" sum=%f%n ", sum);
+    // System.out.printf(" sum=%f%n ", sum);
     assert sum == 663.0;
   }
 

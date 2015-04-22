@@ -2,15 +2,15 @@ package ucar.nc2.ui;
 
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.XMLOutputter;
-import thredds.catalog.parser.jdom.FeatureCollectionReader;
 import thredds.featurecollection.FeatureCollectionConfig;
+import thredds.featurecollection.FeatureCollectionConfigBuilder;
 import thredds.inventory.*;
 import thredds.inventory.partition.DirectoryPartition;
 import thredds.inventory.partition.DirectoryBuilder;
 import ucar.coord.Coordinate;
 import ucar.nc2.grib.collection.GribCdmIndex;
-import ucar.nc2.grib.collection.GribCollection;
-import ucar.nc2.grib.collection.PartitionCollection;
+import ucar.nc2.grib.collection.GribCollectionMutable;
+import ucar.nc2.grib.collection.PartitionCollectionMutable;
 import ucar.nc2.ui.widget.*;
 import ucar.nc2.ui.widget.PopupMenu;
 import ucar.unidata.util.StringUtil2;
@@ -56,7 +56,7 @@ public class DirectoryPartitionViewer extends JPanel {
 
   private FeatureCollectionConfig config;
   private String collectionName;
-  private CdmIndex2Panel cdmIndexTables;
+  private CdmIndex3Panel cdmIndexTables;
   private PartitionsTable partitionsTable;
 
   private JPanel tablePanel;
@@ -69,13 +69,14 @@ public class DirectoryPartitionViewer extends JPanel {
   private IndependentWindow infoWindow;
   private ComboBox cb;
   private FileManager dirFileChooser;
+  private boolean isFromIndex;
 
   public DirectoryPartitionViewer(PreferencesExt prefs, JPanel topPanel, JPanel buttPanel) {
     this.prefs = prefs;
     partitionTreeBrowser = new PartitionTreeBrowser();
     partitionsTable = new PartitionsTable((PreferencesExt) prefs.node("partTable"));
 
-    cdmIndexTables = new CdmIndex2Panel((PreferencesExt) prefs.node("cdmIdx"), buttPanel);
+    cdmIndexTables = new CdmIndex3Panel((PreferencesExt) prefs.node("cdmIdx"), buttPanel);
     cdmIndexTables.addPropertyChangeListener(new PropertyChangeListener() {
       public void propertyChange(PropertyChangeEvent evt) {
         firePropertyChange(evt.getPropertyName(), evt.getOldValue(), evt.getNewValue());
@@ -94,12 +95,13 @@ public class DirectoryPartitionViewer extends JPanel {
             setDirectory(d);
           } else if (d.getName().endsWith(".xml")) {
             setCollectionFromConfig(d.getPath());
-          } else if (d.getName().endsWith(".ncx2")) {
+          } else if (d.getName().endsWith(CollectionAbstract.NCX_SUFFIX)) {
             setCollectionFromIndex(d.getPath());
           }
+          cb.addItem(filename);
         }
       });
-      topPanel.add(new JLabel("dir,ncx2,or config:"), BorderLayout.WEST);
+      topPanel.add(new JLabel("dir,ncx3,or config:"), BorderLayout.WEST);
       topPanel.add(cb, BorderLayout.CENTER);
 
       // a file chooser that can choose a directory
@@ -250,14 +252,16 @@ public class DirectoryPartitionViewer extends JPanel {
     }
 
     Formatter errlog = new Formatter();
-    config = FeatureCollectionReader.readFeatureCollection(doc.getRootElement());
+    FeatureCollectionConfigBuilder builder = new FeatureCollectionConfigBuilder(errlog);
+    config = builder.readConfig(doc.getRootElement());
     CollectionSpecParser spec = new CollectionSpecParser(config.spec, errlog);
     partitionTreeBrowser.setRoot(Paths.get(spec.getRootDir()));
   }
 
   // ncx2 index
   private void setCollectionFromIndex(String indexFilename) {
-    config = new FeatureCollectionConfig();
+    isFromIndex = true;
+    config = new FeatureCollectionConfig(); // LOOK !!
 
     File indexFile = new File(indexFilename);
     File parentFile = indexFile.getParentFile();
@@ -270,37 +274,7 @@ public class DirectoryPartitionViewer extends JPanel {
     name = StringUtil2.removeFromEnd(name, "-");
     this.collectionName = name;
 
-    setDirectory(parentFile );
-  }
-
-  private void readMFiles(String name) {
-    Path path = Paths.get(name);
-    GribCdmIndex reader = new GribCdmIndex(logger);
-    List<MFile> result = new ArrayList<>();
-
-    try {
-      boolean ok = reader.readMFiles(path, result);
-      for (MFile mfile : result)
-        System.out.printf("%s%n", mfile);
-
-    } catch (IOException e) {
-      e.printStackTrace();
-      logger.info("Error opening ncx2 file ", e);
-    }
-  }
-
-  private void moveCdmIndexFile(NodeInfo indexFile) throws IOException {
-    GribCollection gc = null;
-    try {
-      boolean ok = GribCdmIndex.moveCdmIndex(indexFile.dir.toString(), logger);
-      Formatter f = new Formatter();
-      f.format("moved success=%s", ok);
-      infoTA.setText(f.toString());
-      infoTA.gotoTop();
-      infoWindow.show();
-    } finally {
-      if (gc != null) gc.close();
-    }
+    setDirectory(parentFile);
   }
 
   /* private void moveCdmIndexAll(NodeInfo indexFile) {
@@ -349,26 +323,25 @@ public class DirectoryPartitionViewer extends JPanel {
     // long running task in background thread
     Thread background = new Thread() {
        public void run() {
-
          Formatter out = new Formatter();
-         try {
-           GribCdmIndex indexReader = new GribCdmIndex(logger);
-           final DirectoryPartition dpart = new DirectoryPartition(config, node.dir, indexReader, logger);
-           dpart.putAuxInfo(FeatureCollectionConfig.AUX_CONFIG, config);
-           Formatter errlog = new Formatter();
-           final PartitionCollection tp = (PartitionCollection) GribCdmIndex.openGribCollectionFromMCollection(false, dpart, CollectionUpdateType.never, errlog, logger);
+         GribCdmIndex indexReader = new GribCdmIndex(logger);
+         final DirectoryPartition dpart = new DirectoryPartition(config, node.dir, true, indexReader, logger);
+         dpart.putAuxInfo(FeatureCollectionConfig.AUX_CONFIG, config);
+
+         try (PartitionCollectionMutable tp = (PartitionCollectionMutable)  GribCdmIndex.openMutableGCFromIndex(dpart.getIndexFilename(), config, false, true, logger)) {
+           if (tp == null) return;
+
            for (MCollection dcmp : dpart.makePartitions(null)) {
              dcmp.putAuxInfo(FeatureCollectionConfig.AUX_CONFIG, config);
              tp.addPartition(dcmp);
            }
 
-           final List<GribCollection> gclist = new ArrayList<>();
-           for (PartitionCollection.Partition tpp : tp.getPartitions()) {
+           final List<GribCollectionMutable> gclist = new ArrayList<>();
+           for (PartitionCollectionMutable.Partition tpp : tp.getPartitions()) {
              if (tpp.isBad()) continue;
-             try {
-               GribCollection gc = tpp.makeGribCollection(CollectionUpdateType.nocheck);    // use index if it exists
-               gclist.add(gc);
-               gc.close(); // ??
+             try ( GribCollectionMutable gc = tpp.makeGribCollection()) {    // use index if it exists
+               if (gc != null)
+                 gclist.add(gc);
 
              } catch (Throwable t) {
                t.printStackTrace();
@@ -382,7 +355,7 @@ public class DirectoryPartitionViewer extends JPanel {
                public void run() {
                  partitionsTable.clear();
                  partitionsTable.setHeader(dpart.getCollectionName());
-                 for (GribCollection gc : gclist)
+                 for (GribCollectionMutable gc : gclist)
                    partitionsTable.addGribCollection(gc);
                  swap(partitionsTable);
                }
@@ -460,17 +433,36 @@ public class DirectoryPartitionViewer extends JPanel {
     }
 
     List<NodeInfo> getChildren() {
+      return (isFromIndex) ? getChildrenFromIndex() : getChildrenFromScan();
+    }
+
+    private List<NodeInfo> getChildrenFromIndex() {
       List<NodeInfo> result = new ArrayList<>(100);
       try {
-        for (DirectoryBuilder child : part.constructChildren(new GribCdmIndex(logger), CollectionUpdateType.test)) {
+        for (DirectoryBuilder child : part.constructChildrenFromIndex(new GribCdmIndex(logger), true))
           result.add(new NodeInfo(child));
-        }
+
+        isPartition = (result.size() > 0);
 
       } catch (IOException e) {
         e.printStackTrace();
       }
 
-      isPartition = (result.size() > 0);
+      return result;
+    }
+
+    private List<NodeInfo> getChildrenFromScan() {
+      List<NodeInfo> result = new ArrayList<>(100);
+      try {
+        for (DirectoryBuilder child : part.constructChildren(new GribCdmIndex(logger), CollectionUpdateType.test))
+          result.add(new NodeInfo(child));
+
+        isPartition = (result.size() > 0);
+
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+
       return result;
     }
 
@@ -630,8 +622,15 @@ public class DirectoryPartitionViewer extends JPanel {
 
       PopupMenu varPopup = new PopupMenu(tree, "Options");
       varPopup.addAction("Make Index(es)", new AbstractAction() {
+        @Override
         public void actionPerformed(ActionEvent e) {
-          for (TreePath path : tree.getSelectionPaths()) {
+          TreePath[] selectionPaths = tree.getSelectionPaths();
+          // JTree.getSelectionPaths() returns null instead of an empty array. Dumb.
+          if (selectionPaths == null) {
+            selectionPaths = new TreePath[0];
+          }
+
+          for (TreePath path : selectionPaths) {
             DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
             cmdMakeIndex( (NodeInfo) node.getUserObject());
           }
@@ -741,17 +740,6 @@ public class DirectoryPartitionViewer extends JPanel {
 
     }
 
-    private void showThrowable(Throwable t) {
-      t.printStackTrace();
-      JOptionPane.showMessageDialog(
-              DirectoryPartitionViewer.this,
-              t.toString(),
-              t.getMessage(),
-              JOptionPane.ERROR_MESSAGE
-      );
-      repaint();
-    }
-
     /**
      * Add the files that are contained within the directory of this node.
      * Thanks to Hovercraft Full Of Eels for the SwingWorker fix.
@@ -815,11 +803,12 @@ public class DirectoryPartitionViewer extends JPanel {
      * Update the File details view with the details of this File.
      */
     private void setFileDetails(NodeInfo node) {
-      BasicFileAttributes attr = null;
+      BasicFileAttributes attr;
       try {
         attr = Files.readAttributes(node.dir, BasicFileAttributes.class);
       } catch (IOException e) {
-        e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        logger.warn("An I/O error occurred.", e);
+        return;
       }
 
       nodeName.setIcon(attr.isDirectory() ? dirIcon : fileIcon);
@@ -972,9 +961,9 @@ public class DirectoryPartitionViewer extends JPanel {
       groupTable.setBeans(groups.beans);
     }
 
-    private void setGroup(GribCollection.GroupGC group) {
+    private void setGroup(GribCollectionMutable.GroupGC group) {
       List<VarBean> vars = new ArrayList<>();
-      for (GribCollection.VariableIndex v : group.getVariables())
+      for (GribCollectionMutable.VariableIndex v : group.getVariables())
         vars.add(new VarBean(v, group));
       varTable.setBeans(vars);
     }
@@ -983,7 +972,7 @@ public class DirectoryPartitionViewer extends JPanel {
    //   fileTable.setFiles(dir, files);
    // }
 
-    private void showFiles(GribCollection gc, GribCollection.GroupGC group) {
+    private void showFiles(GribCollectionMutable gc, GribCollectionMutable.GroupGC group) {
       Collection<MFile> files = (group == null) ? gc.getFiles() : group.getFiles();
       File dir = (gc == null) ? null : gc.getDirectory();
       fileTable.setFiles(dir, files);
@@ -1049,21 +1038,21 @@ public class DirectoryPartitionViewer extends JPanel {
       partitionsAll = new TreeSet<>();
     }
 
-    void addGribCollection(GribCollection gc) {
+    void addGribCollection(GribCollectionMutable gc) {
       String partitionName = gc.getLocation();
       int pos = partitionName.lastIndexOf("/");
       if (pos < 0) pos = partitionName.lastIndexOf("\\");
       if (pos > 0) partitionName = partitionName.substring(0, pos);
       partitionsAll.add(partitionName);
 
-      for (GribCollection.Dataset ds : gc.getDatasets()) {
-        for (GribCollection.GroupGC g : ds.getGroups()) {
+      for (GribCollectionMutable.Dataset ds : gc.getDatasets()) {
+        for (GribCollectionMutable.GroupGC g : ds.getGroups()) {
           GroupsBean bean = groupsBeans.get(g.getId());
           if (bean == null) {
             bean = new GroupsBean(g);
             groupsBeans.put(g.getId(), bean);
           }
-          bean.addGroup(g, ds.getType().toString(), partitionName);
+          bean.addGroup(g, ds.gctype.toString(), partitionName);
         }
       }
       groupsTable.setBeans(new ArrayList<>(groupsBeans.values()));
@@ -1071,18 +1060,18 @@ public class DirectoryPartitionViewer extends JPanel {
 
     void showVariableDifferences(GroupBean bean1, GroupBean bean2, Formatter f) {
       f.format("Compare %s to %s%n", bean1.getPartition(), bean2.getPartition());
-      for (GribCollection.VariableIndex var1 : bean1.group.getVariables()) {
-        if (bean2.group.findVariableByHash(var1.cdmHash) == null)
+      for (GribCollectionMutable.VariableIndex var1 : bean1.group.getVariables()) {
+        if (bean2.group.findVariableByHash(var1) == null)
           f.format("Var1 %s missing in partition 2%n", var1.id());
       }
-      for (GribCollection.VariableIndex var2 : bean2.group.getVariables()) {
-        if (bean1.group.findVariableByHash(var2.cdmHash) == null)
+      for (GribCollectionMutable.VariableIndex var2 : bean2.group.getVariables()) {
+        if (bean1.group.findVariableByHash(var2) == null)
           f.format("Var2 %s missing in partition 1%n", var2.id());
       }
     }
   }
 
-  private class RangeTracker {
+  private static class RangeTracker {
     int min, max;
 
     RangeTracker(int value) {
@@ -1104,11 +1093,11 @@ public class DirectoryPartitionViewer extends JPanel {
   }
 
   public class GroupsBean {
-    GribCollection.GroupGC group;
+    GribCollectionMutable.GroupGC group;
     List<GroupBean> beans = new ArrayList<>(50);
     RangeTracker nvars, nfiles, ncoords, ntimes;
 
-    public GroupsBean(GribCollection.GroupGC g) {
+    public GroupsBean(GribCollectionMutable.GroupGC g) {
       this.group = g;
       nvars = new RangeTracker(count(g.getVariables().iterator()));
       nfiles = new RangeTracker(g.getNFiles());
@@ -1138,7 +1127,7 @@ public class DirectoryPartitionViewer extends JPanel {
       return count;
     }
 
-    public void addGroup(GribCollection.GroupGC g, String dataset, String partitionName) {
+    public void addGroup(GribCollectionMutable.GroupGC g, String dataset, String partitionName) {
       beans.add(new GroupBean(g, dataset, partitionName));
       nvars.add(count(g.getVariables().iterator()));
       nfiles.add(g.getNFiles());
@@ -1155,7 +1144,7 @@ public class DirectoryPartitionViewer extends JPanel {
     }
 
     public int getGdsHash() {
-      return group.getGdsHash();
+      return group.getGdsHash().hashCode();
     }
 
     public String getNVars() {
@@ -1180,9 +1169,9 @@ public class DirectoryPartitionViewer extends JPanel {
   public class GroupBean {
     String partitionName;
     String datasetName;
-    GribCollection.GroupGC group;
+    GribCollectionMutable.GroupGC group;
 
-    public GroupBean(GribCollection.GroupGC g, String datasetName, String partitionName) {
+    public GroupBean(GribCollectionMutable.GroupGC g, String datasetName, String partitionName) {
       this.group = g;
       this.partitionName = partitionName;
       this.datasetName = datasetName;
@@ -1196,7 +1185,7 @@ public class DirectoryPartitionViewer extends JPanel {
     }
 
     public int getGdsHash() {
-      return group.getGdsHash();
+      return group.getGdsHash().hashCode();
     }
 
     public int getNFiles() {
@@ -1236,13 +1225,13 @@ public class DirectoryPartitionViewer extends JPanel {
 ////////////////////////////////////////////////////////////////////////////////////
 
   public class VarBean {
-    GribCollection.VariableIndex v;
-    GribCollection.GroupGC group;
+    GribCollectionMutable.VariableIndex v;
+    GribCollectionMutable.GroupGC group;
 
     public VarBean() {
     }
 
-    public VarBean(GribCollection.VariableIndex v, GribCollection.GroupGC group) {
+    public VarBean(GribCollectionMutable.VariableIndex v, GribCollectionMutable.GroupGC group) {
       this.v = v;
       this.group = group;
     }
@@ -1291,7 +1280,7 @@ public class DirectoryPartitionViewer extends JPanel {
     }
 
     public int getHash() {
-      return v.cdmHash;
+      return v.hashCode();
     }
 
     public String getGroupId() {

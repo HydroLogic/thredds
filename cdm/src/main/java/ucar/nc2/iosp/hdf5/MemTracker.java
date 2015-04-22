@@ -6,13 +6,13 @@ import java.util.Formatter;
 import java.util.List;
 
 /**
- * Describe
+ * Track use of space in an HDF5 file
  *
  * @author caron
  * @since 6/27/12
  */
-public class MemTracker {
-  private List<Mem> memList = new ArrayList<Mem>();
+class MemTracker {
+  private List<Mem> memList = new ArrayList<>();
 
   private long fileSize;
 
@@ -43,7 +43,7 @@ public class MemTracker {
     f.format("%n");
   }
 
-  class Mem implements Comparable {
+  static class Mem implements Comparable<Mem> {
     public String name;
     public long start, end;
 
@@ -53,9 +53,8 @@ public class MemTracker {
       this.end = end;
     }
 
-    public int compareTo(Object o1) {
-      Mem m = (Mem) o1;
-      return (int) (start - m.start);
+    public int compareTo(Mem m) {
+      return Long.compare(start, m.start);
     }
 
   }

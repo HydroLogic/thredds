@@ -32,7 +32,7 @@
  */
 package ucar.nc2.iosp.nids;
 
-import thredds.catalog.DataFormatType;
+import ucar.nc2.constants.DataFormatType;
 import ucar.ma2.*;
 import ucar.nc2.*;
 import ucar.nc2.constants.CDM;
@@ -56,7 +56,6 @@ import java.nio.ByteBuffer;
 public class Nidsiosp extends AbstractIOServiceProvider {
 
   protected boolean readonly;
-  private ucar.nc2.NetcdfFile ncfile;
   protected Nidsheader headerParser;
 
   private int pcode;
@@ -83,26 +82,16 @@ public class Nidsiosp extends AbstractIOServiceProvider {
   }
 
   public String getFileTypeId() {
-    return DataFormatType.NIDS.toString();
+    return DataFormatType.NIDS.getDescription();
   }
 
   public String getFileTypeDescription() {
     return "NEXRAD Level-III (NIDS) Products";
   }
 
-  /**
-   * Open the file and read the header part
-   *
-   * @param raf
-   * @param file
-   * @param cancelTask
-   * @throws IOException
-   */
-
-  public void open(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile file,
+  public void open(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile,
                    ucar.nc2.util.CancelTask cancelTask) throws IOException {
     super.open(raf, ncfile, cancelTask);
-    ncfile = file;
 
     headerParser = new Nidsheader();
     headerParser.read(this.raf, ncfile);
@@ -1719,10 +1708,7 @@ short arrowHeadValue = 0;    */
   // We referenced McIDAS GetNexrLine function
   public byte[] readCompData1(byte[] uncomp, long hoff, long doff) throws IOException {
     int off;
-    byte b1, b2;
-    b1 = uncomp[0];
-    b2 = uncomp[1];
-    off = 2 * (((b1 & 0x3F) << 8) | b2);
+    off = 2 * (((uncomp[0] & 0x3F) << 8) | (uncomp[1] & 0xFF));
     /* eat WMO and PIL */
     for (int i = 0; i < 2; i++) {
       while ((off < uncomp.length) && (uncomp[off] != '\n')) off++;
@@ -1849,10 +1835,7 @@ short arrowHeadValue = 0;    */
     inf.end();
 
     int off;
-    byte b1, b2;
-    b1 = uncomp[0];
-    b2 = uncomp[1];
-    off = 2 * (((b1 & 0x3F) << 8) | b2);
+    off = 2 * (((uncomp[0] & 0x3F) << 8) | (uncomp[1] & 0xFF));
     /* eat WMO and PIL */
     for (int i = 0; i < 2; i++) {
       while ((off < result) && (uncomp[off] != '\n')) off++;

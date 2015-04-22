@@ -32,7 +32,6 @@
  */
 package ucar.ma2;
 
-import ucar.nc2.ft.grid.IsMissingEvaluator;
 import ucar.nc2.util.Misc;
 
 /**
@@ -318,7 +317,6 @@ public class MAMath {
     while (iterA.hasNext())
       iterR.setLongNext(iterA.getLongNext());
   }
-
 
   /**
    * copy array a to array result as integers
@@ -694,7 +692,6 @@ public class MAMath {
    */
   public static class ScaleOffset {
     public double scale, offset;
-    public boolean isUnsigned;
 
     public ScaleOffset(double scale, double offset) {
       this.scale = scale;

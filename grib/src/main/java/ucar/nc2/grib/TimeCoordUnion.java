@@ -45,7 +45,7 @@ import java.util.*;
  * @author caron
  * @since 6/16/11
  */
-public class TimeCoordUnion  extends TimeCoord {
+public class TimeCoordUnion extends TimeCoord {
   private final List<Val> values;
 
   /*
@@ -188,7 +188,7 @@ public class TimeCoordUnion  extends TimeCoord {
     return timeIndexList.size() - 1;
   }
 
-  public class Val implements Comparable<Val> {
+  static public class Val implements Comparable<Val> {
     TimeCoord.Tinv tinv; // not available on read
     CalendarDate val;// not available on read
 

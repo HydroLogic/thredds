@@ -32,6 +32,7 @@
  */
 package ucar.nc2.grib.grib2.table;
 
+import net.jcip.annotations.Immutable;
 import org.jdom2.Element;
 import org.jdom2.JDOMException;
 import org.jdom2.input.SAXBuilder;
@@ -51,96 +52,55 @@ import java.util.*;
 
 public class WmoCodeTable implements Comparable<WmoCodeTable> {
   static private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(WmoCodeTable.class);
-  static public final Version standard = Version.GRIB2_10_0_1;
+  static public final Version standard = Version.GRIB2_14_0_0;
 
   public enum Version {
-    // GRIB2_8_0_0, GRIB2_7_0_0, GRIB2_6_0_1, GRIB2_5_2_0;
-    GRIB2_10_0_1, GRIB2_8_0_0;
+    // GRIB2_10_0_1, GRIB2_8_0_0, GRIB2_7_0_0, GRIB2_6_0_1, GRIB2_5_2_0, GRIB2_13_0_1;
+    GRIB2_14_0_0;
 
     String getResourceName() {
       return "/resources/grib2/wmo/" + this.name() + "_CodeFlag_en.xml";
     }
 
     String[] getElemNames() {
-      /* if (this == GRIB2_5_2_0) {
-        return new String[]{"ForExport_CodeFlag_E", "TableTitle_E", "TableSubTitle_E", "Meaning_E", "AsciiUnit_x002F_Description_E"};
 
-      } else if (this == GRIB2_6_0_1) {
-        return new String[]{"Exp_codeflag_E", "Title_E", "SubTitle_E", "MeaningParameterDescription_E", "AsciiUnitComments_E"};
-
-      } else if (this == GRIB2_7_0_0) {
-        return new String[]{"Exp_CodeFlag_E", "Title_E", "SubTitle_E", "MeaningParameterDescription_E", "UnitComments_E"};
-
-      } else */
-
-      if (this == GRIB2_8_0_0) {
-        return new String[]{"GRIB2_8_0_0_CodeFlag_en", "Title_en", "SubTitle_en", "MeaningParameterDescription_en", "UnitComments_en"};
-
-      } else if (this == GRIB2_10_0_1) {
-        return new String[]{"GRIB2_10_0_1_CodeFlag_en", "Title_en", "SubTitle_en", "MeaningParameterDescription_en", "UnitComments_en"};
-      }
+      if (this == GRIB2_14_0_0)
+        return new String[]{"GRIB2_14_0_0_CodeFlag_en", "Title_en", "SubTitle_en", "MeaningParameterDescription_en", "UnitComments_en"};
 
       return null;
     }
   }
 
   /*
-
-  <GRIB2_10_0_1_CodeFlag_en>
-    <No>412</No>
+  Code Table:
+  <GRIB2_14_0_0_CodeFlag_en>
+    <No>861</No>
     <Title_en>Code table 4.2 - Parameter number by product discipline and parameter category</Title_en>
-    <SubTitle_en>Product discipline 0 - Meteorological products, parameter category 1: moisture</SubTitle_en>
-    <CodeFlag>36</CodeFlag>
-    <MeaningParameterDescription_en>Categorical snow</MeaningParameterDescription_en>
-    <UnitComments_en>(Code table 4.222)</UnitComments_en>
+    <SubTitle_en>Product discipline 2 - Land surface products, parameter category 3: soil products</SubTitle_en>
+    <CodeFlag>1</CodeFlag>
+    <MeaningParameterDescription_en>Upper layer soil temperature</MeaningParameterDescription_en>
+    <Note_en>*</Note_en>
+    <UnitComments_en>K</UnitComments_en>
+    <Status>Deprecated</Status>
+  </GRIB2_14_0_0_CodeFlag_en>
+
+  FlagTable:
+  <GRIB2_14_0_0_CodeFlag_en>
+    <No>152</No>
+    <Title_en>Flag table 3.4 - Scanning mode</Title_en>
+    <CodeFlag>1</CodeFlag>
+    <Value>0</Value>
+    <MeaningParameterDescription_en>Points of first row or column scan in the +i (+x) direction</MeaningParameterDescription_en>
     <Status>Operational</Status>
-  </GRIB2_10_0_1_CodeFlag_en>
-
-  <GRIB2_8_0_0_CodeFlag_en>
-    <No>899</No>
-    <Title_en>Code table 4.2 - Parameter number by product discipline and parameter category</Title_en>
-    <SubTitle_en>Product discipline 10 - Oceanographic products, parameter category 2: ice</SubTitle_en>
-    <CodeFlag>0</CodeFlag>
-    <MeaningParameterDescription_en>Ice cover</MeaningParameterDescription_en>
-    <UnitComments_en>Proportion</UnitComments_en>
+  </GRIB2_14_0_0_CodeFlag_en>
+  <GRIB2_14_0_0_CodeFlag_en>
+    <No>153</No>
+    <Title_en>Flag table 3.4 - Scanning mode</Title_en>
+    <CodeFlag>1</CodeFlag>
+    <Value>1</Value>
+    <MeaningParameterDescription_en>Points of first row or column scan in the -i (-x) direction</MeaningParameterDescription_en>
     <Status>Operational</Status>
-  </GRIB2_8_0_0_CodeFlag_en>
-
-
-  GRIB2_5_2_0:
-
-  <ForExport_CodeFlag_E>
-   <No>645</No>
-   <TableTitle_E>Code table 4.2 - Parameter number by product discipline and parameter category</TableTitle_E>
-   <TableSubTitle_E>Product discipline 0 - Meteorological products, parameter category 19: physical atmospheric</TableSubTitle_E>
-   <CodeFlag>13</CodeFlag>
-   <Meaning_E>Contrail intensity</Meaning_E>
-   <AsciiUnit_x002F_Description_E>(Code table 4.210)</AsciiUnit_x002F_Description_E>
-   <Status>Operational</Status>
-  </ForExport_CodeFlag_E>
-
-  GRIB2_6_0_1:
-
-  <Exp_codeflag_E>
-   <No>678</No>
-   <Title_E>Code table 4.2 - Parameter number by product discipline and parameter category</Title_E>
-   <SubTitle_E>Product discipline 2 - Land surface products, parameter category 0: vegetation/biomass</SubTitle_E>
-   <CodeFlag>1</CodeFlag>
-   <MeaningParameterDescription_E>Surface roughness</MeaningParameterDescription_E>
-   <AsciiUnitComments_E>m</AsciiUnitComments_E>
-   <Status>Operational</Status>
-  </Exp_codeflag_E>
-
-  7.0:
-  <Exp_CodeFlag_E>
-    <No>609</No>
-    <Title_E>Code table 4.2 - Parameter number by product discipline and parameter category</Title_E>
-    <SubTitle_E>Product discipline 0 - Meteorological products, parameter category 19: physical atmospheric properties</SubTitle_E>
-    <CodeFlag>4</CodeFlag>
-    <MeaningParameterDescription_E>Volcanic ash</MeaningParameterDescription_E>
-    <UnitComments_E>(Code table 4.206)</UnitComments_E>
-    <Status>Operational</Status>
-  </Exp_CodeFlag_E>
+  </GRIB2_14_0_0_CodeFlag_en>
   */
 
   public static TableEntry getParameterEntry(int discipline, int category, int value) {
@@ -159,7 +119,7 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
   public static String getTableValue(String tableId, int value) {
     if (wmoTables == null)
       try {
-        getWmoStandard();
+        wmoTables = getWmoStandard();
       } catch (IOException e) {
         throw new IllegalStateException("cant open wmo tables");
       }
@@ -174,7 +134,7 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
   public static TableEntry getTableEntry(String tableId, int value) {
     if (wmoTables == null)
       try {
-        getWmoStandard();
+        wmoTables = getWmoStandard();
       } catch (IOException e) {
         throw new IllegalStateException("cant open wmo tables");
       }
@@ -194,10 +154,11 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
     return wmoTables;
   }
 
+  @Immutable
   static public class WmoTables {
-    public String name;
-    public List<WmoCodeTable> list;
-    public Map<String, WmoCodeTable> map;  // key is table.getTableId()
+    public final String name;
+    public final List<WmoCodeTable> list;
+    public final Map<String, WmoCodeTable> map;  // key is table.getTableId()
 
     private WmoTables(String name, List<WmoCodeTable> list, Map<String, WmoCodeTable> map) {
       this.name = name;
@@ -207,6 +168,10 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
   }
 
   static public WmoTables readGribCodes(Version version) throws IOException {
+    String[] elems = version.getElemNames();
+    if (elems == null)
+      throw new IllegalStateException("unknon version = "+version);
+
     try (InputStream ios = WmoCodeTable.class.getResourceAsStream(version.getResourceName())) {
       if (ios == null) {
         logger.error("cant open WmoCodeTable=" + version.getResourceName());
@@ -223,7 +188,6 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
       Element root = doc.getRootElement();
 
       Map<String, WmoCodeTable> map = new HashMap<>();
-      String[] elems = version.getElemNames();
 
       List<Element> featList = root.getChildren(elems[0]); // main element
       for (Element elem : featList) {
@@ -231,6 +195,7 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
         String line = elem.getChildTextNormalize("No");
         String tableName = elem.getChildTextNormalize(elems[1]); // 1 = table name
         String code = elem.getChildTextNormalize("CodeFlag");
+        String value = elem.getChildTextNormalize("Value");    // Flag table only
         String meaning = elem.getChildTextNormalize(elems[3]); // 3 = meaning
 
         WmoCodeTable ct = map.get(tableName);
@@ -253,10 +218,10 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
             cst = new WmoCodeTable(tableName, subTableName);
             map.put(subTableName, cst);
           }
-          cst.add(line, code, meaning, unit, status);
+          cst.add(line, code, value, meaning, unit, status);
 
         } else {
-          ct.add(line, code, meaning, unit, status);
+          ct.add(line, code, value, meaning, unit, status);
         }
 
       }
@@ -331,9 +296,10 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
     isParameter = (discipline >= 0) && (category >= 0);
   }
 
-  private TableEntry add(String line, String code, String meaning, String unit, String status) {
-   TableEntry te = new TableEntry(line, code, meaning, unit, status);
-    entries.add(te);
+  private TableEntry add(String line, String code, String value, String meaning, String unit, String status) {
+    TableEntry te = new TableEntry(line, code, value, meaning, unit, status);
+    boolean isRange = (te.start != te.stop);
+    if (!isRange) entries.add(te);
     return te;
   }
 
@@ -428,33 +394,51 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
     return -1;
   }
 
+  // munnging Parameter and tableCode/flags
+  @Immutable
   public class TableEntry implements GribTables.Parameter, Comparable<TableEntry> {
-    public int start, stop, line;
-    public int number = -1;
-    public String code, meaning, name, unit, status;
+    public final int start, stop, line;
+    public final int number, value;
+    public final String code, meaning, name, unit, status;
 
-    TableEntry(String line, String code, String meaning, String unit, String status) {
+    TableEntry(String line, String code, String valueS, String meaning, String unit, String status) {
       this.line = Integer.parseInt(line);
       this.code = code;
       this.meaning = meaning;
       this.status = status;
-      this.unit = unit;
+      this.name = meaning;
+
+      String unitW = unit;
+      int startW, stopW, numberW = 0;
 
       try {
         int pos = code.indexOf('-');
         if (pos > 0) {
-          start = Integer.parseInt(code.substring(0, pos));
+          startW = Integer.parseInt(code.substring(0, pos));
           String stops = code.substring(pos + 1);
-          stop = Integer.parseInt(stops);
+          stopW = Integer.parseInt(stops);
         } else {
-          start = Integer.parseInt(code);
-          stop = start;
-          number = start;
+          startW = Integer.parseInt(code);
+          stopW = startW;
+          numberW = startW;
         }
       } catch (Exception e) {
-        start = -1;
-        stop = 0;
+        startW = -1;
+        stopW = 0;
       }
+      this.start = startW;
+      this.stop = stopW;
+      this.number = numberW;
+
+      int valueW = -1;
+      if (valueS != null) {
+        try {
+          valueW = Integer.parseInt(valueS);
+        } catch (Exception e) {
+          valueW = -2;
+        }
+      }
+      this.value = valueW;
 
       if (isParameter) {
         /* StringBuilder sb = new StringBuilder(meaning); // all lower case, but first char gets capitalized below
@@ -498,9 +482,7 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
         }
 
         //this.name = sb.toString().trim(); // now its good for netcdf-3 name  */
-
         // skip all that 6/6/2011
-        this.name = meaning;
 
         // massage units
         if (unit != null) {
@@ -512,12 +494,13 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
             unit = unit.trim();
             unit = StringUtil2.replace(unit, ' ', ".");
           }
-          this.unit = unit;
+          unitW = unit;
 
         } else {
-          this.unit = ""; // no null unit allowed
+          unitW = ""; // no null unit allowed
         }
       }
+      this.unit = unitW;
     }
 
     @Override
@@ -592,6 +575,11 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
     }
 
     @Override
+    public int getValue() {
+       return value;
+     }
+
+    @Override
     public String getName() {
       return name;
     }
@@ -609,6 +597,16 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
     @Override
     public String getAbbrev() {
       return null;
+    }
+
+    @Override
+    public Float getFill() {
+      return null;
+    }
+
+    @Override
+    public Float getMissing() {
+      return Float.NaN;
     }
   }
 
@@ -700,23 +698,4 @@ public class WmoCodeTable implements Comparable<WmoCodeTable> {
     }
   }
 
-
-  public static void main(String arg[]) throws IOException {
-    //GribTables gt52 = readGribCodes(Version.GRIB2_5_2_0);
-    //showTable(gt52.list);
-    //showDiffFromCurrent(gt52.list);
-
-    //WmoTables gt61 = readGribCodes(Version.GRIB2_8_0_0);
-    //showTable(gt61.list);
-    //showDiff(gt52, gt61, true);
-    //System.out.printf("%n");
-    //showDiff(gt61, gt52, false);
-
-    WmoCodeTable table = new WmoCodeTable();
-    table.isParameter = true;
-    String name = "Probability of 0.01 inch of precipitation (POP)";
-    TableEntry te = table.add("1", "1-1-1", name, "", "");
-    System.out.printf("%s%n", te);
-
-  }
 }

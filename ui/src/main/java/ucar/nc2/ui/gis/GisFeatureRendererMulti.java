@@ -95,14 +95,14 @@ public abstract class GisFeatureRendererMulti extends GisFeatureRenderer {
   protected Iterator getShapes(java.awt.Graphics2D g, AffineTransform normal2device) {
     long startTime = System.currentTimeMillis();
 
-    if (featSetList == null)
+    if (featSetList == null) {
       initFeatSetList();
+      assert !featSetList.isEmpty();
+    }
 
     // which featureSet should we ue?
-    FeatureSet fs = null;
-    if (featSetList.size() == 1) {
-      fs = (FeatureSet) featSetList.get(0);
-    } else {
+    FeatureSet fs = (FeatureSet) featSetList.get(0);
+    if (featSetList.size() > 1) {
         // compute scale
       double scale = 1.0;
       try {
@@ -119,8 +119,8 @@ public abstract class GisFeatureRendererMulti extends GisFeatureRenderer {
       if (!displayProject.isLatLon())
         scale *= 111.0;  // km/deg
       double minD = Double.MAX_VALUE;
-      for (int i=0; i<featSetList.size(); i++) {
-        FeatureSet tryfs = (FeatureSet) featSetList.get(i);
+      for (Object aFeatSetList : featSetList) {
+        FeatureSet tryfs = (FeatureSet) aFeatSetList;
         double d = Math.abs(scale * tryfs.minDist - pixelMatch);  // we want min features ~ 2 pixels
         if (d < minD) {
           minD = d;
@@ -221,7 +221,6 @@ feats:while (featList.hasNext()) {
     ProjectionImpl project = null;
     ArrayList shapeList = null;
     boolean newProjection = true;
-    double centerLon = 0.0;
 
     FeatureSet(List featureList, double minDist) {
       this.featureList = featureList;
@@ -232,18 +231,14 @@ feats:while (featList.hasNext()) {
       this.project = project;
       shapeList = makeShapes( featureList.iterator());
 
-      if (project.isLatLon()) {   // why?
+      /* if (project.isLatLon()) {   // why?
         LatLonProjection llproj = (LatLonProjection) project;
-        centerLon = llproj.getCenterLon();
-      }
+      } */
     }
 
     Iterator getShapes() { return shapeList.iterator(); }
 
     void createFeatures() {
-      ProjectionPointImpl thisW = new ProjectionPointImpl();
-      ProjectionPointImpl lastW = new ProjectionPointImpl();
-
       featureList = new ArrayList();
 
       Iterator iter = GisFeatureRendererMulti.this.getFeatures().iterator();   // this is the original, full resolution set
@@ -291,7 +286,7 @@ feats:while (featList.hasNext()) {
   } // FeatureSet inner class
 
     // these are derived Features based on a mimimum distance between points
-  private class FeatureMD extends AbstractGisFeature {
+  private static class FeatureMD extends AbstractGisFeature {
     private ArrayList parts = new ArrayList();
     private int total_pts = 0;
     private double minDist;
@@ -428,7 +423,7 @@ feats:while (featList.hasNext()) {
       }
     }
 
-    avgD = (avgD/total_pts);
+    avgD = total_pts == 0 ? 0 : (avgD/total_pts);
     if (Debug.isSet("GisFeature/MapResolution")) {
       System.out.println("Map.resolution: total_feats = "+ total_feats);
       System.out.println(" total_parts = "+ total_parts);

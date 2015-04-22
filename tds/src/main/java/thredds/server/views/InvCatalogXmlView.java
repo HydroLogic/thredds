@@ -39,41 +39,37 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.Map;
 import java.io.OutputStream;
 
-import thredds.catalog.InvCatalogFactory;
-import thredds.catalog.InvCatalogImpl;
+import thredds.client.catalog.Catalog;
+import thredds.client.catalog.tools.CatalogXmlWriter;
 import thredds.util.ContentType;
 
 /**
- * _more_
+ * Configured by Spring MVC, used in thredds.server.catalogservice
  *
  * @author edavis
  * @since 4.0
  */
 public class InvCatalogXmlView extends AbstractView {
-  // private static org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvCatalogXmlView.class);
 
-  protected void renderMergedOutputModel(Map model, HttpServletRequest req, HttpServletResponse res)
-          throws Exception {
+  protected void renderMergedOutputModel(Map model, HttpServletRequest req, HttpServletResponse res) throws Exception {
+
     if (model == null || model.isEmpty())
       throw new IllegalArgumentException("Model must not be null or empty.");
-    if (!model.containsKey("catalog"))
-      throw new IllegalArgumentException("Model must contain \"catalog\" key.");
-    Object o = model.get("catalog");
-    if (!(o instanceof InvCatalogImpl))
-      throw new IllegalArgumentException("Model must contain an InvCatalogImpl object.");
-    InvCatalogImpl cat = (InvCatalogImpl) o;
 
+    if (!model.containsKey("catalog"))
+      throw new IllegalArgumentException("Model must contain 'catalog' key.");
+
+    Object o = model.get("catalog");
+    if (!(o instanceof Catalog))
+      throw new IllegalArgumentException("Model must contain a Catalog object.");
+
+    Catalog cat = (Catalog) o;
     res.setContentType(ContentType.xml.getContentHeader());
-    OutputStream os = null;
+
     if (!req.getMethod().equals("HEAD")) {
-      try {
-        os = res.getOutputStream();
-        // Return catalog as XML response.
-        InvCatalogFactory catFactory = InvCatalogFactory.getDefaultFactory(false);
+      try (OutputStream os = res.getOutputStream()) {
+        CatalogXmlWriter catFactory = new CatalogXmlWriter();
         catFactory.writeXML(cat, os);
-      } finally {
-        if (os != null)
-          os.close();
       }
     }
   }

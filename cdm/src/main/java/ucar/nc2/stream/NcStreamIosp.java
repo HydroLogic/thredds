@@ -45,7 +45,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.List;
@@ -62,7 +61,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
     raf.seek(0);
     if (!readAndTest(raf, NcStream.MAGIC_START)) return false; // must start with these 4 bytes
     byte[] b = new byte[4];
-    raf.read(b);
+    raf.readFully(b);
     return test(b, NcStream.MAGIC_HEADER) || test(b, NcStream.MAGIC_DATA); // immed followed by one of these
   }
 
@@ -83,6 +82,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
   private int version;
 
   public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
+    super.open(raf, ncfile, cancelTask);
     openDebug(raf, ncfile, null);
   }
 
@@ -172,7 +172,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
     }
   }     */
 
-  private class DataStorage {
+  private static class DataStorage {
     int size;
     long filePos;
     Section section;
@@ -201,7 +201,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
       if (dataStorage.section.intersects(section)) { // LOOK WRONG
         raf.seek(dataStorage.filePos);
         byte[] data = new byte[dataStorage.size];
-        raf.read(data);
+        raf.readFully(data);
 
         if (dataStorage.isDeflate) {
           ByteArrayInputStream bin = new ByteArrayInputStream(data);
@@ -232,7 +232,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
     for (int elem = 0; elem < nelems; elem++) {
       int dsize = readVInt(raf);
       byte[] data = new byte[dsize];
-      raf.read(data);
+      raf.readFully(data);
       Array dataArray = Array.factory(v.getDataType(), null, ByteBuffer.wrap(data));
       result[elem] = dataArray;
     }
@@ -252,7 +252,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
 
   private boolean readAndTest(RandomAccessFile raf, byte[] test) throws IOException {
     byte[] b = new byte[test.length];
-    raf.read(b);
+    raf.readFully(b);
     return test(b, test);
   }
 
@@ -268,7 +268,6 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
   // optionally read in all messages, return as List<NcMess>
 
   public void openDebug(RandomAccessFile raf, NetcdfFile ncfile, List<NcsMess> ncm) throws IOException {
-    this.raf = raf;
     raf.seek(0);
     long pos = raf.getFilePointer();
 
@@ -294,7 +293,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
     // assume for the moment it always starts with one header message
     int msize = readVInt(raf);
     byte[] m = new byte[msize];
-    raf.read(m);
+    raf.readFully(m);
     NcStreamProto.Header proto = NcStreamProto.Header.parseFrom(m);
     if (ncm != null) ncm.add(new NcsMess(pos, msize, proto));
     version = proto.getVersion();
@@ -306,7 +305,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
     while (!raf.isAtEndOfFile()) {
       pos = raf.getFilePointer();
       byte[] b = new byte[4];
-      raf.read(b);
+      raf.readFully(b);
       if (test(b, NcStream.MAGIC_END)) {
         if (ncm != null) ncm.add(new NcsMess(pos, 4, "MAGIC_END"));
         break;
@@ -315,7 +314,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
       if (test(b, NcStream.MAGIC_ERR)) {
         int esize = readVInt(raf);
         byte[] dp = new byte[esize];
-        raf.read(dp);
+        raf.readFully(dp);
         NcStreamProto.Error error = NcStreamProto.Error.parseFrom(dp);
         if (ncm != null) ncm.add(new NcsMess(pos, esize, error.getMessage()));
         break;
@@ -331,7 +330,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
       pos = raf.getFilePointer();
       int psize = readVInt(raf);
       byte[] dp = new byte[psize];
-      raf.read(dp);
+      raf.readFully(dp);
       NcStreamProto.Data dproto = NcStreamProto.Data.parseFrom(dp);
       Variable v = ncfile.findVariable(dproto.getVarName());
       if (v == null) {
@@ -342,7 +341,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
       if (ncm != null) ncm.add(new NcsMess(pos, psize, dproto));
       List<DataStorage> storage = (List<DataStorage>) v.getSPobject(); // LOOK should be an in memory Rtree using section
       if (storage == null) {
-        storage = new ArrayList<DataStorage>();
+        storage = new ArrayList<>();
         v.setSPobject(storage);
       }
 
@@ -404,7 +403,7 @@ public class NcStreamIosp extends AbstractIOServiceProvider {
 
         raf.seek(dataStorage.filePos);
         byte[] data = new byte[dataStorage.size];
-        raf.read(data);
+        raf.readFully(data);
 
         ByteArrayInputStream bin = new ByteArrayInputStream(data);
         ByteArrayOutputStream bout = new ByteArrayOutputStream();

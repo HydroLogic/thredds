@@ -32,6 +32,7 @@
  */
 package ucar.nc2;
 
+import ucar.nc2.constants.CDM;
 import ucar.nc2.iosp.AbstractIOServiceProvider;
 import ucar.nc2.util.Indent;
 import ucar.nc2.util.EscapeStrings;
@@ -216,7 +217,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
     }
 
     ////////////////////////////////////////////////////////////////////////////////
-    // iosps below here are a bit slow in isValidFile() eg needing an exception thrown
+    // iosps below here are possibly slow in isValidFile() eg needing an exception thrown
     // so they are relegated to the end
     try {
       registerIOProvider("ucar.nc2.iosp.dmsp.DMSPiosp");
@@ -433,6 +434,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
   /**
    * Find out if the file can be opened, but dont actually open it.
+   * Experimental.
    *
    * @param location same as open
    * @return true if can be opened
@@ -504,7 +506,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
     if (bufferSize <= 0)
       bufferSize = default_buffersize;
-    ucar.unidata.io.RandomAccessFile raf = new ucar.unidata.io.RandomAccessFile(uriString, "r", bufferSize);
+    ucar.unidata.io.RandomAccessFile raf = ucar.unidata.io.RandomAccessFile.acquire(uriString, bufferSize);
 
     NetcdfFile result = new NetcdfFile(spi, raf, location, cancelTask);
 
@@ -526,8 +528,12 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
     if (uriString.startsWith("http:")) { // open through URL
       raf = new ucar.unidata.io.http.HTTPRandomAccessFile(uriString);
 
-    } else if (uriString.startsWith("nodods:")) { // open through URL
+    } else if (uriString.startsWith("nodods:")) { // deprecated use httpserver
       uriString = "http" + uriString.substring(6);
+      raf = new ucar.unidata.io.http.HTTPRandomAccessFile(uriString);
+
+    } else if (uriString.startsWith("httpserver:")) { // open through URL
+      uriString = "http" + uriString.substring(10);
       raf = new ucar.unidata.io.http.HTTPRandomAccessFile(uriString);
 
     } else if (uriString.startsWith("slurp:")) { // open through URL
@@ -554,12 +560,12 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
       if (uncompressedFileName != null) {
         // open uncompressed file as a RandomAccessFile.
-        raf = new ucar.unidata.io.RandomAccessFile(uncompressedFileName, "r", buffer_size);
+        raf = ucar.unidata.io.RandomAccessFile.acquire(uncompressedFileName, buffer_size);
         //raf = new ucar.unidata.io.MMapRandomAccessFile(uncompressedFileName, "r");
 
       } else {
         // normal case - not compressed
-        raf = new ucar.unidata.io.RandomAccessFile(uriString, "r", buffer_size);
+        raf = ucar.unidata.io.RandomAccessFile.acquire(uriString, buffer_size);
         //raf = new ucar.unidata.io.MMapRandomAccessFile(uriString, "r");
       }
     }
@@ -616,7 +622,6 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
     if (!file.exists())
       return null; // bail out  */
 
-    InputStream in = null;
     try (FileOutputStream fout = new FileOutputStream(uncompressedFile)) {
 
       // obtain the lock
@@ -636,33 +641,37 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
       try {
         if (suffix.equalsIgnoreCase("Z")) {
-          in = new UncompressInputStream(new FileInputStream(filename));
-          copy(in, fout, 100000);
+          try (InputStream in = new UncompressInputStream(new FileInputStream(filename))) {
+            copy(in, fout, 100000);
+          }
           if (debugCompress) System.out.println("uncompressed " + filename + " to " + uncompressedFile);
 
         } else if (suffix.equalsIgnoreCase("zip")) {
-          ZipInputStream zin = new ZipInputStream(new FileInputStream(filename));
-          ZipEntry ze = zin.getNextEntry();
-          if (ze != null) {
-            in = zin;
-            copy(in, fout, 100000);
-            if (debugCompress)
-              System.out.println("unzipped " + filename + " entry " + ze.getName() + " to " + uncompressedFile);
+
+          try (ZipInputStream zin = new ZipInputStream(new FileInputStream(filename))) {
+            ZipEntry ze = zin.getNextEntry();
+            if (ze != null) {
+              copy(zin, fout, 100000);
+              if (debugCompress)
+                System.out.println("unzipped " + filename + " entry " + ze.getName() + " to " + uncompressedFile);
+            }
           }
 
         } else if (suffix.equalsIgnoreCase("bz2")) {
-          in = new CBZip2InputStream(new FileInputStream(filename), true);
-          copy(in, fout, 100000);
+          try (InputStream in = new CBZip2InputStream(new FileInputStream(filename), true)) {
+            copy(in, fout, 100000);
+          }
           if (debugCompress) System.out.println("unbzipped " + filename + " to " + uncompressedFile);
 
         } else if (suffix.equalsIgnoreCase("gzip") || suffix.equalsIgnoreCase("gz")) {
 
-          in = new GZIPInputStream(new FileInputStream(filename));
-          copy(in, fout, 100000);
+          try (InputStream in = new GZIPInputStream(new FileInputStream(filename))) {
+            copy(in, fout, 100000);
+          }
 
           if (debugCompress) System.out.println("ungzipped " + filename + " to " + uncompressedFile);
         }
-      } catch (Exception e) {
+      }  catch (Exception e) {
 
         // appears we have to close before we can delete   LOOK
         //fout.close();
@@ -677,7 +686,6 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
       } finally {
         if (lock != null) lock.release();
-        if (in != null) in.close();
       }
     }
 
@@ -829,33 +837,15 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
   ////////////////////////////////////////////////////////////////////////////////////////////////
   protected String location, id, title, cacheName;
   protected Group rootGroup = makeRootGroup();
-  //protected boolean unlocked = false; // in the cache and locked - detect unguarded access to this file
   private boolean immutable = false;
 
-  protected ucar.nc2.util.cache.FileCache cache;
+  protected ucar.nc2.util.cache.FileCacheIF cache;
   protected IOServiceProvider spi;
 
   // "global view" is derived from the group information.
   protected List<Variable> variables;
   protected List<Dimension> dimensions;
   protected List<Attribute> gattributes;
-
-  /*
-   * Is the dataset in the cache, but unlocked, and so not available for use.
-   * Detect illegal use of dataset
-   * @return true if unlocked
-   *
-  public synchronized boolean isUnlocked() {
-    return unlocked;
-  }
-
-  /*
-   * Set unlocked to true
-   * @return true if closed
-   *
-  public synchronized void setUnlocked() {
-    unlocked = true;
-  } */
 
   /**
    * Close all resources (files, sockets, etc) associated with this file.
@@ -866,26 +856,37 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
    */
   public synchronized void close() throws java.io.IOException {
     if (cache != null) {
-      //unlocked = true;
-      cache.release(this);
-
-    } else {
-      try {
-        if (null != spi) {
-          // log.warn("NetcdfFile.close called for ncfile="+this.hashCode()+" for iosp="+spi.hashCode());
-          spi.close();
-        }
-      } finally {
-        spi = null;
-      }
+      if (cache.release(this))
+        return;
     }
+
+    try {
+      if (null != spi) {
+        // log.warn("NetcdfFile.close called for ncfile="+this.hashCode()+" for iosp="+spi.hashCode());
+        spi.close();
+      }
+    } finally {
+      spi = null;
+    }
+  }
+
+  // optionally release any resources like file handles
+  public void release() throws IOException {
+    if (spi != null)
+      spi.release();
+  }
+
+  // reacquire any resources like file handles
+  public void reacquire() throws IOException {
+    if (spi != null)
+      spi.reacquire();
   }
 
   /**
    * Public by accident.
    * Optional file caching.
    */
-  public void setFileCache(ucar.nc2.util.cache.FileCache cache) {
+  public synchronized void setFileCache(ucar.nc2.util.cache.FileCacheIF cache) {
     this.cache = cache;
   }
 
@@ -1283,6 +1284,15 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
     return f.toString();
   }
 
+  /**
+   * CDL representation of Netcdf header info, non strict
+   */
+  public String toNcML(String url) throws IOException {
+    Formatter out = new Formatter();
+    NCdumpW.writeNcML(this, out, NCdumpW.WantValues.none, url);
+    return out.toString();
+  }
+
   ///////////////////////////////////////////////////////////////////
   // old stuff for backwards compatilibilty, esp with NCdumpW
 
@@ -1293,7 +1303,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
    * @param strict if true, make it stricly CDL, otherwise, add a little extra info
    */
   public void writeCDL(OutputStream out, boolean strict) {
-    PrintWriter pw = new PrintWriter(new OutputStreamWriter(out));
+    PrintWriter pw = new PrintWriter(new OutputStreamWriter(out, CDM.utf8Charset));
     toStringStart(pw, strict);
     toStringEnd(pw);
     pw.flush();
@@ -1317,7 +1327,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
     pw.write(f.toString());
   }
 
-  protected void toStringEnd(PrintWriter pw) {
+  public void toStringEnd(PrintWriter pw) {
     pw.print("}\n");
   }
 
@@ -1351,7 +1361,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
    * @see NCdumpW#writeNcML
    */
   public void writeNcML(java.io.OutputStream os, String uri) throws IOException {
-    NCdumpW.writeNcML(this, new OutputStreamWriter(os), false, uri);
+    NCdumpW.writeNcML(this, new OutputStreamWriter(os, CDM.utf8Charset), false, uri);
   }
 
   /**
@@ -1414,7 +1424,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
    */
   public NetcdfFile(String filename) throws IOException {
     this.location = filename;
-    ucar.unidata.io.RandomAccessFile raf = new ucar.unidata.io.RandomAccessFile(filename, "r");
+    ucar.unidata.io.RandomAccessFile raf = ucar.unidata.io.RandomAccessFile.acquire(filename);
     //ucar.unidata.io.RandomAccessFile raf = new ucar.unidata.io.MMapRandomAccessFile(filename, "r");
     this.spi = SPFactory.getServiceProvider();
     spi.open(raf, this, null);
@@ -1439,6 +1449,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
   /**
    * Open an existing netcdf file (read only), using the specified iosp.
    * The ClassLoader for the NetcdfFile class is used.
+   * Use NetcdfFileSubclass to access this constructor
    *
    * @param iospClassName the name of the class implementing IOServiceProvider
    * @param iospParam     parameter to pass to the IOSP (before open is called)
@@ -1510,6 +1521,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
   /**
    * Open an existing netcdf file, passing in the iosp and the raf.
+   * Use NetcdfFileSubclass to access this constructor
    *
    * @param spi        use this IOServiceProvider instance
    * @param raf        read from this RandomAccessFile
@@ -1574,6 +1586,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
   /**
    * Open an existing netcdf file (read only) , but dont do nuttin else
+   * Use NetcdfFileSubclass to access this constructor
    *
    * @param spi      use this IOServiceProvider instance
    * @param location location of data
@@ -1585,6 +1598,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
 
   /**
    * For subclass construction. Call finish() when completed construction.
+   * Use NetcdfFileSubclass to access this constructor
    */
   protected NetcdfFile() {
   }
@@ -2148,6 +2162,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
     f.format("  id= %s%n", getId());
     f.format("  fileType= %s%n", getFileTypeId());
     f.format("  fileDesc= %s%n", getFileTypeDescription());
+    f.format("  fileVersion= %s%n", getFileTypeVersion());
 
     f.format("  class= %s%n", getClass().getName());
     if (spi == null) {
@@ -2174,7 +2189,7 @@ public class NetcdfFile implements ucar.nc2.util.cache.FileCacheable, AutoClosea
       total += vtotal;
       f.format(" %-" + maxNameLen + "s %5s %8d ", v.getShortName(), v.isCaching(), vtotal);
       if (v.hasCachedData()) {
-        Array data = null;
+        Array data;
         try {
           data = v.read();
         } catch (IOException e) {

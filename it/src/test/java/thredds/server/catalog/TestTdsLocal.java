@@ -33,46 +33,46 @@
 package thredds.server.catalog;
 
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import thredds.TestWithLocalServer;
-import thredds.catalog.InvCatalogImpl;
-import thredds.catalog.InvCatalogFactory;
+import thredds.client.catalog.Catalog;
+import thredds.client.catalog.builder.CatalogBuilder;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
+
+import java.io.IOException;
 
 /**
  * Test catalog utilities
  */
+@Category(NeedsCdmUnitTest.class)
 public class TestTdsLocal {
   public static boolean showValidationMessages = false;
 
-  public static InvCatalogImpl open(String catalogName) {
+  public static Catalog open(String catalogName) throws IOException {
     if (catalogName == null) catalogName = "/catalog.xml";
-    String catalogPath = TestWithLocalServer.server + catalogName;
+    String catalogPath = TestWithLocalServer.withPath(catalogName);
     System.out.println("\n open= "+catalogPath);
-    StringBuilder buff = new StringBuilder();
-    InvCatalogFactory catFactory = InvCatalogFactory.getDefaultFactory( false);
 
-    try {
-      InvCatalogImpl cat = catFactory.readXML(catalogPath);
-      boolean isValid = cat.check( buff, false);
-      if (!isValid) {
-        System.out.println("Validate failed "+ catalogName+" = \n<"+ buff.toString()+">");
-        assert false : buff.toString();
-      } else if (showValidationMessages)
-        System.out.println("Validate ok "+ catalogName+" = \n<"+ buff.toString()+">");
+    CatalogBuilder builder = new CatalogBuilder();
+    Catalog cat = builder.buildFromLocation(catalogPath, null);
+    if (builder.hasFatalError()) {
+      System.out.println("Validate failed "+ catalogName+" = \n<"+ builder.getErrorMessage()+">");
+      assert false : builder.getErrorMessage();
+    } else if (showValidationMessages)
+      System.out.println("Validate ok "+ catalogName+" = \n<"+ builder.getErrorMessage()+">");
 
-      return cat;
-
-    } catch (Exception e) {
-      e.printStackTrace();
-      assert false;
-    }
-
-    return null;
+    return cat;
   }
 
   @Test
   public void readCatalog() {
-    InvCatalogImpl mainCat = open(null);
-    assert mainCat != null;
+    Catalog mainCat = null;
+    try {
+      mainCat = open(null);
+      assert mainCat != null;
+    } catch (IOException e) {
+      assert false;
+    }
   }
 
 }

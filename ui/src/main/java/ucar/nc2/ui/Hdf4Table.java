@@ -33,23 +33,23 @@
 
 package ucar.nc2.ui;
 
+import ucar.nc2.NetcdfFile;
+import ucar.nc2.NetcdfFileSubclass;
+import ucar.nc2.iosp.hdf4.H4header;
+import ucar.nc2.iosp.hdf4.H4iosp;
 import ucar.nc2.ui.widget.IndependentWindow;
+import ucar.nc2.ui.widget.TextHistoryPane;
+import ucar.unidata.io.RandomAccessFile;
 import ucar.util.prefs.PreferencesExt;
 import ucar.util.prefs.ui.BeanTable;
-import ucar.unidata.io.RandomAccessFile;
-import ucar.nc2.NetcdfFile;
-import ucar.nc2.iosp.hdf4.H4iosp;
-import ucar.nc2.iosp.hdf4.H4header;
 
 import javax.swing.*;
-import javax.swing.event.ListSelectionListener;
 import javax.swing.event.ListSelectionEvent;
-
-import ucar.nc2.ui.widget.TextHistoryPane;
-
+import javax.swing.event.ListSelectionListener;
 import java.awt.*;
 import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Formatter;
 
 /**
  * ToolsUI/Iosp/Hdf4
@@ -154,18 +154,16 @@ public class Hdf4Table extends JPanel {
     closeOpenFiles();
 
     this.location = raf.getLocation();
-    long start = System.nanoTime();
-    java.util.List<TagBean> beanList = new ArrayList<TagBean>();
+    java.util.List<TagBean> beanList = new ArrayList<>();
 
     iosp = new H4iosp();
-    NetcdfFile ncfile = new MyNetcdfFile(iosp);
+    NetcdfFile ncfile = new NetcdfFileSubclass(iosp, location);
     try {
       iosp.open(raf, ncfile, null);
     } catch (Throwable t) {
-      ByteArrayOutputStream bos = new ByteArrayOutputStream(20000);
-      PrintStream s = new PrintStream(bos);
-      t.printStackTrace(s);
-      dumpTA.setText( bos.toString());      
+      StringWriter sw = new StringWriter(20000);
+      t.printStackTrace(new PrintWriter(sw));
+      dumpTA.setText(sw.toString());
     }
 
     header = (H4header) iosp.sendIospMessage("header");
@@ -178,13 +176,6 @@ public class Hdf4Table extends JPanel {
 
   public void getEosInfo(Formatter f) throws IOException {
     header.getEosInfo(f);
-  }
-
-  // need  acccess to protected constructor: iosp.open(raf, ncfile, null);
-  private class MyNetcdfFile extends NetcdfFile {
-    public MyNetcdfFile(H4iosp iosp) {
-       this.spi = iosp; // iosp must be set during open
-    }
   }
 
   public class TagBean {

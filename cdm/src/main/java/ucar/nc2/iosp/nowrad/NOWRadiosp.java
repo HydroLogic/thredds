@@ -67,7 +67,6 @@ public class NOWRadiosp extends AbstractIOServiceProvider {
 
   // private Nidsheader.Vinfo myInfo;
   protected NOWRadheader headerParser;
-  private ucar.nc2.NetcdfFile ncfile;
   private int pcode;
   protected boolean readonly;
 
@@ -103,7 +102,6 @@ public class NOWRadiosp extends AbstractIOServiceProvider {
                    ucar.nc2.util.CancelTask cancelTask)
           throws IOException {
     super.open(raf, ncfile, cancelTask);
-    ncfile = file;
     headerParser = new NOWRadheader();
 
     try {
@@ -136,11 +134,7 @@ public class NOWRadiosp extends AbstractIOServiceProvider {
     List<Range> ranges = section.getRanges();
 
     vinfo = (NOWRadheader.Vinfo) v2.getSPobject();
-
-    try {
-      vdata = headerParser.getData((int) vinfo.hoff);
-    } catch (Exception e) {
-    }
+    vdata = headerParser.getData((int) vinfo.hoff);
 
     bos = ByteBuffer.wrap(vdata);
     data = readOneScanData(bos, vinfo, v2.getShortName());
@@ -425,7 +419,7 @@ public class NOWRadiosp extends AbstractIOServiceProvider {
     ucar.nc2.Variable v = ncf.findVariable("BaseReflectivity");
     int[] origin = {0, 0};
     int[] shape = {300, 36};
-    ArrayByte data = (ArrayByte) v.read(origin, shape);
+    v.read(origin, shape);
 
     ncf.close();
   }

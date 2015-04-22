@@ -67,6 +67,7 @@ import java.util.List;
  * Notes jcaron
  *  Apparently we need the control file (.ctl), which then references the data file (.dat)
  *  Dont see any test data - added to cdmUnitTest/formats/grads
+ *  Possible File leaks - remove from standard IOSP's until we can resolve this. Also need to override  release, reacquire
  *
  * @author Don Murray - CU/CIRES
  * @see "http://www.iges.org/grads/gadoc/descriptorfile.html"
@@ -181,13 +182,16 @@ public class GradsBinaryGridServiceProvider extends AbstractIOServiceProvider {
    * @throws IOException problem reading file
    */
   public boolean isValidFile(RandomAccessFile raf) throws IOException {
-    // need a fast failure for non GRADS files
+    // need a fast failure for non-GRADS files
     if (GradsDataDescriptorFile.failFast(raf))
       return false;
+    raf.seek(0);
 
     // we think its a GRADS file, but we have lots of restrictions on what we can handle
     try {
-      gradsDDF = new GradsDataDescriptorFile(raf.getLocation());
+      gradsDDF = new GradsDataDescriptorFile(raf.getLocation(), 5000);
+      if (gradsDDF.error) return false;
+
       GradsDimension x = gradsDDF.getXDimension();
       GradsDimension y = gradsDDF.getYDimension();
       //J-
@@ -235,7 +239,7 @@ public class GradsBinaryGridServiceProvider extends AbstractIOServiceProvider {
     this.ncFile = ncfile;
     // debugProj = true;
     if (gradsDDF == null) {
-      gradsDDF = new GradsDataDescriptorFile(raf.getLocation());
+      gradsDDF = new GradsDataDescriptorFile(raf.getLocation(), 1000);
     }
     xyHeaderBytes = gradsDDF.getXYHeaderBytes();
     fileHeaderBytes = gradsDDF.getFileHeaderBytes();
@@ -588,9 +592,8 @@ public class GradsBinaryGridServiceProvider extends AbstractIOServiceProvider {
    * @throws IOException problem closing files
    */
   public void close() throws IOException {
-    if (dataFile != null) {
+    if (dataFile != null)
       dataFile.close();
-    }
     dataFile = null;
     super.close();
   }
@@ -756,8 +759,7 @@ public class GradsBinaryGridServiceProvider extends AbstractIOServiceProvider {
    * @return the current file
    * @throws IOException couldn't open the current file
    */
-  private RandomAccessFile getDataFile(int eIndex, int tIndex)
-          throws IOException {
+  private RandomAccessFile getDataFile(int eIndex, int tIndex) throws IOException {
 
     String dataFilePath = gradsDDF.getFileName(eIndex, tIndex);
     if (!gradsDDF.isTemplate()) {  // we only have one file
@@ -773,7 +775,7 @@ public class GradsBinaryGridServiceProvider extends AbstractIOServiceProvider {
         dataFile.close();
       }
     }
-    dataFile = new RandomAccessFile(dataFilePath, "r");
+    dataFile = RandomAccessFile.acquire(dataFilePath);
     dataFile.order(getByteOrder());
     return dataFile;
   }

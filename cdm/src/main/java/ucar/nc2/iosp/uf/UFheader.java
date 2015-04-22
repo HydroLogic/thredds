@@ -46,11 +46,10 @@ import java.util.*;
  * To change this template use File | Settings | File Templates.
  */
 public class UFheader {
-  ucar.unidata.io.RandomAccessFile raf;
-  ucar.nc2.NetcdfFile ncfile;
   static final boolean littleEndianData = true;
   String dataFormat = "UNIVERSALFORMAT";  // temp setting
   Ray firstRay = null;
+  Date endDate = null;
 
   Map<String, List<List<Ray>>> variableGroup;  // key = data type, value = List by sweep number
   private int max_radials = 0;
@@ -58,26 +57,23 @@ public class UFheader {
 
   public boolean isValidFile(ucar.unidata.io.RandomAccessFile raf) {
     try {
-      raf.seek(0);
       raf.order(RandomAccessFile.BIG_ENDIAN);
-      byte[] b6 = new byte[6];
-      byte[] b4 = new byte[4];
 
-      raf.read(b6, 0, 6);
-      String ufStr = new String(b6, 4, 2);
+      raf.seek(4);
+      String ufStr = raf.readString(2);
       if (!ufStr.equals("UF"))
         return false;
       //if ufStr is UF, then a further checking apply
       raf.seek(0);
-      raf.read(b4, 0, 4);
-      int rsize = bytesToInt(b4, false);
+      int rsize = raf.readInt();
 
       byte[] buffer = new byte[rsize];
       long offset = raf.getFilePointer();
-      raf.read(buffer, 0, rsize);
-      raf.read(b4, 0, 4);
-
-      int endPoint = bytesToInt(b4, false);
+      int readBytes = raf.read(buffer, 0, rsize);
+      if (readBytes != rsize) {
+          return false;
+      }
+      int endPoint = raf.readInt();
       if (endPoint != rsize) {
         return false;
       }
@@ -92,7 +88,6 @@ public class UFheader {
   }
 
   void read(ucar.unidata.io.RandomAccessFile raf) throws IOException {
-    this.raf = raf;
     Map<String, List<Ray>> rayListMap = new HashMap<>(600);  // all the rays for a variable
 
     raf.seek(0);
@@ -117,7 +112,12 @@ public class UFheader {
 
       ByteBuffer bos = ByteBuffer.wrap(buffer);
       Ray r = new Ray(bos, rsize, offset);
-      if (firstRay == null) firstRay = r;
+      if (firstRay == null)
+      {
+          firstRay = r;
+          endDate = r.getDate();
+      } else if (r.getTitleMsecs() > firstRay.getTitleMsecs())
+        endDate = r.getDate();
 
       Map<String, Ray.UF_field_header2> rayMap = r.field_header_map;      // each ray has a list of variables
       for (Map.Entry<String, Ray.UF_field_header2> entry : rayMap.entrySet()) {
@@ -207,7 +207,7 @@ public class UFheader {
   }
 
   public Date getEndDate() {
-    return firstRay.getDate();
+    return endDate;
   }
 
   public float getHorizontalBeamWidth(String ab) {
@@ -215,7 +215,15 @@ public class UFheader {
   }
 
   public String getStationId() {
+      return getSiteName();
+  }
+
+  public String getSiteName() {
     return firstRay.uf_header2.siteName;
+  }
+
+  String getRadarName() {
+      return firstRay.uf_header2.radarName;
   }
 
   public Short getSweepMode() {
@@ -230,8 +238,8 @@ public class UFheader {
     return firstRay.getLongtitude();
   }
 
-  public float getStationElevation() {
-    return firstRay.getElevation();
+  public short getStationElevation() {
+    return firstRay.uf_header2.height;
   }
 
 

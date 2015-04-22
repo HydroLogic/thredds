@@ -39,10 +39,11 @@ import ucar.nc2.NetcdfFile;
 import ucar.nc2.Attribute;
 import ucar.nc2.time.CalendarDate;
 import ucar.nc2.time.CalendarDateRange;
-import ucar.nc2.util.cache.FileCache;
 import ucar.nc2.units.DateRange;
+import ucar.nc2.util.cache.FileCacheIF;
 import ucar.unidata.geoloc.LatLonRect;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -52,16 +53,17 @@ import java.util.*;
  * @since Sep 7, 2007
  */
 public abstract class FeatureDatasetImpl implements FeatureDataset {
-  protected NetcdfDataset ncfile;
+  protected NetcdfDataset netcdfDataset;
   protected String title, desc, location;
   protected List<VariableSimpleIF> dataVariables;
   protected Formatter parseInfo = new Formatter();
   protected CalendarDateRange dateRange;
   protected LatLonRect boundingBox;
+  protected FileCacheIF fileCache;
 
   // for subsetting
   protected FeatureDatasetImpl(FeatureDatasetImpl from) {
-    this.ncfile = from.ncfile;
+    this.netcdfDataset = from.netcdfDataset;
     this.title = from.title;
     this.desc = from.desc;
     this.location = from.location;
@@ -89,17 +91,17 @@ public abstract class FeatureDatasetImpl implements FeatureDataset {
   }
 
   /** Constructor when theres a NetcdfFile underneath
-   * @param ncfile adapt this NetcdfDataset
+   * @param netcdfDataset adapt this NetcdfDataset
    */
-  public FeatureDatasetImpl(NetcdfDataset ncfile) {
-    this.ncfile = ncfile;
-    this.location = ncfile.getLocation();
+  public FeatureDatasetImpl(NetcdfDataset netcdfDataset) {
+    this.netcdfDataset = netcdfDataset;
+    this.location = netcdfDataset.getLocation();
 
-    this.title = ncfile.getTitle();
+    this.title = netcdfDataset.getTitle();
     if (title == null)
-      title = ncfile.findAttValueIgnoreCase(null, "title", null);
+      title = netcdfDataset.findAttValueIgnoreCase(null, "title", null);
     if (desc == null)
-      desc = ncfile.findAttValueIgnoreCase(null, "description", null);
+      desc = netcdfDataset.findAttValueIgnoreCase(null, "description", null);
   }
 
   protected void setTitle( String title) { this.title = title; }
@@ -120,18 +122,18 @@ public abstract class FeatureDatasetImpl implements FeatureDataset {
 
   /////////////////////////////////////////////////
 
-  public NetcdfFile getNetcdfFile() { return ncfile; }
+  public NetcdfFile getNetcdfFile() { return netcdfDataset; }
   public String getTitle() { return title; }
   public String getDescription() { return desc; }
   public String getLocation() {return location; }
   public List<Attribute> getGlobalAttributes() {
-    if (ncfile == null) return new ArrayList<>();
-    return ncfile.getGlobalAttributes();
+    if (netcdfDataset == null) return new ArrayList<>();
+    return netcdfDataset.getGlobalAttributes();
   }
 
   public Attribute findGlobalAttributeIgnoreCase( String name ) {
-    if (ncfile == null) return null;
-    return ncfile.findGlobalAttributeIgnoreCase( name);
+    if (netcdfDataset == null) return null;
+    return netcdfDataset.findGlobalAttributeIgnoreCase( name);
   }
 
   public void getDetailInfo( java.util.Formatter sf) {
@@ -210,30 +212,33 @@ public abstract class FeatureDatasetImpl implements FeatureDataset {
   @Override
   public synchronized void close() throws java.io.IOException {
     if (fileCache != null) {
-      fileCache.release(this);
-    } else {
-      try {
-        if (ncfile != null) ncfile.close();
-      } finally {
-        ncfile = null;
-      }
+      if (fileCache.release(this)) return;
+    }
+
+    try {
+      if (netcdfDataset != null) netcdfDataset.close();
+    } finally {
+      netcdfDataset = null;
     }
   }
 
-  /* @Override
-  public boolean sync() throws IOException {
-    return false;
-  } */
+      // release any resources like file handles
+  public void release() throws IOException {
+    if (netcdfDataset != null) netcdfDataset.release();
+  }
+
+  // reacquire any resources like file handles
+  public void reacquire() throws IOException {
+    if (netcdfDataset != null) netcdfDataset.reacquire();
+  }
 
   @Override
   public long getLastModified() {
-    return (ncfile != null) ? ncfile.getLastModified() : 0;
+    return (netcdfDataset != null) ? netcdfDataset.getLastModified() : 0;
   }
 
-  protected FileCache fileCache;
-
   @Override
-  public synchronized void setFileCache(FileCache fileCache) {
+  public synchronized void setFileCache(FileCacheIF fileCache) {
     this.fileCache = fileCache;
   }
 

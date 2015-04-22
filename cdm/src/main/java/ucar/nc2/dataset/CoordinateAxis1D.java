@@ -68,7 +68,6 @@ public class CoordinateAxis1D extends CoordinateAxis {
   static private org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CoordinateAxis1D.class);
 
   private boolean wasRead = false; // have the data values been  read
-  private boolean wasCalcRegular = false; // have we checked if the data is regularly spaced ?
   private boolean wasBoundsDone = false; // have we created the bounds arrays if exists ?
   private boolean isInterval = false; // is this an interval coordinates - then should use bounds
   private boolean isAscending;
@@ -80,6 +79,10 @@ public class CoordinateAxis1D extends CoordinateAxis {
   // defer making until asked, use makeBounds()
   private double[] edge; // n+1 edges, edge[k] < midpoint[k] < edge[k+1]
   private double[] bound1, bound2; // may be contiguous or not
+
+  private boolean wasCalcRegular = false; // have we checked if the data is regularly spaced ?
+  private boolean isRegular = false;
+  private double start, increment;
 
   /**
    * Create a 1D coordinate axis from an existing Variable
@@ -194,6 +197,9 @@ public class CoordinateAxis1D extends CoordinateAxis {
       result.names = new_names;
     }
 
+    result.wasCalcRegular = false;
+    result.calcIsRegular();
+
     return result;
   }
 
@@ -229,7 +235,7 @@ public class CoordinateAxis1D extends CoordinateAxis {
      int n = getDimension(0).getLength();
      List<NamedObject> names = new ArrayList<>(n);
      for (int i = 0; i < n; i++)
-       names.add(new ucar.nc2.util.NamedAnything(getCoordName(i), getUnitsString()));
+       names.add(new ucar.nc2.util.NamedAnything(getCoordName(i), getShortName() + " "+ getUnitsString()));
      return names;
    }
 
@@ -334,7 +340,7 @@ public class CoordinateAxis1D extends CoordinateAxis {
 
   @Override
   public boolean isContiguous() {
-    if (!wasBoundsDone) makeBounds();
+    if (!wasBoundsDone) makeBounds();  // this sets isContiguous
     return isContiguous;
   }
 
@@ -346,7 +352,7 @@ public class CoordinateAxis1D extends CoordinateAxis {
    * @return true if coordinate has interval values
    */
   public boolean isInterval() {
-    if (!wasBoundsDone) makeBounds();
+    if (!wasBoundsDone) makeBounds();      // this sets isInterval
     return isInterval;
   }
 
@@ -363,6 +369,7 @@ public class CoordinateAxis1D extends CoordinateAxis {
       throw new UnsupportedOperationException("CoordinateAxis1D.getBound1() on non-numeric");
     if (!wasBoundsDone) makeBounds();
     if (bound1 == null) makeBoundsFromEdges();
+    assert bound1 != null;
     return bound1.clone();
   }
 
@@ -379,20 +386,19 @@ public class CoordinateAxis1D extends CoordinateAxis {
       throw new UnsupportedOperationException("CoordinateAxis1D.getBound2() on non-numeric");
     if (!wasBoundsDone) makeBounds();
     if (bound2 == null) makeBoundsFromEdges();
+    assert bound2 != null;
     return bound2.clone();
   }
 
-
   /**
-   * Get the coordinate edges for the ith coordinate.
+   * Get the coordinate bounds for the ith coordinate.
    * Can use this for isContiguous() true or false.
    *
    * @param i coordinate index
    * @return double[2] edges for ith coordinate
    */
-  public double[] getCoordEdges(int i) {
+  public double[] getCoordBounds(int i) {
     if (!wasBoundsDone) makeBounds();
-    if (!isContiguous()) makeBoundsFromEdges();
 
     double[] e = new double[2];
     if (isContiguous()) {
@@ -659,8 +665,6 @@ public class CoordinateAxis1D extends CoordinateAxis {
 
   ///////////////////////////////////////////////////////////////////////////////
   // check if Regular
-  private boolean isRegular = false;
-  private double start, increment;
 
   /**
    * Get starting value if isRegular()
@@ -745,8 +749,8 @@ public class CoordinateAxis1D extends CoordinateAxis {
       return;
     }
 
-    if (!wasRead)
-      doRead();
+    if (!wasRead) doRead();
+    if (!wasBoundsDone) makeBounds();
 
     boolean monotonic = true;
     for (int i = 0; i < coords.length - 1; i++)
@@ -832,6 +836,9 @@ public class CoordinateAxis1D extends CoordinateAxis {
       coords[count++] = iter.getDoubleNext();
   }
 
+  /**
+   * Calculate bounds, set isInterval, isContiguous
+   */
   private void makeBounds() {
     if (!wasRead) doRead();
     if (isNumeric()) {
@@ -902,7 +909,7 @@ public class CoordinateAxis1D extends CoordinateAxis {
       edge[0] = value1[0];
       for (int i = 1; i < n + 1; i++)
         edge[i] = value2[i - 1];
-    } else {
+    } else {                           // what does edge mean when not contiguous ??
       edge = new double[n + 1];
       edge[0] = value1[0];
       for (int i = 1; i < n; i++)
@@ -926,6 +933,7 @@ public class CoordinateAxis1D extends CoordinateAxis {
       edge[i] = (coords[i - 1] + coords[i]) / 2;
     edge[0] = coords[0] - (edge[1] - coords[0]);
     edge[size] = coords[size - 1] + (coords[size - 1] - edge[size - 1]);
+    isContiguous = true;
   }
 
   private void makeBoundsFromEdges() {

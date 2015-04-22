@@ -55,7 +55,7 @@ import ucar.unidata.test.ma2.TestMa2Utils;
 public class TestConvertD2N {
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // debugging
-  static DataDDS testDataDDSfromServer(String urlName, String CE) throws IOException, opendap.dap.parsers.ParseException,
+  static DataDDS testDataDDSfromServer(String urlName, String CE) throws IOException,
           opendap.dap.DAP2Exception, InvalidRangeException {
 
     System.out.println("--DConnect ="+urlName);
@@ -104,8 +104,7 @@ public class TestConvertD2N {
     return dataDDS;
   }
 
-  static void testArray(String urlName) throws IOException, opendap.dap.parsers.ParseException,
-          opendap.dap.DAP2Exception {
+  static void testArray(String urlName) throws IOException, opendap.dap.DAP2Exception {
 
     System.out.println("checkArray ="+urlName);
     DConnect2 dodsConnection = new DConnect2(urlName, true);
@@ -168,7 +167,7 @@ public class TestConvertD2N {
     ConvertD2N converter = new ConvertD2N();
     DodsV root = DodsV.parseDataDDS( dataDDS);
     for (int i = 0; i < root.children.size(); i++) {
-      DodsV dodsV = (DodsV) root.children.get(i);
+      DodsV dodsV = root.children.get(i);
       Variable v = dodsfile.findVariable( dodsV.getFullName());
       Array data = converter.convertTopVariable(v, null, dodsV);
       showArray( v.getFullName(), data, out, "");
@@ -272,7 +271,7 @@ public class TestConvertD2N {
         showShape( member.getShape(), out);
         out.println();
         Object data = member.getDataArray();
-        if ((data != null) && (data instanceof Array))  {
+        if (data != null)  {
           Array array = (Array) data;
           showArray( member.getName(), array, out, space+"  ");
         }

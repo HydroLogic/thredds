@@ -32,6 +32,7 @@
  */
 package ucar.nc2.iosp.bufr.tables;
 
+import org.jdom2.JDOMException;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.Element;
 import ucar.nc2.iosp.bufr.Descriptor;
@@ -55,7 +56,7 @@ import java.nio.charset.Charset;
  */
 public class CodeFlagTables {
   static private org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CodeFlagTables.class);
-  static private final String CodeFlagFilename = "wmo/BUFRCREX_19_1_1_CodeFlag_en.xml";
+  static private final String CodeFlagFilename = "wmo/BUFRCREX_22_0_1_CodeFlag_en.xml";
   static Map<Short, CodeFlagTables> tableMap;
 
   static public CodeFlagTables getTable(short id) {
@@ -115,6 +116,15 @@ public class CodeFlagTables {
   <Status>Operational</Status>
 </BUFRCREX_19_1_1_CodeFlag_en>
 
+<BUFRCREX_22_0_1_CodeFlag_en>
+<No>3183</No>
+<FXY>020063</FXY>
+<ElementName_en>Special phenomena</ElementName_en>
+<CodeFigure>31</CodeFigure>
+<EntryName_en>Slight coloration of clouds at sunrise associated with a tropical disturbance</EntryName_en>
+<Status>Operational</Status>
+</BUFRCREX_22_0_1_CodeFlag_en>
+
    */
   static private void init(Map<Short, CodeFlagTables> table) {
     String filename = BufrTables.RESOURCE_PATH + CodeFlagFilename;
@@ -156,7 +166,7 @@ public class CodeFlagTables {
         ct.addValue((short) code, value);
       }
 
-    } catch (Exception e) {
+    } catch (IOException|JDOMException e) {
       log.error("Can't read BUFR code table " + filename, e);
     }
   }
@@ -198,18 +208,17 @@ public class CodeFlagTables {
         }
 
         // SNo,FXY,CodeFigure,enDescription1,enDescription2,enDescription3
-        int fldidx = 0;
+        int fldidx = 1; // start at 1 to skip sno
         try {
-          int sno = Integer.parseInt(flds[fldidx++].trim());
           int xy = Integer.parseInt(flds[fldidx++].trim());
-          int no = -1;
+          int no;
           try {
             no = Integer.parseInt(flds[fldidx++].trim());
-          } catch (Exception e) {
+          } catch (NumberFormatException e) {
             if (showReadErrs) System.out.printf("%d skip == %s%n", count, line);
             continue;
           }
-          String name = StringUtil2.remove(flds[fldidx++], '"');
+          String name = StringUtil2.remove(flds[fldidx], '"');
           String nameLow = name.toLowerCase();
           if (nameLow.startsWith("reserved")) continue;
           if (nameLow.startsWith("not used")) continue;
@@ -226,14 +235,13 @@ public class CodeFlagTables {
           }
           ct.addValue((short) no, name);
 
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
           if (showReadErrs) System.out.printf("%d %d BAD line == %s%n", count, fldidx, line);
         }
       }
 
-    } catch (Exception e) {
+    } catch (IOException e) {
       log.error("Can't read BUFR code table " + filename, e);
-
     } finally {
       if (dataIS != null)
         try {
@@ -252,9 +260,9 @@ public class CodeFlagTables {
     init2(tableMap2);
 
     System.out.printf("Compare 1 with 2%n");
-    for (Short key : tableMap1.keySet()) {
-      CodeFlagTables t = tableMap1.get(key);
-      CodeFlagTables t2 = tableMap2.get(key);
+    for (Map.Entry<Short, CodeFlagTables> ent : tableMap1.entrySet()) {
+      CodeFlagTables t = ent.getValue();
+      CodeFlagTables t2 = tableMap2.get(ent.getKey());
       if (t2 == null)
         System.out.printf(" NOT FOUND in 2: %s (%d)%n", t.fxy(), t.fxy);
       else {
@@ -270,9 +278,9 @@ public class CodeFlagTables {
     }
 
     System.out.printf("Compare 2 with 1%n");
-    for (Short key : tableMap2.keySet()) {
-      CodeFlagTables t = tableMap2.get(key);
-      CodeFlagTables t1 = tableMap1.get(key);
+    for (Map.Entry<Short, CodeFlagTables> ent : tableMap2.entrySet()) {
+      CodeFlagTables t = ent.getValue();
+      CodeFlagTables t1 = tableMap1.get(ent.getKey());
       if (t1 == null)
         System.out.printf(" NOT FOUND in 1: %s (%d)%n", t.fxy(), t.fxy);
       else {
@@ -321,7 +329,7 @@ public class CodeFlagTables {
   public short getId() { return fxy; }
 
   public String fxy() {
-    int f = fxy >> 16;
+    int f = fxy >> 14;
     int x = (fxy & 0xff00) >> 8;
     int y = (fxy & 0xff);
 

@@ -32,12 +32,19 @@
 
 package ucar.nc2.iosp.grib;
 
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import ucar.ma2.Array;
+import ucar.ma2.ArrayFloat;
+import ucar.ma2.InvalidRangeException;
 import ucar.nc2.*;
 import ucar.nc2.grib.collection.GribIosp;
 import ucar.nc2.util.Misc;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
+
+import java.io.IOException;
 
 /**
  * Test misc GRIB features
@@ -45,17 +52,18 @@ import ucar.unidata.test.util.TestDir;
  * @author caron
  * @since 11/1/11
  */
+@Category(NeedsCdmUnitTest.class)
 public class TestGribMisc {
 
   @Test
   public void pdsScaleOverflow() throws Exception {
     String filename = TestDir.cdmUnitTestDir + "formats/grib2/pdsScale.grib2";
     System.out.printf("%s%n", filename);
-    NetcdfFile ncfile = NetcdfFile.open(filename, null);
-    Variable v = ncfile.findVariable("isobaric");
-    float val = v.readScalarFloat();
-    assert Misc.closeEnough(val, 92500.0) : val;
-    ncfile.close();
+    try (NetcdfFile ncfile = NetcdfFile.open(filename, null)) {
+      Variable v = ncfile.findVariable("isobaric");
+      float val = v.readScalarFloat();
+      assert Misc.closeEnough(val, 92500.0) : val;
+    }
   }
 
   @Test
@@ -63,18 +71,18 @@ public class TestGribMisc {
     // this one has a analysis and forecast in same variable
     String filename = TestDir.cdmUnitTestDir + "formats/grib2/08Aug08.12z.cras45_NA.grib2";
     System.out.printf("%s%n", filename);
-    NetcdfFile ncfile = NetcdfFile.open(filename, null);
-    Variable v = ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-0-0_L1");
-    assert v != null : ncfile.getLocation();
-    ncfile.close();
+    try (NetcdfFile ncfile = NetcdfFile.open(filename, null)) {
+      Variable v = ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-0-0_L1");
+      assert v != null : ncfile.getLocation();
+    }
 
     // this one has a forecast and error = must be seperate variables
     filename = TestDir.cdmUnitTestDir + "formats/grib2/RTMA_CONUS_2p5km_20111225_0000.grib2";
     System.out.printf("%s%n", filename);
-    ncfile = NetcdfFile.open(filename, null);
-    assert ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-3-0_L1") != null; // Pressure_Surface
-    assert ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-0-0_error_L103") != null; // Temperature_error_height_above_ground
-    ncfile.close();
+    try (NetcdfFile ncfile = NetcdfFile.open(filename, null)) {
+      assert ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-3-0_L1") != null; // Pressure_Surface
+      assert ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-0-0_error_L103") != null; // Temperature_error_height_above_ground
+    }
   }
 
   @Test
@@ -82,18 +90,96 @@ public class TestGribMisc {
     // this one has a analysis and forecast in same variable
     String filename = TestDir.cdmUnitTestDir + "formats/grib2/thinGrid.grib2";
     System.out.printf("%s%n", filename);
-    NetcdfFile ncfile = NetcdfFile.open(filename, null);
-    Variable v = ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-0-0_L105");
-    assert v != null : ncfile.getLocation();
+    try (NetcdfFile ncfile = NetcdfFile.open(filename, null)) {
+      Variable v = ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-0-0_L105");
+      assert v != null : ncfile.getLocation();
 
-    Array data = v.read();
-    int[] shape = data.getShape();
-    assert shape.length == 4;
-    assert shape[shape.length-2] == 1024;
-    assert shape[shape.length-1] == 2048;
-    ncfile.close();
+      Array data = v.read();
+      int[] shape = data.getShape();
+      assert shape.length == 4;
+      assert shape[shape.length - 2] == 1024;
+      assert shape[shape.length - 1] == 2048;
+    }
   }
 
+  @Test
+  public void testJPEG2K() throws Exception {
+    // Tests specifically if the land-sea mask from GFS is decoded properly.
+    // Not only does this test generally if the decoding works, but covers
+    // a corner case with a single-bit field; this case was broken in the
+    // original jj2000 code
+    String filename = TestDir.cdmUnitTestDir + "tds/ncep/GFS_Global_onedeg_20100913_0000.grib2";
+    System.out.printf("testJPEG2K %s%n", filename);
+    try (NetcdfFile ncfile = NetcdfFile.open(filename, null)) {
+      Variable v = ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_2-0-0_L1"); // Land_cover_0__sea_1__land_surface
+      int[] origin = {0, 38, 281};
+      int[] shape = {1, 1, 2};
+      Array vals = v.read(origin, shape);
+      assert Misc.closeEnough(vals.getFloat(0), 0.0) : vals.getFloat(0);
+      assert Misc.closeEnough(vals.getFloat(1), 1.0) : vals.getFloat(1);
+    }
+  }
+
+  @Test
+  public void testNBits0() throws IOException {
+    // Tests of GRIB2 nbits=0; should be reference value (0.0), not missing value
+    String filename = TestDir.cdmUnitTestDir + "formats/grib2/SingleRecordNbits0.grib2";
+    System.out.printf("testNBits0 %s%n", filename);
+
+    try (NetcdfFile ncfile = NetcdfFile.open(filename, null)) {
+      Variable v = ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-1-194_L1");
+      assert v != null : ncfile.getLocation();
+      Array vals = v.read();
+      while (vals.hasNext()) {
+        assert 0.0 == vals.nextDouble();
+      }
+    }
+  }
+
+  @Ignore("NCEP may be miscoding. Withdraw uit test until we have more info")
+  @Test
+   public void testScanMode() throws IOException, InvalidRangeException {
+     // Robert.C.Lipschutz@noaa.gov
+     // we are setting the value of scanMode to 64, which per GRIB2 Table 3.4 indicates "points scan in the +j direction", and so filling
+     // the data arrays from south to north.
+    /*
+    Hi Bob:
+
+    You might think that if scanmode = 64, one should just invert the grids. As it turns out, on all projections except for latlon (that i have sample of),
+    the right thing to do is to ignore the flipping, because the coordinate system (the assignment of lat,lon values to each grid point) correctly adjusts
+    for it. So its just on latlon grids that this issue arises.
+
+    So on your file:
+
+     C:/Users/caron/Downloads/grid174_scanmode_64_example.grb2
+
+      latlon scan mode=64 dLat=0.125000 lat=(89.938004,-89.938004)
+
+    Now, the only other example of a latlon Grid that I seem to have with scan mode 64 is
+
+     Q:/cdmUnitTest/tds/ncep/SREF_PacificNE_0p4_ensprod_20120213_2100.grib2
+
+        latlon scan 64 lat=(10.000000 , 50.000000)
+
+    its over the pacific and much harder to tell if its flipped, but im guessing not. Note that its lat range is consistent with scan mode 64.
+
+    Im loath to generalize from a sample size of 2. Do you have a sample of GRIB2 files with various encodings? Perhaps I could test them to see if we
+    can guess when to flip or not.
+
+    thanks,
+    John
+     */
+     String filename = TestDir.cdmUnitTestDir + "formats/grib2/grid174_scanmode_64_example.grb2";
+
+     try (NetcdfFile ncfile = NetcdfFile.open(filename, null)) {
+       Variable v = ncfile.findVariableByAttribute(null, GribIosp.VARIABLE_ID_ATTNAME, "VAR_0-0-0_L1");
+       assert v != null : ncfile.getLocation();
+       ArrayFloat vals = (ArrayFloat) (v.read("0,:,0").reduce());   // read first column - its flipped
+       System.out.printf("%s: first=%f last=%f%n", v.getFullName(), vals.getFloat(0), vals.getFloat((int)vals.getSize()-1));
+       assert Misc.closeEnough( vals.getFloat(0), 243.289993);
+       assert Misc.closeEnough( vals.getFloat((int)vals.getSize()-1), 242.080002);
+     }
+   }
 
 
 }

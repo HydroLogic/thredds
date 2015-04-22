@@ -75,6 +75,87 @@ public class TestAggExisting {
   }
 
   @Test
+  public void testNcmlDatasetNoProtocolInFilename() throws IOException, InvalidRangeException {
+    String filename = "./"+TestNcML.topDir + "aggExisting.xml";
+
+    NetcdfFile ncfile = NetcdfDataset.openDataset( filename, true, null);
+    System.out.println(" TestNcmlAggExisting.open "+ filename);
+
+    testDimensions(ncfile);
+    testCoordVar(ncfile);
+    testAggCoordVar(ncfile);
+    testReadData(ncfile);
+    testReadSlice(ncfile);
+    ncfile.close();
+  }
+
+  @Test(expected = IOException.class)
+  public void testNcmlDatasetNoProtocolInNcmlAbsPath() throws IOException, InvalidRangeException {
+    // if using an absolute path in the NcML file location attr of the element netcdf, then
+    // you must prepend file:
+    // this should fail with an IOException
+    String filename = "file:./"+TestNcML.topDir + "aggExisting6.xml";
+
+    NetcdfFile ncfile = NetcdfDataset.openDataset( filename, true, null);
+    System.out.println(" TestNcmlAggExisting.open "+ filename);
+
+    testDimensions(ncfile);
+    testCoordVar(ncfile);
+    testAggCoordVar(ncfile);
+    testReadData(ncfile);
+    testReadSlice(ncfile);
+    ncfile.close();
+  }
+
+  @Test(expected = IOException.class)
+  public void testNcmlDatasetNoProtocolInFilenameOrNcmlAbsPath() throws IOException, InvalidRangeException {
+    // if using an absolute path in the NcML file location attr of the element netcdf, then
+    // you must prepend file:
+    // this should fail with an IOException
+    String filename = "./"+TestNcML.topDir + "aggExisting6.xml";
+
+    NetcdfFile ncfile = NetcdfDataset.openDataset( filename, true, null);
+    System.out.println(" TestNcmlAggExisting.open "+ filename);
+
+    testDimensions(ncfile);
+    testCoordVar(ncfile);
+    testAggCoordVar(ncfile);
+    testReadData(ncfile);
+    testReadSlice(ncfile);
+    ncfile.close();
+  }
+
+  @Test
+  public void testNcmlDatasetNoProtocolInNcmlRelPath() throws IOException, InvalidRangeException {
+    String filename = "file:./"+TestNcML.topDir + "aggExisting7.xml";
+
+    NetcdfFile ncfile = NetcdfDataset.openDataset( filename, true, null);
+    System.out.println(" TestNcmlAggExisting.open "+ filename);
+
+    testDimensions(ncfile);
+    testCoordVar(ncfile);
+    testAggCoordVar(ncfile);
+    testReadData(ncfile);
+    testReadSlice(ncfile);
+    ncfile.close();
+  }
+
+  @Test
+  public void testNcmlDatasetNoProtocolInFilenameOrNcmlRelPath() throws IOException, InvalidRangeException {
+    String filename = "./"+TestNcML.topDir + "aggExisting7.xml";
+
+    NetcdfFile ncfile = NetcdfDataset.openDataset( filename, true, null);
+    System.out.println(" TestNcmlAggExisting.open "+ filename);
+
+    testDimensions(ncfile);
+    testCoordVar(ncfile);
+    testAggCoordVar(ncfile);
+    testReadData(ncfile);
+    testReadSlice(ncfile);
+    ncfile.close();
+  }
+
+  @Test
   public void testNcmlDatasetWcoords() throws IOException, InvalidRangeException {
     String filename = "file:./"+TestNcML.topDir + "aggExistingWcoords.xml";
 

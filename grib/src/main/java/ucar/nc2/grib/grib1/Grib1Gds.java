@@ -32,6 +32,7 @@
 
 package ucar.nc2.grib.grib1;
 
+import com.google.common.base.MoreObjects;
 import ucar.nc2.grib.GribNumbers;
 import ucar.nc2.grib.GdsHorizCoordSys;
 import ucar.nc2.grib.QuasiRegular;
@@ -76,7 +77,46 @@ import java.util.Formatter;
  */
 public abstract class Grib1Gds {
   static private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(Grib1Gds.class);
+  public static final double maxReletiveErrorPos = .01; // reletive error in position - GRIB numbers sometime miscoded
 
+  /*
+  Code table 6 – Data representation type
+  Code figure Meaning
+ *  0 Latitude/longitude grid – equidistant cylindrical or Plate Carrée projection
+ *  1 Mercator projection
+    2 Gnomonic projection
+ *  3 Lambert conformal, secant or tangent, conic or bi-polar, projection
+ *  4 Gaussian latitude/longitude grid
+ *  5 Polar stereographic projection
+    6 Universal Transverse Mercator (UTM) projection
+    7 Simple polyconic projection
+    8 Albers equal-area, secant or tangent, conic or bi-polar, projection
+    9 Miller’s cylindrical projection
+ *  10 Rotated latitude/longitude grid
+    11–12 Reserved
+    13 Oblique Lambert conformal, secant or tangent, conic or bi-polar, projection
+    14 Rotated Gaussian latitude/longitude grid
+    15–19 Reserved
+    20 Stretched latitude/longitude grid
+    21–23 Reserved
+    24 Stretched Gaussian latitude/longitude grid
+    25–29 Reserved
+    30 Stretched and rotated latitude/longitude grids
+    31–33 Reserved
+    34 Stretched and rotated Gaussian latitude/longitude grids
+    35–49 Reserved
+ ^  50 Spherical harmonic coefficients
+    51–59 Reserved
+    60 Rotated spherical harmonic coefficients
+    61–69 Reserved
+    70 Stretched spherical harmonics
+    71–79 Reserved
+    80 Stretched and rotated spherical harmonic coefficients
+    81–89 Reserved
+    90 Space view, perspective or orthographic
+    91–191 Reserved
+    192–254 Reserved for local use
+   */
   public static Grib1Gds factory(int template, byte[] data) {
     switch (template) {
       case 0:
@@ -91,6 +131,8 @@ public abstract class Grib1Gds {
         return new PolarStereographic(data, 5);
       case 10:
         return new RotatedLatLon(data, 10);
+      case 50:
+        return new SphericalHarmonicCoefficients(data, 50);
       default:
         throw new UnsupportedOperationException("Unsupported GDS type = " + template);
     }
@@ -98,16 +140,14 @@ public abstract class Grib1Gds {
 
   ///////////////////////////////////////////////////
   private static final float scale3 = (float) 1.0e-3;
-  private static final float scale6 = (float) 1.0e-6;
+  // private static final float scale6 = (float) 1.0e-6;
 
   protected final byte[] data;
   protected int[] nptsInLine; // thin grids, else null
 
   public int template;
-  public float earthRadius, majorAxis, minorAxis;
-  public int earthShape;
   protected int nx, ny;
-  public int scanMode, resolution;
+  public int scanMode, resolution;    // LOOK problem is if these differ for records in the same collection, since we only store one Gds.
   protected int lastOctet;
 
   protected Grib1Gds(int template) {
@@ -145,7 +185,7 @@ public abstract class Grib1Gds {
     return nptsInLine;
   }
 
-  public void setNptsInLine(int[] nptsInLine) {
+  void setNptsInLine(int[] nptsInLine) {
     this.nptsInLine = nptsInLine;
   }
 
@@ -169,14 +209,46 @@ public abstract class Grib1Gds {
     return GribNumbers.int4(getOctet(start), getOctet(start + 1), getOctet(start + 2), getOctet(start + 3));
   }
 
-  /* protected float getScaledValue(int start) {
-    int scaleFactor = getOctet(start);
-    int scaleValue = getOctet4(start + 1);
-    if (scaleFactor != 0)
-      return (float) (scaleValue / Math.pow(10, scaleFactor));
+  /*
+  Code table 7 – Resolution and component flags
+  Bit Value Meaning
+    1 0     Direction increments not given
+      1     Direction increments given
+    2 0     Earth assumed spherical with radius 6367.47 km
+      1     Earth assumed oblate spheroidal with size as determined by IAU in 1965 (6378.160 km, 6356.775 km, f = 1/297.0)
+  3–4       Reserved
+    5 0     Resolved u- and v-components of vector quantities relative to easterly and northerly directions
+      1     Resolved u- and v-components of vector quantities relative to the defined grid in the direction of increasing x and y (or i and j) coordinates respectively
+   6–8 0    Reserved – set to zero */
+
+  static private boolean getDirectionIncrementsGiven(int resolution) {
+    return ((resolution & GribNumbers.bitmask[0]) != 0);
+  }
+  static private boolean getEarthShapeIsSpherical(int resolution) {
+    return ((resolution & GribNumbers.bitmask[1]) == 0);
+  }
+  static private boolean getUVisReletive(int resolution) {
+    return ((resolution & GribNumbers.bitmask[1]) != 0);
+  }
+
+  protected Earth getEarth() {
+    if (getEarthShapeIsSpherical(resolution))
+        return new Earth(6367470.0);
     else
-      return (float) scaleValue;
-  } */
+        return EarthEllipsoid.IAU;
+  }
+
+  public int getEarthShape() {
+    return getEarthShapeIsSpherical(resolution) ? 0 : 1;
+  }
+
+  public boolean getUVisReletive() {
+    return getUVisReletive(resolution);
+  }
+
+  public int getResolution() {
+    return resolution;
+  }
 
   public boolean isLatLon() {
     return false;
@@ -194,10 +266,6 @@ public abstract class Grib1Gds {
    */
   public int getScanMode() {
     return scanMode;
-  }
-
-  public int getResolution() {
-    return resolution;
   }
 
   public int getNxRaw() {
@@ -255,10 +323,6 @@ public abstract class Grib1Gds {
   public String toString() {
     final StringBuilder sb = new StringBuilder("Grib1Gds{");
     sb.append(" template=").append(template);
-    sb.append(", earthRadius=").append(earthRadius);
-    sb.append(", majorAxis=").append(majorAxis);
-    sb.append(", minorAxis=").append(minorAxis);
-    sb.append(", earthShape=").append(earthShape);
     sb.append(", nx=").append(nx);
     sb.append(", ny=").append(ny);
     sb.append(", scanMode=").append(scanMode);
@@ -297,44 +361,6 @@ public abstract class Grib1Gds {
   protected int hashCode = 0;
 
   /*
-  Code Table Code table 3.2 - Shape of the Earth (3.2)
-      0: Earth assumed spherical with radius = 6 367 470.0 m
-      1: Earth assumed spherical with radius specified (in m) by data producer
-      2: Earth assumed oblate spheroid with size as determined by IAU in 1965 (major axis = 6 378 160.0 m, minor axis = 6 356 775.0 m, f = 1/297.0)
-      3: Earth assumed oblate spheroid with major and minor axes specified (in km) by data producer
-      4: Earth assumed oblate spheroid as defined in IAG-GRS80 model (major axis = 6 378 137.0 m, minor axis = 6 356 752.314 m, f = 1/298.257 222 101)
-      5: Earth assumed represented by WGS84 (as used by ICAO since 1998)
-      6: Earth assumed spherical with radius of 6 371 229.0 m
-      7: Earth assumed oblate spheroid with major or minor axes specified (in m) by data producer
-      8: Earth model assumed spherical with radius of 6 371 200 m, but the horizontal datum of the resulting
-         latitude/longitude field is the WGS84 reference frame
-  */
-  protected Earth getEarth() {
-    switch (earthShape) {
-      case 0:
-        return new Earth(6367470.0);
-      case 1:
-        return new Earth(earthRadius);
-      case 2:
-        return EarthEllipsoid.IAU;
-      case 3:
-        return new EarthEllipsoid("Grib2 Type 3", -1, majorAxis, minorAxis, 0);
-      case 4:
-        return EarthEllipsoid.IAG_GRS80;
-      case 5:
-        return EarthEllipsoid.WGS84;
-      case 6:
-        return new Earth(6371229.0);
-      case 7:
-        return new EarthEllipsoid("Grib2 Type 37", -1, majorAxis * 1000, minorAxis * 1000, 0);
-      case 8:
-        return new Earth(6371200.0);
-      default:
-        return new Earth();
-    }
-  }
-
-  /*
     Grid definition –   latitude/longitude grid (or equidistant cylindrical, or Plate Carrée)
     Octet No. Contents
     7–8 Ni – number of points along a parallel
@@ -358,7 +384,7 @@ public abstract class Grib1Gds {
   public static class LatLon extends Grib1Gds {
     public float la1, lo1, la2, lo2, deltaLon, deltaLat;
 
-    public LatLon(int template) {
+    protected LatLon(int template) {
       super(template);
     }
 
@@ -367,7 +393,7 @@ public abstract class Grib1Gds {
 
       la1 = getOctet3(11) * scale3;
       lo1 = getOctet3(14) * scale3;
-      resolution = getOctet(17);
+      resolution = getOctet(17);    // Resolution and component flags (see Code table 7)
       la2 = getOctet3(18) * scale3;
       lo2 = getOctet3(21) * scale3;
 
@@ -467,8 +493,8 @@ public abstract class Grib1Gds {
       if (!super.equals(o)) return false;
 
       LatLon other = (LatLon) o;
-      if (!Misc.closeEnough(la1, other.la1)) return false;
-      if (!Misc.closeEnough(lo1, other.lo1)) return false;
+      if (!Misc.closeEnoughAbs(la1, other.la1, maxReletiveErrorPos * deltaLat)) return false;   // allow some slop, reletive to grid size
+      if (!Misc.closeEnoughAbs(lo1, other.lo1, maxReletiveErrorPos * deltaLon)) return false;
       if (!Misc.closeEnough(deltaLat, other.deltaLat)) return false;
       if (!Misc.closeEnough(deltaLon, other.deltaLon)) return false;
       return true;
@@ -477,11 +503,16 @@ public abstract class Grib1Gds {
     @Override
     public int hashCode() {
       if (hashCode == 0) {
+        int useLat = (int) (la1 / (maxReletiveErrorPos * deltaLat));  //  Two equal objects must have the same hashCode() value
+        int useLon = (int) (lo1 / (maxReletiveErrorPos * deltaLon));
+        int useDeltaLon = (int) (deltaLon / Misc.maxReletiveError);
+        int useDeltaLat = (int) (deltaLat / Misc.maxReletiveError);
+
         int result = super.hashCode();
-        result = 31 * result + (la1 != +0.0f ? Float.floatToIntBits(la1) : 0); // LOOK this is an exact comparision
-        result = 31 * result + (lo1 != +0.0f ? Float.floatToIntBits(lo1) : 0);
-        result = 31 * result + (deltaLon != +0.0f ? Float.floatToIntBits(deltaLon) : 0);
-        result = 31 * result + (deltaLat != +0.0f ? Float.floatToIntBits(deltaLat) : 0);
+        result = 31 * result + useLat;
+        result = 31 * result + useLon;
+        result = 31 * result + useDeltaLon;
+        result = 31 * result + useDeltaLat;
         hashCode = result;
       }
       return hashCode;
@@ -502,7 +533,7 @@ public abstract class Grib1Gds {
     }
 
     public GdsHorizCoordSys makeHorizCoordSys() {
-      LatLonProjection proj = new LatLonProjection();
+      LatLonProjection proj = new LatLonProjection(getEarth());
       ProjectionPoint startP = proj.latLonToProj(new LatLonPointImpl(la1, lo1));
       double startx = startP.getX();
       double starty = startP.getY();
@@ -514,7 +545,7 @@ public abstract class Grib1Gds {
       double Lo2 = lo2;
       if (Lo2 < lo1) Lo2 += 360;
       LatLonPointImpl startLL = new LatLonPointImpl(la1, lo1);
-      LatLonPointImpl endLL = new LatLonPointImpl(la2, lo2);
+      LatLonPointImpl endLL = new LatLonPointImpl(la2, Lo2);
 
       f.format("%s testProjection%n", getClass().getName());
       f.format("  start at latlon= %s%n", startLL);
@@ -606,6 +637,8 @@ public abstract class Grib1Gds {
     parallels (bit 3 set to zero in Code table 8). The first point in each row shall be positioned at the meridian indicated by
     octets 14–16 and the last shall be positioned at the meridian indicated by octets 21–23. The grid points along each
     parallel shall be evenly spaced in longitude.
+
+    // see E:/ecmwf/ICMGGECE3_000000.grb  (1/14/2015)
    */
   public static class GaussianLatLon extends LatLon {
     int nparellels;
@@ -699,7 +732,7 @@ Grid definition –   polar stereographic
 
       la1 = getOctet3(11) * scale3;
       lo1 = getOctet3(14) * scale3;
-      resolution =  getOctet(17);
+      resolution =  getOctet(17); // Resolution and component flags (see Code table 7)
       lov = getOctet3(18) * scale3;
 
       dX = getOctet3(21) * scale3;
@@ -735,11 +768,12 @@ Grid definition –   polar stereographic
 
       PolarStereographic that = (PolarStereographic) o;
 
-      if (Float.compare(that.dX, dX) != 0) return false;
-      if (Float.compare(that.dY, dY) != 0) return false;
-      if (Float.compare(that.la1, la1) != 0) return false;
-      if (Float.compare(that.lo1, lo1) != 0) return false;
-      if (Float.compare(that.lov, lov) != 0) return false;
+      if (!Misc.closeEnoughAbs(la1, that.la1, maxReletiveErrorPos * dY)) return false;   // allow some slop, reletive to grid size
+      if (!Misc.closeEnoughAbs(lo1, that.lo1, maxReletiveErrorPos * dX)) return false;
+      if (!Misc.closeEnough(lov, that.lov)) return false;
+      if (!Misc.closeEnough(dY, that.dY)) return false;
+      if (!Misc.closeEnough(dX, that.dX)) return false;
+
       if (projCenterFlag != that.projCenterFlag) return false;
 
       return true;
@@ -748,13 +782,19 @@ Grid definition –   polar stereographic
     @Override
     public int hashCode() {
       if (hashCode == 0) {
+        int useLat = (int) (la1 / (maxReletiveErrorPos * dY));  //  Two equal objects must have the same hashCode() value
+        int useLon = (int) (lo1 / (maxReletiveErrorPos * dX));
+        int useLov = (int) (lov / Misc.maxReletiveError);
+        int useDeltaLon = (int) (dX / Misc.maxReletiveError);
+        int useDeltaLat = (int) (dY / Misc.maxReletiveError);
+
         int result = super.hashCode();
-        result = 31 * result + (la1 != +0.0f ? Float.floatToIntBits(la1) : 0);
-        result = 31 * result + (lo1 != +0.0f ? Float.floatToIntBits(lo1) : 0);
-        result = 31 * result + (lov != +0.0f ? Float.floatToIntBits(lov) : 0);
-        result = 31 * result + (dX != +0.0f ? Float.floatToIntBits(dX) : 0);
-        result = 31 * result + (dY != +0.0f ? Float.floatToIntBits(dY) : 0);
-        result = 31 * result + (int) projCenterFlag;
+        result = 31 * result + useLat;
+        result = 31 * result + useLon;
+        result = 31 * result + useLov;
+        result = 31 * result + useDeltaLon;
+        result = 31 * result + useDeltaLat;
+        result = 31 * result + projCenterFlag;
         hashCode = result;
       }
       return hashCode;
@@ -785,14 +825,13 @@ Grid definition –   polar stereographic
         scale = (1.0 + Math.sin(Math.toRadians( Math.abs(lad)))) / 2;
       }
 
-      ProjectionImpl proj = null;
+      ProjectionImpl proj;
 
       Earth earth = getEarth();
       if (earth.isSpherical()) {
         proj = new Stereographic(latOrigin, lov, scale);
       } else {
-        proj = new ucar.unidata.geoloc.projection.proj4.StereographicAzimuthalProjection(
-                latOrigin, lov, scale, lad, 0.0, 0.0, earth);
+        proj = new ucar.unidata.geoloc.projection.proj4.StereographicAzimuthalProjection(latOrigin, lov, scale, lad, 0.0, 0.0, earth);
       }
 
       ProjectionPointImpl start = (ProjectionPointImpl) proj.latLonToProj(new LatLonPointImpl(la1, lo1));
@@ -851,7 +890,7 @@ Grid definition –   polar stereographic
 
       la1 = getOctet3(11) * scale3;
       lo1 = getOctet3(14) * scale3;
-      resolution =  getOctet(17);
+      resolution =  getOctet(17); // Resolution and component flags (see Code table 7)
       lov = getOctet3(18) * scale3;
 
       dX = getOctet3(21) * scale3;
@@ -864,6 +903,8 @@ Grid definition –   polar stereographic
       latin2 = getOctet3(32) * scale3;
       latSouthPole = getOctet3(35) * scale3;
       lonSouthPole = getOctet3(38) * scale3;
+
+      lastOctet = 42;
     }
 
     @Override
@@ -904,79 +945,45 @@ Grid definition –   polar stereographic
 
       LambertConformal that = (LambertConformal) o;
 
-      if (Float.compare(that.dX, dX) != 0) return false;
-      if (Float.compare(that.dY, dY) != 0) return false;
-      if (Float.compare(that.la1, la1) != 0) return false;
-      if (Float.compare(that.lad, lad) != 0) return false;
-      if (Float.compare(that.latSouthPole, latSouthPole) != 0) return false;
-      if (Float.compare(that.latin1, latin1) != 0) return false;
-      if (Float.compare(that.latin2, latin2) != 0) return false;
-      if (Float.compare(that.lo1, lo1) != 0) return false;
-      if (Float.compare(that.lonSouthPole, lonSouthPole) != 0) return false;
-      if (Float.compare(that.lov, lov) != 0) return false;
-      if (projCenterFlag != that.projCenterFlag) return false;
+      if (!Misc.closeEnoughAbs(la1, that.la1, maxReletiveErrorPos * dY)) return false;   // allow some slop, reletive to grid size
+      if (!Misc.closeEnoughAbs(lo1, that.lo1, maxReletiveErrorPos * dX)) return false;
+      if (!Misc.closeEnough(lad, that.lad)) return false;
+      if (!Misc.closeEnough(lov, that.lov)) return false;
+      if (!Misc.closeEnough(dY, that.dY)) return false;
+      if (!Misc.closeEnough(dX, that.dX)) return false;
+      if (!Misc.closeEnough(latin1, that.latin1)) return false;
+      if (!Misc.closeEnough(latin2, that.latin2)) return false;
 
       return true;
     }
 
     @Override
     public int hashCode() {
-      int result = super.hashCode();
-      result = 31 * result + (la1 != +0.0f ? Float.floatToIntBits(la1) : 0);
-      result = 31 * result + (lo1 != +0.0f ? Float.floatToIntBits(lo1) : 0);
-      result = 31 * result + (lov != +0.0f ? Float.floatToIntBits(lov) : 0);
-      result = 31 * result + (lad != +0.0f ? Float.floatToIntBits(lad) : 0);
-      result = 31 * result + (dX != +0.0f ? Float.floatToIntBits(dX) : 0);
-      result = 31 * result + (dY != +0.0f ? Float.floatToIntBits(dY) : 0);
-      result = 31 * result + (latin1 != +0.0f ? Float.floatToIntBits(latin1) : 0);
-      result = 31 * result + (latin2 != +0.0f ? Float.floatToIntBits(latin2) : 0);
-      result = 31 * result + (latSouthPole != +0.0f ? Float.floatToIntBits(latSouthPole) : 0);
-      result = 31 * result + (lonSouthPole != +0.0f ? Float.floatToIntBits(lonSouthPole) : 0);
-      result = 31 * result + projCenterFlag;
-      return result;
+      if (hashCode == 0) {
+        int useLat = (int) (la1 / (maxReletiveErrorPos * dY));  //  Two equal objects must have the same hashCode() value
+        int useLon = (int) (lo1 / (maxReletiveErrorPos * dX));
+        int useLad = (int) (lad / Misc.maxReletiveError);
+        int useLov = (int) (lov / Misc.maxReletiveError);
+        int useDeltaLon = (int) (dX / Misc.maxReletiveError);
+        int useDeltaLat = (int) (dY / Misc.maxReletiveError);
+        int useLatin1 = (int) (latin1 / Misc.maxReletiveError);
+        int useLatin2 = (int) (latin2 / Misc.maxReletiveError);
+
+        int result = super.hashCode();
+        result = 31 * result + useLat;
+        result = 31 * result + useLon;
+        result = 31 * result + useLad;
+        result = 31 * result + useLov;
+        result = 31 * result + useDeltaLon;
+        result = 31 * result + useDeltaLat;
+        result = 31 * result + useLatin1;
+        result = 31 * result + useLatin2;
+        result = 31 * result + projCenterFlag;
+
+        hashCode = result;
+      }
+      return hashCode;
     }
-
-    /*
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    if (!super.equals(o)) return false;
-
-    LambertConformal that = (LambertConformal) o;
-
-    if (hdX != that.hdX) return false;
-    if (hdY != that.hdY) return false;
-    if (hla1 != that.hla1) return false;
-    if (hlad != that.hlad) return false;
-    if (hlatin1 != that.hlatin1) return false;
-    if (hlatin2 != that.hlatin2) return false;
-    if (hlo1 != that.hlo1) return false;
-    if (hlov != that.hlov) return false;
-
-    return true;
-  }
-
-  @Override
-  public int hashCode() {
-    if (hashCode == 0) {
-      int result = super.hashCode();
-      result = 31 * result + hla1;
-      result = 31 * result + hlo1;
-      result = 31 * result + hlov;
-      result = 31 * result + hlad;
-      result = 31 * result + hdX;
-      result = 31 * result + hdY;
-      result = 31 * result + hlatin1;
-      result = 31 * result + hlatin2;
-      hashCode = result;
-    }
-    return hashCode;
-  }
-
-  private static int round(int a) { // NCEP rounding (!)
-    return (a + 5) / 10;
-  }  */
 
     public GdsHorizCoordSys makeHorizCoordSys() {
       ProjectionImpl proj = null;
@@ -985,8 +992,7 @@ Grid definition –   polar stereographic
       if (earth.isSpherical()) {
         proj = new ucar.unidata.geoloc.projection.LambertConformal(latin1, lov, latin1, latin2, 0.0, 0.0, earth.getEquatorRadius() * .001);
       } else {
-        proj = new ucar.unidata.geoloc.projection.proj4.LambertConformalConicEllipse(
-                latin1, lov, latin1, latin2, 0.0, 0.0, earth);
+        proj = new ucar.unidata.geoloc.projection.proj4.LambertConformalConicEllipse(latin1, lov, latin1, latin2, 0.0, 0.0, earth);
       }
 
       LatLonPointImpl startLL = new LatLonPointImpl(la1, lo1);
@@ -1039,7 +1045,7 @@ Grid definition –   polar stereographic
 
       la1 = getOctet3(11) * scale3;
       lo1 = getOctet3(14) * scale3;
-      resolution = getOctet(47);
+      resolution =  getOctet(17); // Resolution and component flags (see Code table 7)
       la2 = getOctet3(18) * scale3;
       lo2 = getOctet3(21) * scale3;
       latin = getOctet3(24) * scale3;
@@ -1079,39 +1085,46 @@ Grid definition –   polar stereographic
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
-      if (!super.equals(o)) return false;
+     public boolean equals(Object o) {
+       if (this == o) return true;
+       if (o == null || getClass() != o.getClass()) return false;
+       if (!super.equals(o)) return false;
 
-      Mercator mercator = (Mercator) o;
+       Mercator that = (Mercator) o;
 
-      if (Float.compare(mercator.dX, dX) != 0) return false;
-      if (Float.compare(mercator.dY, dY) != 0) return false;
-      if (Float.compare(mercator.la1, la1) != 0) return false;
-      if (Float.compare(mercator.latin, latin) != 0) return false;
-      if (Float.compare(mercator.lo1, lo1) != 0) return false;
+       if (!Misc.closeEnoughAbs(la1, that.la1, maxReletiveErrorPos * dY)) return false;   // allow some slop, reletive to grid size
+       if (!Misc.closeEnoughAbs(lo1, that.lo1, maxReletiveErrorPos * dX)) return false;
+       if (!Misc.closeEnough(latin, that.latin)) return false;
+       if (!Misc.closeEnough(dY, that.dY)) return false;
+       if (!Misc.closeEnough(dX, that.dX)) return false;
 
-      return true;
-    }
+       return true;
+     }
 
-    @Override
-    public int hashCode() {
-      if (hashCode == 0) {
-        int result = super.hashCode();
-        result = 31 * result + (la1 != +0.0f ? Float.floatToIntBits(la1) : 0);
-        result = 31 * result + (lo1 != +0.0f ? Float.floatToIntBits(lo1) : 0);
-        result = 31 * result + (latin != +0.0f ? Float.floatToIntBits(latin) : 0);
-        result = 31 * result + (dX != +0.0f ? Float.floatToIntBits(dX) : 0);
-        result = 31 * result + (dY != +0.0f ? Float.floatToIntBits(dY) : 0);
-        hashCode = result;
-      }
-      return hashCode;
-    }
+     @Override
+     public int hashCode() {
+       if (hashCode == 0) {
+         int useLat = (int) (la1 / (maxReletiveErrorPos * dY));  //  Two equal objects must have the same hashCode() value
+         int useLon = (int) (lo1 / (maxReletiveErrorPos * dX));
+         int useLad = (int) (latin / Misc.maxReletiveError);
+         int useDeltaLon = (int) (dX / Misc.maxReletiveError);
+         int useDeltaLat = (int) (dY / Misc.maxReletiveError);
+
+         int result = super.hashCode();
+         result = 31 * result + useLat;
+         result = 31 * result + useLon;
+         result = 31 * result + useLad;
+         result = 31 * result + useDeltaLon;
+         result = 31 * result + useDeltaLat;
+         hashCode = result;
+       }
+       return hashCode;
+     }
 
     public GdsHorizCoordSys makeHorizCoordSys() {
       // put longitude origin at first point - doesnt actually matter
       // param par standard parallel (degrees). cylinder cuts earth at this latitude.
+      // LOOK dont have an elipsoidal Mercator projection
       Earth earth = getEarth();
       ucar.unidata.geoloc.projection.Mercator proj = new ucar.unidata.geoloc.projection.Mercator(lo1, latin, 0, 0, earth.getEquatorRadius() * .001);
 
@@ -1128,7 +1141,7 @@ Grid definition –   polar stereographic
       double Lo2 = lo2;
       if (Lo2 < lo1) Lo2 += 360;
       LatLonPointImpl startLL = new LatLonPointImpl(la1, lo1);
-      LatLonPointImpl endLL = new LatLonPointImpl(la2, lo2);
+      LatLonPointImpl endLL = new LatLonPointImpl(la2, Lo2);
 
       f.format("%s testProjection%n", getClass().getName());
       f.format("  start at latlon= %s%n", startLL);
@@ -1183,8 +1196,7 @@ Grid definition –   polar stereographic
       if (!super.equals(o)) return false;
 
       RotatedLatLon other = (RotatedLatLon) o;
-      if (!Misc.closeEnough(angleRotation, other.angleRotation)) return false;
-      return true;
+      return Misc.closeEnough(angleRotation, other.angleRotation);
     }
 
     @Override
@@ -1225,6 +1237,69 @@ Grid definition –   polar stereographic
       f.format("   should end at x= (%f,%f)%n", endx, endy);
     }
 
+  }
+
+  /*  LOOK not done yet
+  Grid definition – spherical harmonic coefficients (including rotated, stretched or stretched and rotated)
+  Octet No. Contents
+  7–8   J – pentagonal resolution parameter
+  9–10  K – pentagonal resolution parameter
+  11–12 M – pentagonal resolution parameter
+  13    Representation type (see Code table 9)
+  14    Representation mode (see Code table 10)
+  15–32 Set to zero (reserved)
+  33–35 Latitude of the southern pole in millidegrees (integer)
+        Latitude of pole of stretching in millidegrees (integer)
+  36–38 Longitude of the southern pole in millidegrees (integer)
+        Longitude of pole of stretching in millidegrees (integer)
+  39–42 Angle of rotation (represented in the same way as the reference value)
+        Stretching factor (representation as for the reference value)
+  43–45 Latitude of pole of stretching in millidegrees (integer)
+  46–48 Longitude of pole of stretching in millidegrees (integer)
+  49–52 Stretching factor (representation as for the reference value
+   */
+  public static class SphericalHarmonicCoefficients extends Grib1Gds {
+    int j,k,m,type,mode;
+    SphericalHarmonicCoefficients(byte[] data, int template) {
+      super(data, template);
+
+      j = getOctet2(7);
+      k = getOctet2(9);
+      m = getOctet2(11);
+      type = getOctet(13);  // code table 9
+      mode = getOctet(14);  // code table 10
+    }
+
+    @Override
+    public float getDxRaw() {
+      return 0;
+    }
+
+    @Override
+    public float getDyRaw() {
+      return 0;
+    }
+
+    @Override
+    public GdsHorizCoordSys makeHorizCoordSys() {
+      return null;
+    }
+
+    @Override
+    public void testHorizCoordSys(Formatter f) {
+    }
+
+    @Override
+    public String toString() {
+
+      return MoreObjects.toStringHelper(this)
+              .add("j", j)
+              .add("k", k)
+              .add("m", m)
+              .add("type", type)
+              .add("mode", mode)
+              .toString();
+    }
   }
 
 }

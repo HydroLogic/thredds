@@ -1,5 +1,6 @@
-jar {
-    manifest {
-        attributes 'Implementation-Title': 'udunits'
-    }
+dependencies {
+    compile libraries["joda-time"]
+    compile libraries["jcip-annotations"]
+
+    // udunits doesn't do any logging.
 }

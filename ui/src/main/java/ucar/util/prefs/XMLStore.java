@@ -33,26 +33,26 @@
 
 package ucar.util.prefs;
 
-import java.beans.XMLEncoder;
-import java.beans.XMLDecoder;
-import java.beans.ExceptionListener;
-
 import org.jdom2.Document;
 import org.jdom2.Element;
 import org.jdom2.JDOMException;
 import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
-import org.xml.sax.*;
-import ucar.nc2.util.IO;
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+import ucar.nc2.constants.CDM;
 import ucar.nc2.util.Indent;
 
-import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
-
+import javax.xml.parsers.SAXParserFactory;
+import java.beans.ExceptionListener;
+import java.beans.XMLDecoder;
+import java.beans.XMLEncoder;
 import java.io.*;
-import java.util.*;
+import java.nio.file.*;
+import java.util.Stack;
 
 /**
  *  This implements an XML-based backing store for PreferencesExt.
@@ -200,7 +200,7 @@ public class XMLStore {
         // the work is done here
         saxParser.parse(primIS, handler);
 
-      } catch (ParserConfigurationException e) {
+      } catch (ParserConfigurationException | IOException e) {
         e.printStackTrace();
 
       } catch (SAXException se) {
@@ -213,11 +213,9 @@ public class XMLStore {
           see.printStackTrace();
         }
 
-      } catch (IOException ioe) {
-        ioe.printStackTrace();
       }
 
-      primIS.close();
+        primIS.close();
       convertIS.close();
     }
 
@@ -232,7 +230,7 @@ public class XMLStore {
         public void exceptionThrown(Exception e) {
           if (showDecoderExceptions)
             System.out.println("***XMLStore.read() got Exception= "+e.getClass().getName()+" "+e.getMessage());
-            e.printStackTrace();
+          e.printStackTrace();
         }
       });
 
@@ -333,8 +331,11 @@ public class XMLStore {
 
     String dirFilename = userHome+"/"+appName;
     File f = new File(dirFilename);
-    if (!f.exists())
-      f.mkdirs(); // now ready for file creation in writeXML
+    if (!f.exists()) {
+      boolean ok = f.mkdirs(); // now ready for file creation in writeXML
+      if (!ok)
+        System.out.println("Error creating directories: " + f.getAbsolutePath());
+    }
     return dirFilename +"/"+ storeName;
   }
 
@@ -402,11 +403,11 @@ public class XMLStore {
     }
 
     private Bean.Collection currentBeanCollection = null;
-    private Stack stack;
+    private Stack<PreferencesExt> stack;
     private PreferencesExt current;
     private void startRoot( Attributes attributes) {
       if (debugDetail) System.out.println(" startRoot ");
-      stack = new Stack();
+      stack = new Stack<>();
       current = rootPrefs;
      }
     private void startMap( Attributes attributes) {
@@ -447,7 +448,7 @@ public class XMLStore {
         currentBeanCollection = new Bean.Collection( attributes);
         if (debug) System.out.println(" beanCollection = "+key);
         current.putObject(key, currentBeanCollection);
-      } catch (Exception e) { } // ??
+      } catch (ClassNotFoundException e) {} // ??
     }
     private void startBeanObject( Attributes attributes) {
       if (beanDecoder == null)
@@ -466,7 +467,7 @@ public class XMLStore {
     }
 
     private void endBeanCollection( ) { currentBeanCollection = null; }
-    private void endNode( ) { current = (PreferencesExt) stack.pop(); }
+    private void endNode( ) { current = stack.pop(); }
   }
 
   String findAttribute(Attributes atts, String what) {
@@ -591,12 +592,12 @@ public class XMLStore {
     fos.close();
 
     // success - rename files
-    File xmlBackup = new File(prefsFile.getAbsolutePath() + ".bak");
-    if (xmlBackup.exists())
-      xmlBackup.delete();
-    prefsFile.renameTo( xmlBackup);
-    prefTemp.renameTo( prefsFile);
-    prefTemp.delete();
+    Path xmlBackup = Paths.get(prefsFile.getAbsolutePath() + ".bak");
+    Path prefsPath = prefsFile.toPath();
+    if (Files.exists(prefsPath))
+        Files.move(prefsPath, xmlBackup, StandardCopyOption.REPLACE_EXISTING);
+    Files.move(prefTemp.toPath(), prefsFile.toPath(),
+            StandardCopyOption.REPLACE_EXISTING);
   }
 
   /**
@@ -607,7 +608,8 @@ public class XMLStore {
 
     // the OutputMunger strips off the XMLEncoder header
     OutputMunger bos = new OutputMunger( out);
-    PrintWriter pw = new PrintWriter( bos);
+    PrintWriter pw = new PrintWriter( new OutputStreamWriter(bos,
+            CDM.utf8Charset));
 
     XMLEncoder beanEncoder = new XMLEncoder( bos);
     beanEncoder.setExceptionListener(new ExceptionListener() {
@@ -652,22 +654,22 @@ public class XMLStore {
         out.printf("%s<map/>%n", indent);
       } else {
         out.printf("%s<map>%n", indent);
-        for (int i=0; i<keys.length; i++) {
-          Object value =  prefs.getObjectNoDefaults(keys[i]);
+        for (String key: keys) {
+          Object value =  prefs.getObjectNoDefaults(key);
           // LOOK! test if in stored defaults ??
 
           if (value instanceof String) {
-            if (debugWriteNested) System.out.println("  write entry "+keys[i]+" "+value);
-            out.printf("%s  <entry key='%s' value='%s' />%n", indent, keys[i], quote((String) value));
+            if (debugWriteNested) System.out.println("  write entry "+key+" "+value);
+            out.printf("%s  <entry key='%s' value='%s' />%n", indent, key, quote((String) value));
 
           } else if (value instanceof Bean.Collection) {
             Bean.Collection bean = (Bean.Collection) value;
-            if (debugWriteNested) System.out.println("  write bean collection "+keys[i]);
+            if (debugWriteNested) System.out.println("  write bean collection "+key);
 
             if (bean.getCollection().isEmpty()) // skip empty ??
               continue;
 
-            out.printf("%s  <beanCollection key='%s' class='%s' >%n", indent, keys[i], bean.getBeanClass().getName());
+            out.printf("%s  <beanCollection key='%s' class='%s' >%n", indent, key, bean.getBeanClass().getName());
 
             for (Object o : bean.getCollection()) {
               out.printf("%s    <bean ", indent);
@@ -678,17 +680,17 @@ public class XMLStore {
 
           } else if (value instanceof Bean) {
             Bean bean = (Bean) value;
-            if (debugWriteNested) System.out.println("  write bean "+keys[i]+" "+value);
-            out.printf("%s  <bean key='%s' class='%s' ", indent, keys[i], bean.getBeanClass().getName());
+            if (debugWriteNested) System.out.println("  write bean "+key+" "+value);
+            out.printf("%s  <bean key='%s' class='%s' ", indent, key, bean.getBeanClass().getName());
             bean.writeProperties( out);
             out.printf("/>%n");
 
           } else { // not a String or Bean
-            out.printf("%s  <beanObject key='%s' >%n", indent, keys[i]);
+            out.printf("%s  <beanObject key='%s' >%n", indent, key);
             out.flush();
             bos.enterBeanStream();
             try {
-              if (debugWriteNested || debugWriteBean) System.out.println("  write beanObject "+keys[i]+" "+value+" "+value.getClass().getName());
+              if (debugWriteNested || debugWriteBean) System.out.println("  write beanObject "+key+" "+value+" "+value.getClass().getName());
               beanEncoder.writeObject( value);
               if (debugWriteBean) System.out.println("  write bean done ");
             } catch (Exception e) {
@@ -704,9 +706,8 @@ public class XMLStore {
         out.printf("%s</map>%n", indent);
       }
 
-      String[] kidName = prefs.childrenNames();
-      for (int i=0; i<kidName.length; i++) {
-        PreferencesExt pkid = (PreferencesExt) prefs.node( kidName[i]);
+      for (String kidName: prefs.childrenNames()) {
+        PreferencesExt pkid = (PreferencesExt) prefs.node(kidName);
         out.printf("%s<node name='%s' >%n", indent, pkid.name());
         writeXmlNode(bos, out, pkid, beanEncoder, indent);
         out.printf("%s</node>%n", indent);
@@ -726,8 +727,8 @@ public class XMLStore {
   static String quote(String x) {
     // common case no replacement
     boolean ok = true;
-    for (int i=0; i<replaceChar.length; i++) {
-      int pos = x.indexOf(replaceChar[i]);
+    for (char c: replaceChar) {
+      int pos = x.indexOf(c);
       ok &= (pos < 0);
     }
     if (ok) return x;
@@ -754,7 +755,7 @@ public class XMLStore {
 
 
   //private final int DIE = 0; // 97;
-  private class OutputMunger extends java.io.BufferedOutputStream {
+  private static class OutputMunger extends java.io.BufferedOutputStream {
     boolean done = false;
     boolean bean = false;
     int countNL = 0;

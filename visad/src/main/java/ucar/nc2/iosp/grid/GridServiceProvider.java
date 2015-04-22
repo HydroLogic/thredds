@@ -174,11 +174,6 @@ public abstract class GridServiceProvider extends AbstractIOServiceProvider {
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * The netCDF file that the iosp is part of
-   */
-  protected NetcdfFile ncfile;
-
-  /**
    * Use the given index to fill the NetcdfFile object with attributes and variables.
    *
    * @param index      GridIndex to use
@@ -197,23 +192,7 @@ public abstract class GridServiceProvider extends AbstractIOServiceProvider {
    */
   @Override
   public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
-    this.raf = raf;
-    this.ncfile = ncfile;
-  }
-
-  /**
-   * Get the detail information
-   *
-   * @return the detail info
-   */
-  @Override
-  public String getDetailInfo() {
-    return ""; // parseInfo.toString();
-  }
-
-  @Override
-  public Object sendIospMessage(Object special) {
-    return super.sendIospMessage(special);
+    super.open(raf, ncfile, cancelTask);
   }
 
   /**

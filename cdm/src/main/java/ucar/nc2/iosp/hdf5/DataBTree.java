@@ -30,31 +30,30 @@ public class DataBTree {
   private static final boolean debugDataChunk = false;
   private static final boolean debugChunkOrder = false;
   private static java.io.PrintStream debugOut = System.out;
-  private MemTracker memTracker;
 
-  private H5header h5;
-  private RandomAccessFile raf;
+  private final H5header h5;
+  private final RandomAccessFile raf;
+  private final MemTracker memTracker;
+
+  private final long rootNodeAddress;
+  private final Tiling tiling;
+  private final int ndimStorage, wantType;
 
   private Variable owner;
-  private long rootNodeAddress;
-  private Tiling tiling;
-  private int ndimStorage, wantType;
 
-  DataBTree(H5header h5, long rootNodeAddress, int[] varShape, int[] storageSize) throws IOException {
+  DataBTree(H5header h5, long rootNodeAddress, int[] varShape, int[] storageSize, MemTracker memTracker) throws IOException {
     this.h5 = h5;
     this.raf = h5.raf;
     this.rootNodeAddress = rootNodeAddress;
     this.tiling = new Tiling(varShape, storageSize);
     this.ndimStorage = storageSize.length;
+    this.memTracker = memTracker;
+
     wantType = 1;
   }
 
   void setOwner(Variable owner) {
     this.owner = owner;
-  }
-
-  public void setMemTracker(MemTracker memTracker) {
-    this.memTracker = memTracker;
   }
 
   // used by H5tiledLayoutBB
@@ -171,9 +170,7 @@ public class DataBTree {
       raf.seek( h5.getFileOffset(address));
       this.address = address;
 
-      byte[] name = new byte[4];
-      raf.read(name);
-      String magic = new String(name);
+      String magic = raf.readString(4);
       if (!magic.equals("TREE"))
         throw new IllegalStateException("DataBTree doesnt start with TREE");
 

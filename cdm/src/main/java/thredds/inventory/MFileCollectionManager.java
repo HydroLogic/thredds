@@ -1,37 +1,39 @@
 /*
- * Copyright (c) 1998 - 2011. University Corporation for Atmospheric Research/Unidata
- * Portions of this software were developed by the Unidata Program at the
- * University Corporation for Atmospheric Research.
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- * Access and use of this software shall impose the following obligations
- * and understandings on the user. The user is granted the right, without
- * any fee or cost, to use, copy, modify, alter, enhance and distribute
- * this software, and any derivative works thereof, and its supporting
- * documentation for any purpose whatsoever, provided that this entire
- * notice appears in all copies of the software, derivative works and
- * supporting documentation.  Further, UCAR requests that the user credit
- * UCAR/Unidata in any publications that result from the use of this
- * software or in any product that includes this software. The names UCAR
- * and/or Unidata, however, may not be used in any advertising or publicity
- * to endorse or promote any products or commercial entity unless specific
- * written permission is obtained from UCAR/Unidata. The user also
- * understands that UCAR/Unidata is not obligated to provide the user with
- * any support, consulting, training or assistance of any kind with regard
- * to the use, operation and performance of this software nor to provide
- * the user with any updates, revisions, new versions or "bug fixes."
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
- * THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- * WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 package thredds.inventory;
 
+import net.jcip.annotations.GuardedBy;
 import net.jcip.annotations.ThreadSafe;
 import thredds.featurecollection.FeatureCollectionConfig;
 import ucar.nc2.time.CalendarDate;
@@ -47,14 +49,13 @@ import thredds.inventory.filter.*;
  * Manage Collections of MFiles.
  * Used in:
  * <ul>
- * <li> replaces older version in ncml.Aggregation
- * <li> ucar.nc2.ft.point.collection.TimedCollectionImpl (ucar.nc2.ft.point.collection.CompositeDatasetFactory)
+ * <li> thredds.inventory
  * <li> ucar.nc2.ft.fmrc.Fmrc
- * <li> ucar.nc2.grib.GribCollection
+ * <li> ucar.nc2.ncml.Aggregation
  * </ul>
  * <p/>
  * we need to be thread safe, for InvDatasetFeatureCollection
- *
+ * @deprecated
  * @author caron
  * @since Jul 8, 2009
  */
@@ -94,9 +95,12 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
   //protected String rootDir;
   protected FeatureCollectionConfig config;
 
-  // this can change = keep under lock
-  private Map<String, MFile> map; // current map of MFile in the collection
+  @GuardedBy("this")
+  private Map<String, MFile> map; // current map of MFile in the collection. this can change = keep under lock
+
+  @GuardedBy("this")
   private long lastScanned;       // last time scanned
+  @GuardedBy("this")
   private AtomicLong lastChanged = new AtomicLong(); // last time the set of files changed
 
   private MFileCollectionManager(String collectionName, String collectionSpec, String olderThan, Formatter errlog) {
@@ -117,10 +121,10 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
 
   // this is the full featured constructor, using FeatureCollectionConfig for config.
   public MFileCollectionManager(FeatureCollectionConfig config, Formatter errlog, org.slf4j.Logger logger) {
-    super(config.name != null ? config.name : config.spec, logger);
+    super(config.collectionName != null ? config.collectionName : config.spec, logger);
     this.config = config;
 
-    CollectionSpecParser sp = new CollectionSpecParser(config.spec, errlog);
+    CollectionSpecParser sp = config.getCollectionSpecParser(errlog);
     this.root = sp.getRootDir();
 
     List<MFileFilter> filters = new ArrayList<MFileFilter>(3);
@@ -137,12 +141,16 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
 
     scanList.add(new CollectionConfig(sp.getRootDir(), sp.getRootDir(), sp.wantSubdirs(), filters, null));
 
-    this.recheck = makeRecheck(config.updateConfig.recheckAfter);
-    protoChoice = config.protoConfig.choice;
+    if (config.protoConfig != null)
+      protoChoice = config.protoConfig.choice;
 
-    // static means never rescan on checkState; let it be externally triggered.
-    if ((config.updateConfig.recheckAfter == null) && (config.updateConfig.rescan == null) &&  (config.updateConfig.deleteAfter == null))
-      setStatic(true);
+    if (config.updateConfig != null) {
+      this.recheck = makeRecheck(config.updateConfig.recheckAfter);
+
+      // static means never rescan on checkState; let it be externally triggered.
+      if ((config.updateConfig.recheckAfter == null) && (config.updateConfig.rescan == null) && (config.updateConfig.deleteAfter == null))
+        setStatic(true);
+    }
 
     if (this.auxInfo == null) this.auxInfo = new HashMap<>(10);
     this.auxInfo.put(FeatureCollectionConfig.AUX_CONFIG, config);
@@ -257,7 +265,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
     if ((subdirsS != null) && subdirsS.equalsIgnoreCase("false"))
       wantSubdirs = false;
 
-    MFileFilter filter = (filters.size() == 0) ? null : ((filters.size() == 1) ? filters.get(0) : new Composite(filters));
+    MFileFilter filter = (filters.size() == 0) ? null : ((filters.size() == 1) ? filters.get(0) : new CompositeMFileFilter(filters));
     CollectionConfig mc = new CollectionConfig(dirName, dirName, wantSubdirs, filter, auxInfo);
 
     // create name
@@ -282,12 +290,12 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
   }
 
   @Override
-  public long getLastScanned() {
+  public synchronized long getLastScanned() {
     return lastScanned;
   }
 
   @Override
-  public long getLastChanged() {
+  public synchronized long getLastChanged() {
     return lastChanged.get();
   }
 
@@ -313,13 +321,15 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
       return false;
     }
 
-    if (map == null && !isStatic()) {
-      logger.debug("{}: scan needed, never scanned", collectionName);
-      return true;
+    synchronized (this) {
+      if (map == null && !isStatic()) {
+        logger.debug("{}: scan needed, never scanned", collectionName);
+        return true;
+      }
     }
 
     Date now = new Date();
-    Date lastCheckedDate = new Date(lastScanned);
+    Date lastCheckedDate = new Date(getLastScanned());
     Date need = recheck.add(lastCheckedDate);
     if (now.before(need)) {
       logger.debug("{}: scan not needed, last scanned={}, now={}", collectionName, lastCheckedDate, now);
@@ -332,7 +342,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
   /**
    * Do not use
    * @throws IOException
-   */
+   *
   public void scanDebug(Formatter f) throws IOException {
     getController(); // make sure a controller is instantiated
 
@@ -340,7 +350,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
     for (CollectionConfig mc : scanList) {
 
       // lOOK: are there any circumstances where we dont need to recheck against OS, ie always use cached values?
-      Iterator<MFile> iter = (mc.wantSubdirs()) ? controller.getInventoryAll(mc, true) : controller.getInventoryTop(mc, true);  /// NCDC wants subdir /global/nomads/nexus/gfsanl/**/gfsanl_3_.*\.grb$
+      Iterator<MFile> iter = (mc.wantSubdirs()) ? controller.getInventoryAll(mc, true) : controller.getInventoryTop(mc, true);  /// NCDC wants subdir /global/nomads/nexus/gfsanl..gfsanl_3_.*\.grb$
       if (iter == null) {
         logger.error(collectionName + ": Invalid collection= " + mc);
         continue;
@@ -356,10 +366,18 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
       logger.debug("{} : was scanned nfiles= {} ", collectionName, count);
     }
 
+  } */
+
+    ////////////////////////
+  // experimental
+  protected ChangeChecker changeChecker = null;
+
+  public synchronized void setChangeChecker(ChangeChecker strat) {
+    this.changeChecker = strat;
   }
 
   @Override
-  public boolean scan(boolean sendEvent) throws IOException {
+  public synchronized boolean scan(boolean sendEvent) throws IOException {
     if (map == null) {
       boolean changed = scanFirstTime();
       if (changed && sendEvent)
@@ -371,7 +389,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
 
     // rescan
     Map<String, MFile> oldMap = map;
-    Map<String, MFile> newMap = new HashMap<String, MFile>();
+    Map<String, MFile> newMap = new HashMap<>();
     reallyScan(newMap);
 
     // replace with previous datasets if they exist
@@ -418,15 +436,11 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
       if (logger.isInfoEnabled())
         logger.info("{}: scan found changes {}: nnew={}, nchange={}, ndelete={}", collectionName, new Date(), nnew, nchange, ndelete);
 
-      synchronized (this) {
         map = newMap;
         this.lastScanned = System.currentTimeMillis();
         this.lastChanged.set(this.lastScanned);
-      }
     } else {
-      synchronized (this) {
         this.lastScanned = System.currentTimeMillis();
-      }
     }
 
     if (changed && sendEvent) {  // event is processed on this thread
@@ -437,7 +451,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
   }
 
   public void setFiles(Iterable<MFile> files) {
-    Map<String, MFile> newMap = new HashMap<String, MFile>();
+    Map<String, MFile> newMap = new HashMap<>();
     for (MFile file : files)
       newMap.put(file.getPath(), file);
 
@@ -449,7 +463,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
   }
 
   @Override
-  public Iterable<MFile> getFilesSorted() {
+  public synchronized Iterable<MFile> getFilesSorted() {
     if (map == null)
       try {
         scanFirstTime(); // never scanned
@@ -458,7 +472,7 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
         return Collections.emptyList();
       }
 
-    List<MFile> result = new ArrayList<MFile>(map.values());
+    List<MFile> result = new ArrayList<>(map.values());
     if (hasDateExtractor()) {
       Collections.sort(result, new DateSorter());
     } else {
@@ -473,11 +487,12 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
     return (dateExtractor != null) && !(dateExtractor instanceof DateExtractorNone);
   }
 
+  // only called from synch methods
   private boolean scanFirstTime() throws IOException {
     Map<String, MFile> newMap = new HashMap<>();
     if (!hasScans()) {
-      map = newMap;
-      return false;
+        map = newMap;
+        return false;
     }
 
     reallyScan(newMap);
@@ -497,11 +512,9 @@ public class MFileCollectionManager extends CollectionManagerAbstract {
       }
     }
 
-    synchronized (this) {
-      map = newMap;
-      this.lastScanned = System.currentTimeMillis();
-      this.lastChanged.set(this.lastScanned);
-    }
+    map = newMap;
+    this.lastScanned = System.currentTimeMillis();
+    this.lastChanged.set(this.lastScanned);
     logger.debug("{} : initial scan found n datasets = {} ", collectionName, map.keySet().size());
     return map.keySet().size() > 0;
   }

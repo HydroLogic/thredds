@@ -3,10 +3,10 @@ package ucar.nc2.ui.coverage;
 import ucar.nc2.constants.AxisType;
 import ucar.nc2.dataset.*;
 import ucar.nc2.ft.fmrc.GridDatasetInv;
-import ucar.nc2.ft.grid.Coverage;
-import ucar.nc2.ft.grid.CoverageCS;
-import ucar.nc2.ft.grid.CoverageDataset;
-import ucar.nc2.ft.grid.impl.CoverageDatasetImpl;
+import ucar.nc2.ft.cover.Coverage;
+import ucar.nc2.ft.cover.CoverageCS;
+import ucar.nc2.ft.cover.CoverageDataset;
+import ucar.nc2.ft.cover.impl.CoverageDatasetImpl;
 import ucar.nc2.ui.dialog.NetcdfOutputChooser;
 import ucar.nc2.ui.widget.*;
 import ucar.nc2.ui.widget.PopupMenu;
@@ -171,6 +171,7 @@ public class CoverageTable extends JPanel {
     invButton.addActionListener(new ActionListener() {
       public void actionPerformed(ActionEvent e) {
         if (gridDataset == null) return;
+        if (!(gridDataset instanceof ucar.nc2.dt.grid.GridDataset)) return;
         GridDatasetInv inv = new GridDatasetInv((ucar.nc2.dt.grid.GridDataset) gridDataset, null);
         try {
           infoTA.setText(inv.writeXML(new Date()));

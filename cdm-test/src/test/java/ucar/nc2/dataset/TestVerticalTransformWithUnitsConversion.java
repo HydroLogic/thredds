@@ -32,17 +32,11 @@
  */
 package ucar.nc2.dataset;
 
-import static org.junit.Assert.assertArrayEquals;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-
 import ucar.ma2.ArrayDouble;
 import ucar.ma2.InvalidRangeException;
 import ucar.nc2.dt.grid.GeoGrid;
@@ -52,7 +46,14 @@ import ucar.unidata.geoloc.LatLonPointImpl;
 import ucar.unidata.geoloc.ProjectionImpl;
 import ucar.unidata.geoloc.ProjectionPoint;
 import ucar.unidata.geoloc.vertical.VerticalTransform;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+
+import static org.junit.Assert.assertArrayEquals;
 
 /**
  * 
@@ -65,7 +66,8 @@ import ucar.unidata.test.util.TestDir;
  * @author mhermida
  *
  */
-@RunWith(value = Parameterized.class)
+@RunWith(Parameterized.class)
+@Category(NeedsCdmUnitTest.class)
 public class TestVerticalTransformWithUnitsConversion {
 	
 	private String sameUnitsFile;
@@ -89,8 +91,7 @@ public class TestVerticalTransformWithUnitsConversion {
 				{TestDir.cdmUnitTestDir + "transforms/HybridSigmaPressure.nc", "/share/testdata/cdmUnitTest/transforms/HybridSigmaPressure.ncml", new LatLonPointImpl( 40.019, -105.293 ), "T"} ,    //HybridSigma with P
 				{TestDir.cdmUnitTestDir + "transforms/HIRLAMhybrid.ncml","/share/testdata/cdmUnitTest/transforms/HIRLAMhybrid_hPa.ncml", new LatLonPointImpl( 42.86, -8.55 ), "Relative_humidity_hybrid"}  //HybridSigma with AP
 		};
-		
-		
+
 		return Arrays.asList(data);
 	}
 

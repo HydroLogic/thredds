@@ -302,7 +302,7 @@ public class HTTPCachingProvider implements CredentialsProvider
         HTTPCachingProvider.cache.clear();
     }
 
-    static public List<Triple>// for testing
+    static synchronized public List<Triple>// for testing
     getCache()
     {
         List<Triple> localcache = new ArrayList<Triple>();
@@ -313,7 +313,7 @@ public class HTTPCachingProvider implements CredentialsProvider
         return localcache;
     }
 
-    static public List<Triple> getTestList()
+    static synchronized public List<Triple> getTestList()
     {
         List<Triple> list = new ArrayList<Triple>();
         list.addAll(testlist);

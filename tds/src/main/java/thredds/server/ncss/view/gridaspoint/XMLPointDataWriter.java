@@ -33,23 +33,9 @@
 
 package thredds.server.ncss.view.gridaspoint;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamWriter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
-
 import thredds.server.ncss.util.NcssRequestUtils;
 import thredds.util.ContentType;
 import ucar.ma2.InvalidRangeException;
@@ -61,6 +47,14 @@ import ucar.nc2.dt.GridDatatype;
 import ucar.nc2.dt.grid.GridAsPointDataset;
 import ucar.nc2.time.CalendarDate;
 import ucar.unidata.geoloc.LatLonPoint;
+
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.*;
+import java.util.Map.Entry;
 
 class XMLPointDataWriter implements PointDataWriter {
 	static private Logger log = LoggerFactory.getLogger(XMLPointDataWriter.class);
@@ -90,7 +84,7 @@ class XMLPointDataWriter implements PointDataWriter {
 			xmlStreamWriter.writeStartDocument("UTF-8", "1.0");
 			xmlStreamWriter.writeStartElement("grid");
 			xmlStreamWriter.writeAttribute("dataset",
-					gridDataset.getLocationURI());
+					gridDataset.getLocation());
 			headerWritten = true;
 		} catch (XMLStreamException xse) {
 			log.error("Error writting xml header", xse);
@@ -238,7 +232,7 @@ class XMLPointDataWriter implements PointDataWriter {
 							writeDataTag(xmlStreamWriter, attributes, Double.valueOf(p.z).toString());
 							attributes.clear();
 							
-							if(actualLevel != -9999.9){
+							if (Double.compare(actualLevel, -9999.9) != 0) {  // LOOK WTF ??
 								
 								attributes.put("name", "vertCoord");
 								attributes.put("units", grid.getCoordinateSystem().getVerticalTransform().getUnitString() );
@@ -488,7 +482,8 @@ class XMLPointDataWriter implements PointDataWriter {
     	//Set the response headers...
 		if(!isStream){
 			httpHeaders.set("Content-Location", pathInfo );
-			httpHeaders.set("Content-Disposition", "attachment; filename=\"" + NcssRequestUtils.nameFromPathInfo(pathInfo) + ".xml\"");
+            String fileName = NcssRequestUtils.getFileNameForResponse(pathInfo, ".xml");
+            httpHeaders.set("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
 		}	
     httpHeaders.set(ContentType.HEADER, ContentType.xml.getContentHeader());
 		//httpHeaders.setContentType(MediaType.APPLICATION_XML);

@@ -31,23 +31,22 @@
  */
 package ucar.nc2.ft.scan;
 
+import ucar.nc2.constants.FeatureType;
 import ucar.nc2.constants._Coordinate;
-import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.dataset.CoordinateSystem;
+import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.ft.FeatureDataset;
 import ucar.nc2.ft.FeatureDatasetFactoryManager;
-import ucar.nc2.constants.FeatureType;
-import ucar.nc2.ft.grid.CoverageCS;
-import ucar.nc2.ft.grid.impl.CoverageCSFactory;
+import ucar.nc2.ft.cover.impl.CoverageCSFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.util.Formatter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Collections;
+import java.util.Formatter;
+import java.util.List;
 
 /**
  * Scan a directory, try to open files as a Feature Type dataset.
@@ -67,7 +66,7 @@ public class FeatureScan {
 
   public java.util.List<FeatureScan.Bean> scan(Formatter errlog) {
 
-    List<Bean> result = new ArrayList<Bean>();
+    List<Bean> result = new ArrayList<>();
 
     File topFile = new File(top);
     if (!topFile.exists()) {
@@ -89,7 +88,7 @@ public class FeatureScan {
     if ((dir.getName().equals("exclude")) || (dir.getName().equals("problem")))return;
 
     // get list of files
-    List<File> files = new ArrayList<File>();
+    List<File> files = new ArrayList<>();
     for (File f : dir.listFiles()) {
       if (!f.isDirectory()) {
         files.add(f);
@@ -172,10 +171,8 @@ public class FeatureScan {
     public Bean(File f) {
       this.f = f;
 
-      NetcdfDataset ds = null;
-      try {
-        if (debug) System.out.printf(" featureScan=%s%n", f.getPath());
-        ds = NetcdfDataset.openDataset(f.getPath());
+      if (debug) System.out.printf(" featureScan=%s%n", f.getPath());
+      try (NetcdfDataset ds = NetcdfDataset.openDataset(f.getPath())){
         fileType = ds.getFileTypeId();
         setCoordMap(ds.getCoordinateSystems());
         coordSysBuilder = ds.findAttValueIgnoreCase(null, _Coordinate._CoordSysBuilder, "none");
@@ -214,12 +211,6 @@ public class FeatureScan {
       } catch (Throwable t) {
         fileType = " ERR: " + t.getMessage();
         problem = t;
-
-      } finally {
-        if (ds != null) try {
-          ds.close();
-        } catch (IOException ioe) {
-        }
       }
     }
 
@@ -282,9 +273,9 @@ public class FeatureScan {
         f.format("%n%s", info);
       }
       if (problem != null) {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream(10000);
-        problem.printStackTrace(new PrintStream(bout));
-        f.format("%n%s", bout.toString());
+        StringWriter sw = new StringWriter(5000);
+        problem.printStackTrace(new PrintWriter(sw));
+        f.format(sw.toString());
       }
     }
 
@@ -301,15 +292,13 @@ public class FeatureScan {
         type = CoverageCSFactory.describe(ff, ds);
 
       } catch (IOException e) {
-        ByteArrayOutputStream bout = new ByteArrayOutputStream(10000);
-        problem.printStackTrace(new PrintStream(bout));
-        ff.format("%n%s", bout.toString());
-
+        StringWriter sw = new StringWriter(10000);
+        e.printStackTrace(new PrintWriter(sw));
+        ff.format("%n%s", sw.toString());
       }
       ff.format("CoverageCS.Type = %s", type);
       return ff.toString();
     }
-
   }
 
   public static void main(String arg[]) {
@@ -321,7 +310,7 @@ public class FeatureScan {
 
     boolean subdirs = false;
 
-    for (int i = 2; i < arg.length; i++) {
+    for (int i = 1; i < arg.length; i++) {
       String s = arg[i];
       if (s.equalsIgnoreCase("-subdirs")) subdirs = true;
     }
@@ -334,6 +323,4 @@ public class FeatureScan {
       System.out.printf(" %-60s %-20s %-10s %-10s%n", b.getName(), b.getFileType(), b.getFeatureType(), b.getFeatureImpl());
 
   }
-
-
 }

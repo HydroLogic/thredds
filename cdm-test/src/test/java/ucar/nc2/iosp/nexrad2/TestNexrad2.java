@@ -32,59 +32,57 @@
  */
 package ucar.nc2.iosp.nexrad2;
 
-import ucar.nc2.*;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import ucar.ma2.Array;
+import ucar.ma2.IndexIterator;
+import ucar.ma2.InvalidRangeException;
+import ucar.nc2.Dimension;
+import ucar.nc2.NetcdfFile;
+import ucar.nc2.Variable;
 import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.dataset.VariableDS;
-import ucar.ma2.*;
-
-import java.io.IOException;
-import java.io.File;
-
-import junit.framework.TestCase;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
-public class TestNexrad2 extends TestCase {
+import java.io.File;
+import java.io.IOException;
 
-  public TestNexrad2( String name) {
-    super(name);
-  }
-
+@Category(NeedsCdmUnitTest.class)
+public class TestNexrad2 {
+  // FIXME: This method sucks: it doesn't fail when dirName can't be read.
+  @Test
   public void testRead() throws IOException {
     long start = System.currentTimeMillis();
-    doDirectory(TestDir.cdmUnitTestDir + "formats/nexrad/level2/VCP11", false);
+    TestDir.actOnAll(TestDir.cdmUnitTestDir + "formats/nexrad/level2/VCP11", null, new MyAct(true));
+    TestDir.actOnAll(TestDir.cdmUnitTestDir + "formats/nexrad/level2/VCP11", null, new MyAct(false));
     long took = System.currentTimeMillis() - start;
     System.out.println("that took = "+took+" msec");
   }
 
-  private void doDirectory(String dirName, boolean alwaysUncompress) throws IOException {
+  private class MyAct implements TestDir.Act {
+    boolean deleteUncompress;
 
-    File dir = new File(dirName);
-    File[] files = dir.listFiles();
-    if (alwaysUncompress) {
-      for (int i = 0; i < files.length; i++) {
-        File file = files[i];
-        String path = file.getPath();
-        if (path.endsWith(".uncompress"))
-          file.delete();
-      }
+    private MyAct(boolean deleteUncompress) {
+      this.deleteUncompress = deleteUncompress;
     }
 
-    for (int i = 0; i < files.length; i++) {
-      File file = files[i];
-      String path = file.getPath();
-      if (path.endsWith(".uncompress")) continue;
-
-      if (file.isDirectory())
-        doDirectory(path, alwaysUncompress);
-      else {
-        NetcdfFile ncfile = NetcdfDataset.openFile(path, null);
-        testRead(ncfile);
+    @Override
+    public int doAct(String filename) throws IOException {
+      if (deleteUncompress && filename.endsWith(".uncompress")) {
+        File uf = new File(filename);
+        if (!uf.delete())
+          System.out.printf("Failed to delete %s%n", filename);
+        return 0;
       }
 
+      try (NetcdfFile ncfile = NetcdfDataset.openFile(filename, null)) {
+        return testRead(ncfile);
+      }
     }
   }
 
-  private void testRead( NetcdfFile nexrad2) throws IOException {
+  private int testRead( NetcdfFile nexrad2) throws IOException {
     System.out.println(nexrad2.getLocation());
 
     Dimension scanR = nexrad2.findDimension("scanR");
@@ -115,6 +113,8 @@ public class TestNexrad2 extends TestCase {
     v =  nexrad2.findVariable("SpectrumWidth");
     assert v != null;
     data = v.read();
+
+    return 1;
 
   }
 
@@ -151,44 +151,46 @@ public class TestNexrad2 extends TestCase {
     return ok;
   }
 
-
-
-  public void utestCoordSys() throws IOException {
+  @Test
+  public void testCoordSys() throws IOException {
     //NetcdfDataset ncd = NetcdfDataset.openDataset(
     //        "dods://localhost:8080/thredds/dodsC/testAll/Level2_KSOX_20051010_2322.ar2v", false, null);
     String filename = TestDir.cdmUnitTestDir + "formats/nexrad/level2/Level2_KYUX_20060527_2335.ar2v";
-    NetcdfFile ncfile = NetcdfDataset.openFile( filename, null);
-    testCoordSystem( ncfile);
+    try (NetcdfFile ncfile = NetcdfDataset.openFile( filename, null)) {
+      testCoordSystem(ncfile);
+    }
   }
 
+  @Test
   public void testBzipProblem() throws IOException, InvalidRangeException {
     // file where there was an error unzipping the file
     String filename = TestDir.cdmUnitTestDir + "formats/nexrad/level2/Level2_KFTG_20060818_1814.ar2v.uncompress.missingradials";
-    NetcdfDataset ncd = NetcdfDataset.openDataset( filename);
+    try (NetcdfDataset ncd = NetcdfDataset.openDataset( filename)) {
 
-    VariableDS azi = (VariableDS) ncd.findVariable("azimuthR");
-    assert azi != null;
-    VariableDS elev = (VariableDS) ncd.findVariable("elevationR");
-    assert elev != null;
-    VariableDS time = (VariableDS) ncd.findVariable("timeR");
-    assert time != null;
-    VariableDS r = (VariableDS) ncd.findVariable("Reflectivity");
-    assert r != null;
-    checkMissingValues(elev, azi, time, r);
+      VariableDS azi = (VariableDS) ncd.findVariable("azimuthR");
+      assert azi != null;
+      VariableDS elev = (VariableDS) ncd.findVariable("elevationR");
+      assert elev != null;
+      VariableDS time = (VariableDS) ncd.findVariable("timeR");
+      assert time != null;
+      VariableDS r = (VariableDS) ncd.findVariable("Reflectivity");
+      assert r != null;
+      checkMissingValues(elev, azi, time, r);
 
-    azi = (VariableDS) ncd.findVariable("azimuthV");
-    assert azi != null;
-    elev = (VariableDS) ncd.findVariable("elevationV");
-    assert elev != null;
-    time = (VariableDS) ncd.findVariable("timeV");
-    assert time != null;
-    r = (VariableDS) ncd.findVariable("RadialVelocity");
-    assert r != null;
-    checkMissingValues(elev, azi, time, r);
+      azi = (VariableDS) ncd.findVariable("azimuthV");
+      assert azi != null;
+      elev = (VariableDS) ncd.findVariable("elevationV");
+      assert elev != null;
+      time = (VariableDS) ncd.findVariable("timeV");
+      assert time != null;
+      r = (VariableDS) ncd.findVariable("RadialVelocity");
+      assert r != null;
+      checkMissingValues(elev, azi, time, r);
 
-    r = (VariableDS) ncd.findVariable("SpectrumWidth");
-    assert r != null;
-    checkMissingValues(elev, azi, time, r);
+      r = (VariableDS) ncd.findVariable("SpectrumWidth");
+      assert r != null;
+      checkMissingValues(elev, azi, time, r);
+    }
   }
 
   private void checkMissingValues(VariableDS elev, VariableDS azi, VariableDS time, VariableDS q) throws IOException, InvalidRangeException {

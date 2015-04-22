@@ -1,10 +1,5 @@
-jar {
-    manifest {
-        attributes 'Implementation-Title': 'netcdf4'
-    }
-}
-
 dependencies {
-  compile project(':cdm')
-  compile 'net.java.dev.jna:jna:4.0.0'
+    compile project(':cdm')
+    compile libraries["jna"]
+    compile libraries["slf4j-api"]
 }

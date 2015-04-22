@@ -32,6 +32,8 @@
  */
 package ucar.nc2.geotiff;
 
+import ucar.nc2.constants.CDM;
+
 import java.nio.*;
 import java.nio.channels.*;
 import java.io.*;
@@ -235,10 +237,9 @@ public class GeoTiff implements AutoCloseable {
 
     // tags gotta be in order
     Collections.sort(tags);
-    int start = 0;
-    if (imageNumber == 1)
-      start = writeHeader(channel);
-    else {
+    if (imageNumber == 1) {
+      writeHeader(channel);
+    } else {
       //now this is not the first image we need to fill the Offset of nextIFD
       channel.position(lastIFD);
       ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -384,9 +385,9 @@ public class GeoTiff implements AutoCloseable {
   }
 
   private int writeSValue(ByteBuffer buffer, IFDEntry ifd) {
-    buffer.put(ifd.valueS.getBytes());
+    buffer.put(ifd.valueS.getBytes(CDM.utf8Charset));
     int size = ifd.valueS.length();
-    if ((size % 2) == 1) size++;
+    if ((size & 1) != 0) size++;  // check if odd
     return size;
   }
 
@@ -426,7 +427,8 @@ public class GeoTiff implements AutoCloseable {
     channel.position(0);
 
     ByteBuffer buffer = ByteBuffer.allocate(8);
-    channel.read(buffer);
+    int n = channel.read(buffer);
+    assert n == 8;
     buffer.flip();
     if (showHeaderBytes) {
       printBytes(System.out, "header", buffer, 4);
@@ -451,6 +453,7 @@ public class GeoTiff implements AutoCloseable {
     buffer.order(byteOrder);
 
     int n = channel.read(buffer);
+    assert n == 2;
     buffer.flip();
     if (showBytes) {
       printBytes(System.out, "IFD", buffer, 2);
@@ -472,7 +475,7 @@ public class GeoTiff implements AutoCloseable {
     channel.position(start);
     buffer = ByteBuffer.allocate(4);
     buffer.order(byteOrder);
-    n = channel.read(buffer);
+    assert 4 == channel.read(buffer);
     buffer.flip();
     int nextIFD = buffer.getInt();
     if (debugRead) System.out.println(" nextIFD == " + nextIFD);
@@ -485,7 +488,8 @@ public class GeoTiff implements AutoCloseable {
     channel.position(start);
     ByteBuffer buffer = ByteBuffer.allocate(12);
     buffer.order(byteOrder);
-    channel.read(buffer);
+    int n = channel.read(buffer);
+    assert n == 12;
     buffer.flip();
     if (showBytes) printBytes(System.out, "IFDEntry bytes", buffer, 12);
 
@@ -507,7 +511,7 @@ public class GeoTiff implements AutoCloseable {
       channel.position(offset);
       ByteBuffer vbuffer = ByteBuffer.allocate(ifd.count * ifd.type.size);
       vbuffer.order(byteOrder);
-      channel.read(vbuffer);
+      assert ifd.count * ifd.type.size == channel.read(vbuffer);
       vbuffer.flip();
       readValues(vbuffer, ifd);
     }
@@ -599,7 +603,7 @@ public class GeoTiff implements AutoCloseable {
   private String readSValue(ByteBuffer buffer, IFDEntry ifd) {
     byte[] dst = new byte[ifd.count];
     buffer.get(dst);
-    return new String(dst);
+    return new String(dst, CDM.utf8Charset);
   }
 
   private void printBytes(PrintStream ps, String head, ByteBuffer buffer, int n) {
@@ -619,8 +623,6 @@ public class GeoTiff implements AutoCloseable {
 
   private void parseGeoInfo() {
     IFDEntry keyDir = findTag(Tag.GeoKeyDirectoryTag);
-    IFDEntry dparms = findTag(Tag.GeoDoubleParamsTag);
-    IFDEntry aparams = findTag(Tag.GeoAsciiParamsTag);
 
     if (null == keyDir) return;
 
@@ -646,14 +648,12 @@ public class GeoTiff implements AutoCloseable {
           System.out.println("********ERROR parseGeoInfo: cant find Tag code = " + location);
         } else if (data.tag == Tag.GeoDoubleParamsTag) { // double params
           double[] dvalue = new double[vcount];
-          for (int k = 0; k < vcount; k++)
-            dvalue[k] = data.valueD[offset + k];
+          System.arraycopy(data.valueD, offset, dvalue, 0, vcount);
           key = new GeoKey(tag, dvalue);
 
         } else if (data.tag == Tag.GeoKeyDirectoryTag) { // int params
           int[] value = new int[vcount];
-          for (int k = 0; k < vcount; k++)
-            value[k] = data.value[offset + k];
+          System.arraycopy(data.value, offset, value, 0, vcount);
           key = new GeoKey(tag, value);
 
         } else if (data.tag == Tag.GeoAsciiParamsTag) { // ascii params
@@ -674,7 +674,7 @@ public class GeoTiff implements AutoCloseable {
   /**
    * Write the geotiff Tag information to out.
    */
-  public void showInfo(PrintStream out) {
+  public void showInfo(PrintWriter out) {
     out.println("Geotiff file= " + filename);
     for (int i = 0; i < tags.size(); i++) {
       IFDEntry ifd = tags.get(i);
@@ -686,9 +686,9 @@ public class GeoTiff implements AutoCloseable {
    * Write the geotiff Tag information to a String.
    */
   public String showInfo() {
-    ByteArrayOutputStream bout = new ByteArrayOutputStream(10000);
-    showInfo(new PrintStream(bout));
-    return bout.toString();
+    StringWriter sw = new StringWriter(5000);
+    showInfo(new PrintWriter(sw));
+    return sw.toString();
   }
 
 
@@ -699,7 +699,7 @@ public class GeoTiff implements AutoCloseable {
     channel.position(offset);
     ByteBuffer buffer = ByteBuffer.allocate(size);
     buffer.order(byteOrder);
-    channel.read(buffer);
+    assert size == channel.read(buffer);
     buffer.flip();
     return buffer;
   }

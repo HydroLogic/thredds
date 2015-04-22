@@ -20,12 +20,12 @@
 
 <p>The Common Data Model has three layers, which build on top of each other to add successively richer semantics:</p>
 <ol>
-  <li>The <strong><em>data access layer</em></strong>, also know as the <strong><em>syntactic layer,</em></strong> handles data reading and writing.</li>
-  <li>The <strong><em>coordinate system</em></strong> layer identifies the coordinates of the data arrays. Coordinates are a completely general concept for
+  <li>The <strong><em><a href="#dataAccess">data access layer</a></em></strong>, also know as the <strong><em>syntactic layer,</em></strong> handles data reading and writing.</li>
+  <li>The <strong><em><a href="#CoordSys">coordinate system</a></em></strong> layer identifies the coordinates of the data arrays. Coordinates are a completely general concept for
     scientific data; we also identify specialized <strong><em>georeferencing coordinate systems</em></strong>, which are important to the Earth Science
     community.
   </li>
-  <li>The <strong><em>scientific feature type</em></strong> layer identifies specific types of data, such as <em>grids</em>, <em>radial</em>, and <em>point
+  <li>The <strong><em><a href="#ScientificFeatureTypes">scientific feature type</a></em></strong> layer identifies specific types of data, such as <em>grids</em>, <em>radial</em>, and <em>point
     data</em>, adding specialized methods for each kind of data.
   </li>
 </ol>
@@ -150,6 +150,7 @@
   <li>Since HDF5 does not support shared dimensions, however, reading HDF5 files into the higher levels of the CDM (Coordinate Systems, Grids, etc) may not work
     like you want. For this reason we recommend using the <a href="http://www.unidata.ucar.edu/software/netcdf/">netCDF-4 C library</a> for writing HDF5 files.
   Heres <a href="http://www.unidata.ucar.edu/blogs/developer/en/entry/dimensions_scales">why</a>.</li>
+  <li>Hard links that cause cycles in the group structure are ignored. These break the CDM and netCDF-4 data model, in which groups comprise a tree. All info in the HDF-5 file is still available to CDM users, but certain paths that one could call from the HDF-5 library are not available.</li>
 </ul>
 <p>Please send file examples if you find a problem with the CDM reading HDF5 files, other than the ones listed above.</p>
 <hr WIDTH="100%">
@@ -284,7 +285,7 @@ Structure {
 </ul>
 <hr WIDTH="100%">
 <address>
-  <img src="../nc.gif" width="64" height="64" alt=""> This document is maintained by <a href="mailto:caron@unidata.ucar.edu">John Caron</a> and was last updated June 2014
+  <img src="../nc.gif" width="64" height="64" alt=""> This document is maintained by <a href="mailto:caron@unidata.ucar.edu">John Caron</a> and was last updated Oct 2014
 </address>
 <p>&nbsp;</p>
 </body>

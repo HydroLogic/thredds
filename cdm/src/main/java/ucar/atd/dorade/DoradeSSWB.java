@@ -30,14 +30,18 @@
  *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
  *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
 package ucar.atd.dorade;
 
+import ucar.nc2.constants.CDM;
+
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Date;
 
 class DoradeSSWB extends DoradeDescriptor {
 
-    private class KeyTable {
+    private static class KeyTable {
         public int offset;
         public int size;
         public int type;
@@ -53,6 +57,14 @@ class DoradeSSWB extends DoradeDescriptor {
             this.offset = offset;
             this.size = size;
             this.type = type;
+        }
+
+        private byte[] readTable(RandomAccessFile raf) throws IOException {
+            raf.seek(this.offset);
+            byte[] ret = new byte[this.size];
+            if (raf.read(ret) != ret.length)
+                throw new IOException("Error reading KeyTable");
+            return ret;
         }
     }
 
@@ -107,7 +119,7 @@ class DoradeSSWB extends DoradeDescriptor {
             nKeyTables = 0;
             keyTables = null;
         } else {
-            radarName = new String(data, 36, 8).trim();
+            radarName = new String(data, 36, 8, CDM.utf8Charset).trim();
 
             //
             // AUUGGGGGHHHHHH!  Everything after this is sometimes offset
@@ -160,19 +172,21 @@ class DoradeSSWB extends DoradeDescriptor {
     }
 
     public String toString() {
-        String s = "SSWB\n";
-        s += "  last use: " + formatDate(lastUseTime) + "\n";
-        s += "  start time: " + formatDate(startTime) + "\n";
-        s += "  end time: " + formatDate(endTime) + "\n";
-        s += "  file size: " + fileSize + "\n";
-        s += "  compression flag: " + compressionFlag + "\n";
-        s += "  volume time: " + formatDate(volumeTime) + "\n";
-        s += "  number of params: " + nParams + "\n";
-        s += "  radar name: " + radarName + "\n";
-        s += "  SSWB version: " + version + "\n";
-        s += "  status: " + status + "\n";
-        s += "  number of key tables: " + nKeyTables;
-        return s;
+        StringBuilder s = new StringBuilder("SSWB\n");
+        s.append("  last use: ").append(formatDate(lastUseTime)).append("\n");
+        s.append("  start time: ").append(formatDate(startTime)).append("\n");
+        s.append("  end time: ").append(formatDate(endTime)).append("\n");
+        s.append("  file size: ").append(fileSize).append("\n");
+        s.append("  compression flag: ").append(compressionFlag).append("\n");
+        s.append("  volume time: ").append(formatDate(volumeTime)).append("\n");
+        s.append("  number of params: ").append(nParams).append("\n");
+        s.append("  radar name: ").append(radarName).append("\n");
+        s.append("  SSWB version: ").append(version).append("\n");
+        s.append("  status: ").append(status).append("\n");
+        s.append("  number of key tables: ").append(nKeyTables).append("\n");
+        for(KeyTable k: keyTables)
+          s.append("  key table type contained: ").append(k.type).append("\n");
+        return s.toString();
     }
 
     /**

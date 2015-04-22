@@ -32,24 +32,11 @@
  */
 package thredds.server.ncss.controller;
 
-import java.io.File;
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.List;
-import java.util.Random;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import thredds.server.ncss.exception.InvalidBBOXException;
-import thredds.server.ncss.exception.NcssException;
-import thredds.server.ncss.exception.OutOfBoundariesException;
-import thredds.server.ncss.exception.RequestTooLargeException;
-import thredds.server.ncss.exception.TimeOutOfWindowException;
+import thredds.server.ncss.exception.*;
 import thredds.server.ncss.exception.UnsupportedOperationException;
-import thredds.server.ncss.exception.VariableNotContainedInDatasetException;
 import thredds.server.ncss.params.NcssParamsBean;
-import thredds.servlet.ThreddsConfig;
+import thredds.server.ncss.util.NcssRequestUtils;
+import thredds.server.config.ThreddsConfig;
 import ucar.ma2.InvalidRangeException;
 import ucar.ma2.Range;
 import ucar.nc2.NetcdfFileWriter;
@@ -63,6 +50,13 @@ import ucar.nc2.time.CalendarDateRange;
 import ucar.unidata.geoloc.LatLonPointImpl;
 import ucar.unidata.geoloc.LatLonRect;
 import ucar.unidata.geoloc.ProjectionRect;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.List;
+import java.util.Random;
 
 /**
  * @author mhermida
@@ -88,14 +82,15 @@ class GridResponder extends GridDatasetResponder {
 	 * 
 	 * Returns the resulting file
 	 */
-	File getResponseFile(HttpServletRequest request,
-			HttpServletResponse response, NcssParamsBean params,
+	File getResponseFile(HttpServletResponse response, NcssParamsBean params,
 			NetcdfFileWriter.Version version)
 			throws NcssException, InvalidRangeException, ParseException, IOException {
 
-		if (!checkRequestedVars(gds, params) && params.getVertCoord() != null ) // LOOK should catch validation error earlier
-			throw new UnsupportedOperationException("The variables requested: " + params.getVar() + " have different vertical levels. Grid requests with vertCoord must have variables with same vertical levels.");
-			
+		if (!checkRequestedVars(gds, params) && params.getVertCoord() != null ) { // LOOK should catch validation error earlier
+      throw new UnsupportedOperationException("The variables requested: " + params.getVar() +
+              " have different vertical levels. Grid requests with vertCoord must have variables with same vertical levels.");
+    }
+
 		File netcdfResult;
 		if (isSpatialSubset(params)) {
 			netcdfResult = writeLatLonSubset(params, version);
@@ -237,9 +232,11 @@ class GridResponder extends GridDatasetResponder {
  		Random random = new Random(System.currentTimeMillis());
  		int randomInt = random.nextInt();
 
- 		String filename = getFileNameForResponse(version);
+ 		String filename = NcssRequestUtils.getFileNameForResponse(requestPathInfo, version);
  		String pathname = Integer.toString(randomInt) + "/" + filename;
  		File ncFile = NcssDiskCache.getInstance().getDiskCache().getCacheFile(pathname);
+    if(ncFile == null)
+      throw new IllegalStateException("NCSS misconfigured cache = ");
  		String cacheFilename = ncFile.getPath();
 
  		//String url = buildCacheUrl(pathname);
@@ -253,8 +250,6 @@ class GridResponder extends GridDatasetResponder {
 
  		return new File(cacheFilename);
  	}
-
-
 
 	private LatLonRect setBBForRequest(NcssParamsBean params, GridDataset gds) throws InvalidBBOXException {
 
@@ -336,19 +331,4 @@ class GridResponder extends GridDatasetResponder {
 
 		return zRange;
 	}
-
-	private String getFileNameForResponse(NetcdfFileWriter.Version version) {
-		String fileExtension = ".nc";
-
-		if (version == NetcdfFileWriter.Version.netcdf4) {
-			fileExtension = ".nc4";
-		}
-
-		String[] tmp = requestPathInfo.split("/");
-		StringBuilder sb = new StringBuilder();
-		sb.append(tmp[tmp.length - 2]).append("_").append(tmp[tmp.length - 1]);
-		String filename = sb.toString().split("\\.")[0] + fileExtension;
-		return filename;
-	}
-
 }

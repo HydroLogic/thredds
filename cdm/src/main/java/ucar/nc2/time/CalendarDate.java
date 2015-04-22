@@ -3,6 +3,7 @@ package ucar.nc2.time;
 import net.jcip.annotations.Immutable;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeFieldType;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 import org.joda.time.chrono.ZonedChronology;
@@ -17,6 +18,12 @@ import org.joda.time.chrono.ZonedChronology;
  */
 @Immutable
 public class CalendarDate implements Comparable<CalendarDate> {
+  public static final double MILLISECS_IN_SECOND = 1000;
+  public static final double MILLISECS_IN_MINUTE = MILLISECS_IN_SECOND * 60;
+  public static final double MILLISECS_IN_HOUR = MILLISECS_IN_MINUTE * 60;
+  public static final double MILLISECS_IN_DAY = MILLISECS_IN_HOUR * 24;
+  public static final double MILLISECS_IN_YEAR = 3.15569259747E10;
+  public static final double MILLISECS_IN_MONTH = MILLISECS_IN_YEAR / 12;
 
   /**
    * Get a CalendarDate representing the present moment
@@ -43,7 +50,6 @@ public class CalendarDate implements Comparable<CalendarDate> {
       base = ISOChronology.getInstanceUTC(); // already in UTC
     else
       base = ZonedChronology.getInstance( base, DateTimeZone.UTC); // otherwise wrap it to be in UTC  */
-
 
     DateTime dt = new DateTime(year, monthOfYear, dayOfMonth, hourOfDay, minuteOfHour, secondOfMinute, base);
     if (!Calendar.isDefaultChronology(cal)) dt = dt.withChronology(Calendar.getChronology(cal));
@@ -216,6 +222,10 @@ public class CalendarDate implements Comparable<CalendarDate> {
     return CalendarDateFormatter.toDateTimeStringISO(this);
   }
 
+  /**
+   * udunits formatting
+   * @return udunits formatted date
+   */
   public String getTimeUnits(){
 	  return CalendarDateFormatter.toTimeUnits(this);
   }
@@ -228,32 +238,45 @@ public class CalendarDate implements Comparable<CalendarDate> {
     return dateTime.getHourOfDay();
   }
 
+  /*
+      Millisec(PeriodType.millis()), Second(PeriodType.seconds()), Minute(PeriodType.minutes()), Hour(PeriodType.hours()),
+    Day(PeriodType.days()), Month(PeriodType.months()), Year(PeriodType.years())
+   */
+  public int getFieldValue(CalendarPeriod.Field fld) {
+    switch (fld) {
+      case Day: return dateTime.get(DateTimeFieldType.dayOfMonth());
+      case Hour: return dateTime.get(DateTimeFieldType.hourOfDay());
+      case Millisec: return dateTime.get(DateTimeFieldType.millisOfSecond());
+      case Minute: return dateTime.get(DateTimeFieldType.minuteOfHour());
+      case Month: return dateTime.get(DateTimeFieldType.monthOfYear());
+      case Second: return dateTime.get(DateTimeFieldType.secondOfMinute());
+      case Year: return dateTime.get(DateTimeFieldType.year());
+    }
+    throw new IllegalArgumentException("unimplemented "+fld);
+  }
+
   public int getDayOfMonth() {
     return dateTime.getDayOfMonth();
   }
 
   // old style udunits compatible.
-  /* day = 86400.0 seconds
-    week = 7 days = 604800.0 seconds
-    month = year/12 = 2629743.831225 seconds
-    year = 3.15569259747E7 seconds
-    */
+  // fixes from https://github.com/jonescc 8/26/14
   public CalendarDate add(double value, CalendarPeriod.Field unit) {
     switch (unit) {
       case Millisec:
-        return new CalendarDate(cal, dateTime.plus( (long) value ));
+        return new CalendarDate(cal, dateTime.plus( Math.round(value) ));
       case Second:
-        return new CalendarDate(cal, dateTime.plus( (long) (value * 1000) ));
+        return new CalendarDate(cal, dateTime.plus(  Math.round(value * MILLISECS_IN_SECOND) ));
       case Minute:
-        return new CalendarDate(cal, dateTime.plus( (long) (value * 60  * 1000) ));
+        return new CalendarDate(cal, dateTime.plus(  Math.round(value * MILLISECS_IN_MINUTE) ));
       case Hour:
-        return new CalendarDate(cal, dateTime.plus( (long) (value * 60 * 60  * 1000) ));
+        return new CalendarDate(cal, dateTime.plus(  Math.round(value * MILLISECS_IN_HOUR) ));
       case Day:
-        return new CalendarDate(cal, dateTime.plus( (long) (value * 86400  * 1000) ));
+        return new CalendarDate(cal, dateTime.plus(  Math.round(value * MILLISECS_IN_DAY) ));
       case Month: // LOOK should we throw warning ?
-        return new CalendarDate(cal, dateTime.plus( (long) (value * 2629743.831225  * 1000) ));
+        return new CalendarDate(cal, dateTime.plus(  Math.round(value * MILLISECS_IN_MONTH) ));
       case Year:  // LOOK should we throw warning ?
-        return new CalendarDate(cal, dateTime.plus( (long) (value * 3.15569259747E10) )); // millisecs!
+        return new CalendarDate(cal, dateTime.plus(  Math.round(value * MILLISECS_IN_YEAR) ));
     }
     throw new UnsupportedOperationException("period units = "+unit);
   }
@@ -325,7 +348,6 @@ public class CalendarDate implements Comparable<CalendarDate> {
   /**
    * Get the equivilent java.util.Date
    * @return the equivalent Date
-   * @deprecated does not handle non-standard Calendars
    */
   public java.util.Date toDate() {
     return dateTime.toDate();

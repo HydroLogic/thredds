@@ -39,13 +39,15 @@ import junit.framework.*;
 import java.awt.Rectangle;
 
 public class TestBeans extends TestCase {
+  static {
+    System.setProperty("java.util.prefs.PreferencesFactory", "ucar.util.prefs.PreferencesExtFactory");
+  }
 
   public TestBeans( String name) {
     super(name);
   }
 
   public void testDefault() {
-    System.out.println("***TestBeans");
     try {
       XMLStore store2 = XMLStore.createFromFile(TestAllPrefs.dir+"testBeans.xml", null);
       PreferencesExt prefs = store2.getPreferences();

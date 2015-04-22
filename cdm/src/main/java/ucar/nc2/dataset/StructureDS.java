@@ -508,7 +508,7 @@ public class StructureDS extends ucar.nc2.Structure implements VariableEnhanced 
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private class SequenceConverter extends ArraySequence {
+  private static class SequenceConverter extends ArraySequence {
     StructureDS orgStruct;
     ArraySequence orgSeq;
 
@@ -529,7 +529,7 @@ public class StructureDS extends ucar.nc2.Structure implements VariableEnhanced 
     }
   }
 
-  private class StructureDataConverter implements StructureDataIterator {
+  private static class StructureDataConverter implements StructureDataIterator {
     private StructureDataIterator orgIter;
     private StructureDS newStruct;
     private int count = 0;
@@ -679,8 +679,6 @@ private class Iterator implements StructureDataIterator {
   }
 
   public java.util.List<CoordinateSystem> getCoordinateSystems() {
-    if (proxy == null)
-      System.out.println("HEY");
     return proxy.getCoordinateSystems();
   }
 

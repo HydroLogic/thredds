@@ -1,0 +1,7 @@
+dependencies {
+    compile project(':dap4:d4core')
+    compile project(':httpservices')
+
+    compile libraries["httpclient"]
+    compile libraries["httpcore"]
+}

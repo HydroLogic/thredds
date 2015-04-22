@@ -31,7 +31,7 @@
  */
 package ucar.nc2.iosp.netcdf3;
 
-import thredds.catalog.DataFormatType;
+import ucar.nc2.constants.DataFormatType;
 import ucar.ma2.*;
 import ucar.nc2.constants.CDM;
 import ucar.unidata.io.RandomAccessFile;
@@ -366,9 +366,7 @@ public String NC_check_name(String name) {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////
 
-  protected ucar.nc2.NetcdfFile ncfile;
   protected boolean readonly;
-
   protected N3header header;
   //protected int numrecs;
   //protected long recsize;
@@ -417,7 +415,6 @@ public String NC_check_name(String name) {
   public void open(ucar.unidata.io.RandomAccessFile raf, ucar.nc2.NetcdfFile ncfile,
                    ucar.nc2.util.CancelTask cancelTask) throws IOException {
     super.open(raf, ncfile, cancelTask);
-    this.ncfile = ncfile;
 
     String location = raf.getLocation();
     if (!location.startsWith("http:")) {
@@ -963,7 +960,7 @@ public String NC_check_name(String name) {
 
   @Override
   public String getFileTypeId() {
-    return DataFormatType.NETCDF.toString();
+    return DataFormatType.NETCDF.getDescription();
   }
 
   @Override

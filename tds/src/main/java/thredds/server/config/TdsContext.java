@@ -32,6 +32,13 @@
  */
 package thredds.server.config;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.HttpConnectionParams;
+import org.apache.http.params.HttpParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -42,47 +49,48 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.ServletContextAware;
 import org.springframework.web.util.Log4jWebConfigurer;
-import thredds.catalog.InvDatasetFeatureCollection;
-import thredds.catalog.InvDatasetScan;
-import thredds.inventory.CollectionUpdater;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
+import thredds.featurecollection.InvDatasetFeatureCollection;
+import thredds.featurecollection.CollectionUpdater;
 import thredds.servlet.ServletUtil;
-import thredds.servlet.ThreddsConfig;
 import thredds.util.filesource.*;
 import ucar.nc2.util.IO;
 import ucar.unidata.util.StringUtil2;
 
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletContext;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.io.InputStream;
+import java.util.*;
 
 /**
  * TDS context implements ServletContextAware so it gets a ServletContext and performs most initial THREDDS set up:
  * - checks version
+ * - check for latest stable and development release versions
  * - sets the content directory
  * - reads persistent user defined params and runs ThreddsConfig.init
  * - creates, if don't exist, log and public dirs in content directory
- * - Sets InvDatasetScan and InvDatasetFeatureCollection properties
  * - Get default and jsp dispatchers from servletContext
  * - Creates and initializes the TdsConfigMapper
  *
+ * LOOK would be nice to make Immutable
  * @author edavis
  * @since 4.0
  */
-@Component("tdsContext")
+@Component("TdsContext")
 public final class TdsContext implements ServletContextAware, InitializingBean, DisposableBean {
+  private final Logger logServerStartup = LoggerFactory.getLogger("serverStartup");
 
-//  ToDo Once Log4j config is called by Spring listener instead of ours, use this logger instead of System.out.println.
-//  private org.slf4j.Logger logServerStartup =
-//          org.slf4j.LoggerFactory.getLogger( "serverStartup" );
+  /////////////////
+  // Properties from tds.properties
 
-  private String webappName;
-  private String contextPath;
-
-  //Properties from tds.properties
   @Value("${tds.version}")
   private String webappVersion;
 
@@ -110,31 +118,9 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
 
   @Value("${tds.content.startup.path}")
   private String startupContentPath;
+
   ////////////////////////////////////
-
-  private String webinfPath;
-
-  private File rootDirectory;
-  private File contentDirectory;
-  private File publicContentDirectory;
-  private File tomcatLogDir;
-
-  private File startupContentDirectory;
-  //private File iddContentDirectory;
-  //private File motherlodeContentDirectory;
-
-  private DescendantFileSource rootDirSource;
-  private DescendantFileSource contentDirSource;
-  private DescendantFileSource publicContentDirSource;
-  private DescendantFileSource startupContentDirSource;
-  //private DescendantFileSource iddContentPublicDirSource;
-  //private DescendantFileSource motherlodeContentPublicDirSource;
-
-  private FileSource configSource;
-  private FileSource publicDocSource;
-
-  private RequestDispatcher defaultRequestDispatcher;
-  private RequestDispatcher jspRequestDispatcher;
+  // set by spring
 
   @Autowired
   private HtmlConfig htmlConfig;
@@ -145,84 +131,49 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
   @Autowired
   private WmsConfig wmsConfig;
 
+  @Autowired
+  private CorsConfig corsConfig;
+
+  @Autowired
+  private TdsUpdateConfig tdsUpdateConfig;
+
   private ServletContext servletContext;
+
+  ///////////////////////////////////////////
+
+  private String contextPath;
+  private String webappName;
+  private String webinfPath;
+
+  private File rootDirectory;
+  private File contentDirectory;
+  private File publicContentDirectory;
+  private File tomcatLogDir;
+
+  private File startupContentDirectory;
+
+  private DescendantFileSource rootDirSource;
+  private DescendantFileSource contentDirSource;
+  private DescendantFileSource publicContentDirSource;
+  private DescendantFileSource startupContentDirSource;
+
+  private FileSource configSource;
+  private FileSource publicDocSource;
+
+  private RequestDispatcher defaultRequestDispatcher;
+  private RequestDispatcher jspRequestDispatcher;
+
 
   private TdsContext() {
   }
 
-  private Logger logServerStartup = LoggerFactory.getLogger("serverStartup");
-
-  public void setWebappVersion(String verFull) {
-    this.webappVersion = verFull;
-  }
-
-  public void setWebappVersionBuildDate(String buildDateString) {
-    this.webappVersionBuildDate = buildDateString;
-  }
-
-  public void setContentRootPath(String contentRootPath) {
-    this.contentRootPath = contentRootPath;
-  }
-
-  public String getContentRootPath() {
-    return this.contentRootPath;
-  }
-
-  public String getContentRootPathAbsolute() {
-    File abs = new File(this.contentRootPath);
-    return abs.getAbsolutePath();
-  }
-
-  public void setContentPath(String contentPath) {
-    this.contentPath = contentPath;
-  }
-
-  public void setStartupContentPath(String startupContentPath) {
-    this.startupContentPath = startupContentPath;
-  }
-
-  public void setIddContentPath(String iddContentPath) {
-    this.iddContentPath = iddContentPath;
-  }
-
-  public void setMotherlodeContentPath(String motherlodeContentPath) {
-    this.motherlodeContentPath = motherlodeContentPath;
-  }
-
-  public void setTdsConfigFileName(String filename) {
-    this.tdsConfigFileName = filename;
-  }
-
-  public String getTdsConfigFileName() {
-    return this.tdsConfigFileName;
-  }
-
-  public void setServerInfo(TdsServerInfo serverInfo) {
-    this.serverInfo = serverInfo;
-  }
-
-  public TdsServerInfo getServerInfo() {
-    return serverInfo;
-  }
-
-  public void setHtmlConfig(HtmlConfig htmlConfig) {
-    this.htmlConfig = htmlConfig;
-  }
-
-  public HtmlConfig getHtmlConfig() {
-    return this.htmlConfig;
-  }
-
-  public WmsConfig getWmsConfig() {
-    return wmsConfig;
-  }
-
-  public void setWmsConfig(WmsConfig wmsConfig) {
-    this.wmsConfig = wmsConfig;
+  @Override
+  public void setServletContext(ServletContext servletContext) {
+    this.servletContext = servletContext;
   }
 
   /*
-   * Release tdsContext resouces 
+   * Release tdsContext resources
    * (non-Javadoc)
    * @see org.springframework.beans.factory.DisposableBean#destroy()
    */
@@ -231,18 +182,13 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     logServerStartup.info("TdsContext: Shutting down collection manager");
     CollectionUpdater.INSTANCE.shutdown();
     logServerStartup.info("TdsContext: shutdownLogging()");
-    Log4jWebConfigurer.shutdownLogging(servletContext);
+    Log4jWebConfigurer.shutdownLogging(servletContext); // probably not needed anymore with log4j-web in classpath
   }
 
-
   public void afterPropertiesSet() {
-
     // ToDo Instead of stdout, use servletContext.log( "...") [NOTE: it writes to localhost.*.log rather than catalina.out].
     if (servletContext == null)
       throw new IllegalArgumentException("ServletContext must not be null.");
-
-    // ToDo LOOK - Are we still using this.
-    ServletUtil.initDebugging(servletContext);
 
     // Set the webapp name.
     this.webappName = servletContext.getServletContextName();
@@ -260,7 +206,6 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     String rootPath = servletContext.getRealPath("/");
     if (rootPath == null) {
       String msg = "Webapp [" + this.webappName + "] must run with exploded deployment directory (not from .war).";
-      //System.out.println( "ERROR - TdsContext.init(): " + msg );
       logServerStartup.error("TdsContext.init(): " + msg);
       throw new IllegalStateException(msg);
     }
@@ -277,27 +222,23 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
 
     this.webinfPath = this.rootDirectory + "/WEB-INF";
 
-
     // set the tomcat logging directory
     try {
       String base = System.getProperty("catalina.base");
       if (base != null) {
         this.tomcatLogDir = new File(base, "logs").getCanonicalFile();
         if (!this.tomcatLogDir.exists()) {
-          String msg = "'catalina.base' directory not found";
-          //System.out.println( "WARN - TdsContext.init(): " + msg );
+          String msg = "'catalina.base' directory not found: " + this.tomcatLogDir;
           logServerStartup.error("TdsContext.init(): " + msg);
         }
       } else {
         String msg = "'catalina.base' property not found - probably not a tomcat server";
-        //System.out.println( "WARN - TdsContext.init(): " + msg );
         logServerStartup.warn("TdsContext.init(): " + msg);
       }
 
     } catch (IOException e) {
       String msg = "tomcatLogDir could not be created";
-      System.out.println("WARN - TdsContext.init(): " + msg);
-      //logServerStartup.error( "TdsContext.init(): " + msg );
+      logServerStartup.error("TdsContext.init(): " + msg);
     }
 
     // Set the content directory and source.
@@ -309,23 +250,8 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
         this.contentDirectory = new File(contentRootDir, this.contentPath);
       else {
         String msg = "Content root directory [" + this.contentRootPath + "] not a directory.";
-        System.out.println("ERROR - TdsContext.init(): " + msg);
-        //logServerStartup.error( "TdsContext.init(): " + msg );
+        logServerStartup.error("TdsContext.init(): " + msg);
         throw new IllegalStateException(msg);
-      }
-    }
-
-    // If we're deploying for the first time, try to copy startup content directory.
-    if (isFirstDeployment(contentDirectory)) {
-      try {
-        logServerStartup.info("Initial TDS deployment. Copying conents of {} to {}.",
-                this.startupContentDirectory.getPath(), this.contentDirectory.getPath());
-        IO.copyDirTree(this.startupContentDirectory.getPath(), this.contentDirectory.getPath());
-      } catch (IOException e) {
-        String tmpMsg = "Content directory does not exist and could not be created";
-        System.out.println("ERROR - TdsContext.init(): " + tmpMsg + " [" + this.contentDirectory.getAbsolutePath() + "].");
-        //logServerStartup.error( "TdsContext.init(): " + tmpMsg + " [" + this.contentDirectory.getAbsolutePath() + "]" );
-        throw new IllegalStateException(tmpMsg);
       }
     }
 
@@ -334,18 +260,63 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
       this.contentDirSource = new BasicDescendantFileSource(StringUtils.cleanPath(this.contentDirectory.getAbsolutePath()));
       this.contentDirectory = this.contentDirSource.getRootDirectory();
     } else {
-      String tmpMsg = "Content directory not a directory";
-      System.out.println("ERROR - TdsContext.init(): " + tmpMsg + " [" + this.contentDirectory.getAbsolutePath() + "].");
-      //logServerStartup.error( "TdsContext.init(): " + tmpMsg + " [" + this.contentDirectory.getAbsolutePath() + "]" );
-      throw new IllegalStateException(tmpMsg);
+      String message = String.format(
+              "TdsContext.init(): Content directory is not a directory: %s", this.contentDirectory.getAbsolutePath());
+      logServerStartup.error(message);
+      throw new IllegalStateException(message);
     }
     ServletUtil.setContentPath(this.contentDirSource.getRootDirectoryPath());
+
+    //////////////////////////////////// Copy default startup files, if necessary ////////////////////////////////////
+
+    try {
+      File catalogFile = new File(contentDirectory, "catalog.xml");
+      if (!catalogFile.exists()) {
+        File defaultCatalogFile = new File(startupContentDirectory, "catalog.xml");
+        logServerStartup.info("TdsContext.init(): Copying default catalog file from {}.", defaultCatalogFile);
+        IO.copyFile(defaultCatalogFile, catalogFile);
+
+        File enhancedCatalogFile = new File(contentDirectory, "enhancedCatalog.xml");
+        File defaultEnhancedCatalogFile = new File(startupContentDirectory, "enhancedCatalog.xml");
+        logServerStartup.info("TdsContext.init(): Copying default enhanced catalog file from {}.", defaultEnhancedCatalogFile);
+        IO.copyFile(defaultEnhancedCatalogFile, enhancedCatalogFile);
+
+        File dataDir = new File(new File(contentDirectory, "public"), "testdata");
+        File defaultDataDir = new File(new File(startupContentDirectory, "public"), "testdata");
+        logServerStartup.info("TdsContext.init(): Copying default testdata directory from {}.", defaultDataDir);
+        IO.copyDirTree(defaultDataDir.getCanonicalPath(), dataDir.getCanonicalPath());
+      }
+
+      File threddsConfigFile = new File(contentDirectory, "threddsConfig.xml");
+      if (!threddsConfigFile.exists()) {
+        File defaultThreddsConfigFile = new File(startupContentDirectory, "threddsConfig.xml");
+        logServerStartup.info("TdsContext.init(): Copying default THREDDS config file from {}.", defaultThreddsConfigFile);
+        IO.copyFile(defaultThreddsConfigFile, threddsConfigFile);
+      }
+
+      File wmsConfigXmlFile = new File(contentDirectory, "wmsConfig.xml");
+      if (!wmsConfigXmlFile.exists()) {
+        File defaultWmsConfigXmlFile = new File(startupContentDirectory, "wmsConfig.xml");
+        logServerStartup.info("TdsContext.init(): Copying default WMS config file from {}.", defaultWmsConfigXmlFile);
+        IO.copyFile(defaultWmsConfigXmlFile, wmsConfigXmlFile);
+
+        File wmsConfigDtdFile = new File(contentDirectory, "wmsConfig.dtd");
+        File defaultWmsConfigDtdFile = new File(startupContentDirectory, "wmsConfig.dtd");
+        logServerStartup.info("TdsContext.init(): Copying default WMS config DTD from {}.", defaultWmsConfigDtdFile);
+        IO.copyFile(defaultWmsConfigDtdFile, wmsConfigDtdFile);
+      }
+    } catch (IOException e) {
+      String message = String.format("Could not copy default startup files to %s.", contentDirectory);
+      logServerStartup.error("TdsContext.init(): " + message);
+      throw new IllegalStateException(message, e);
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     File logDir = new File(this.contentDirectory, "logs");
     if (!logDir.exists()) {
       if (!logDir.mkdirs()) {
         String msg = "Couldn't create TDS log directory [" + logDir.getPath() + "].";
-        //System.out.println( "ERROR - TdsContext.init(): " + msg);
         logServerStartup.error("TdsContext.init(): " + msg);
         throw new IllegalStateException(msg);
       }
@@ -375,7 +346,6 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     if (!publicContentDirectory.exists()) {
       if (!publicContentDirectory.mkdirs()) {
         String msg = "Couldn't create TDS public directory [" + publicContentDirectory.getPath() + "].";
-        //System.out.println( "ERROR - TdsContext.init(): " + msg);
         logServerStartup.error("TdsContext.init(): " + msg);
         throw new IllegalStateException(msg);
       }
@@ -399,7 +369,6 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
           chain.add(new BasicDescendantFileSource(StringUtils.cleanPath(curContentRoot)));
         } catch (IllegalArgumentException e) {
           String msg = "Couldn't add content root [" + curContentRoot + "]: " + e.getMessage();
-          //System.out.println( "WARN - TdsContext.init(): " + msg );
           logServerStartup.warn("TdsContext.init(): " + msg, e);
         }
       }
@@ -413,8 +382,8 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     this.publicDocSource = this.publicContentDirSource;
 
     // ToDo LOOK Find a better way once thredds.catalog2 is used.
-    InvDatasetScan.setContext(contextPath);
-    InvDatasetScan.setCatalogServletName("/catalog");
+    //InvDatasetScan.setContext(contextPath);
+    //InvDatasetScan.setCatalogServletName("/catalog");
     InvDatasetFeatureCollection.setContext(contextPath);
     // GridServlet.setContextPath( contextPath ); // Won't need when switch GridServlet to use Swing MVC and TdsContext
 
@@ -425,31 +394,115 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     tdsConfigMapper.setTdsServerInfo(this.serverInfo);
     tdsConfigMapper.setHtmlConfig(this.htmlConfig);
     tdsConfigMapper.setWmsConfig(this.wmsConfig);
+    tdsConfigMapper.setCorsConfig(this.corsConfig);
+    tdsConfigMapper.setTdsUpdateConfig(this.tdsUpdateConfig);
     tdsConfigMapper.init(this);
+    
+    // check and log the latest stable and development version information
+    // only if it is OK according to the threddsConfig file.
+    if (this.tdsUpdateConfig.isLogVersionInfo()) {
+      Map<String, String> latestVersionInfo = getLatestVersionInfo(); 
+      for (Map.Entry entry : latestVersionInfo.entrySet()) {
+        logServerStartup.info("TdsContext latest " + entry.getKey() + " version = " + entry.getValue());
+      }
+    }
   }
+
 
   /**
-   * Tries to determine whether we're deploying for the first time. We used to simply be able to check for the
-   * presence of {@code contentDirectory}. But now we're using log4j, which runs <b>before</b> TDS init and creates a
-   * directory at {@code contentDirectory/logs}. So now, to determine whether we're deploying for the first time,
-   * we have to check whether "logs/" is the ONLY file currently in {@code contentDirectory}.
+   * Retrieve the latest stable and development versions
+   * available from Unidata. Needs to connect to
+   * http://www.unidata.ucar.edu in order to get the
+   * latest version numbers. The propose is to easily let users
+   * know if the version of TDS they are running is out of
+   * date, as this information is recorded in the
+   * serverStartup.log file.
    *
-   * @param contentDirectory the TDS content directory.
-   * @return  {@code true} if we're <i>probably</i> deploying for the first time.
+   * @return A hashmap containing versionTypes as key (i.e.
+   * "stable", "development") and their corresponding
+   * version numbers (i.e. 4.5.2)
    */
-  private static boolean isFirstDeployment(File contentDirectory) {
-    if (!contentDirectory.exists()) {
-      return true;
-    }
+  private Map<String, String> getLatestVersionInfo() {
+    int conTimeOut = 1; // http connection timeout in seconds
+    int socTimeOut = 1; // http socket timeout in seconds
+    Map<String, String> latestVersionInfo = new HashMap<>();
 
-    File[] contents = contentDirectory.listFiles();
-    if (contents.length != 1) {
-      return false;
-    }
+    String versionUrl = "http://www.unidata.ucar.edu/software/thredds/latest.xml";
+    HttpClient httpclient = new DefaultHttpClient();
+    final HttpParams httpParameters = httpclient.getParams();
+    
+    HttpConnectionParams.setConnectionTimeout(httpParameters, conTimeOut * 1000);
+    HttpConnectionParams.setSoTimeout(httpParameters, socTimeOut * 1000);
+    HttpGet request = new HttpGet(versionUrl);
+    request.setHeader("User-Agent", "TDS_" + getVersionInfo().replace(" ", ""));
 
-    File content = contents[0];
-    return content.isDirectory() && content.getName().equals("logs");
+    HttpResponse response;
+    try {
+      response = httpclient.execute(request);
+      HttpEntity entity = response.getEntity();
+
+      try (InputStream content = entity.getContent()) {
+        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        DocumentBuilder db = dbf.newDocumentBuilder();
+        Document dom = db.parse(content);
+        Element docEle = dom.getDocumentElement();
+        NodeList versionElements = docEle.getElementsByTagName("version");
+        if (versionElements != null && versionElements.getLength() > 0) {
+          for (int i = 0; i < versionElements.getLength(); i++) {
+            //get the version element
+            Element versionElement = (Element) versionElements.item(i);
+            String verType = versionElement.getAttribute("name");
+            String verStr = versionElement.getAttribute("value");
+            latestVersionInfo.put(verType, verStr);
+          }
+        } 
+      } 
+    } catch (IOException e) {
+      logServerStartup.warn("TdsContext - Could not get latest version information from Unidata.");
+    } catch (ParserConfigurationException e) {
+      logServerStartup.error("TdsContext - Error configuring latest version xml parser" + e.getMessage() + ".");
+    } catch (SAXException e) {
+      logServerStartup.error("TdsContext - Could not parse latest version information.");
+    }
+    return latestVersionInfo;
   }
+
+
+  @Override
+  public String toString() {
+    final StringBuilder sb = new StringBuilder("TdsContext{");
+    sb.append("webappName='").append(webappName).append('\'');
+    sb.append("\n  contextPath='").append(contextPath).append('\'');
+    sb.append("\n  webappVersion='").append(webappVersion).append('\'');
+    sb.append("\n  webappVersionBuildDate='").append(webappVersionBuildDate).append('\'');
+    sb.append("\n  contentRootPath='").append(contentRootPath).append('\'');
+    sb.append("\n  contentPath='").append(contentPath).append('\'');
+    sb.append("\n  iddContentPath='").append(iddContentPath).append('\'');
+    sb.append("\n  motherlodeContentPath='").append(motherlodeContentPath).append('\'');
+    sb.append("\n  tdsConfigFileName='").append(tdsConfigFileName).append('\'');
+    sb.append("\n  startupContentPath='").append(startupContentPath).append('\'');
+    sb.append("\n  webinfPath='").append(webinfPath).append('\'');
+    sb.append("\n  rootDirectory=").append(rootDirectory);
+    sb.append("\n  contentDirectory=").append(contentDirectory);
+    sb.append("\n  publicContentDirectory=").append(publicContentDirectory);
+    sb.append("\n  tomcatLogDir=").append(tomcatLogDir);
+    sb.append("\n  startupContentDirectory=").append(startupContentDirectory);
+    //sb.append("\n  iddContentDirectory=").append(iddContentDirectory);
+    //sb.append("\n  motherlodeContentDirectory=").append(motherlodeContentDirectory);
+    sb.append("\n  rootDirSource=").append(rootDirSource);
+    sb.append("\n  contentDirSource=").append(contentDirSource);
+    sb.append("\n  publicContentDirSource=").append(publicContentDirSource);
+    sb.append("\n  startupContentDirSource=").append(startupContentDirSource);
+    //sb.append("\n  iddContentPublicDirSource=").append(iddContentPublicDirSource);
+    //sb.append("\n  motherlodeContentPublicDirSource=").append(motherlodeContentPublicDirSource);
+    sb.append("\n  configSource=").append(configSource);
+    sb.append("\n  publicDocSource=").append(publicDocSource);
+    sb.append('}');
+    return sb.toString();
+  }
+
+  ////////////////////////////////////////////////////
+  // public getters
 
   /**
    * Return the name of the webapp as given by the display-name element in web.xml.
@@ -493,13 +546,12 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
   }
 
   public String getVersionInfo() {
-    StringBuilder sb = new StringBuilder();
-    sb.append(getWebappVersion());
+    Formatter f = new Formatter();
+    f.format("%s", getWebappVersion());
     if (getWebappVersionBuildDate() != null) {
-      sb.append(" - ");
-      sb.append(getWebappVersionBuildDate());
+      f.format(" - %s", getWebappVersionBuildDate());
     }
-    return sb.toString();
+    return f.toString();
   }
 
   /**
@@ -540,14 +592,6 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     return startupContentDirectory;
   }
 
-  /* public File getIddContentDirectory() {
-    return iddContentDirectory;
-  }
-
-  public File getMotherlodeContentDirectory() {
-    return motherlodeContentDirectory;
-  }  */
-
   public FileSource getConfigFileSource() {
     return this.configSource;
   }
@@ -564,49 +608,51 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     return this.jspRequestDispatcher;
   }
 
-
-  @Override
-  public void setServletContext(ServletContext servletContext) {
-
-    this.servletContext = servletContext;
-
-  }
-
   public ServletContext getServletContext() {
     return this.servletContext;
   }
 
-
-  @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder("TdsContext{");
-    sb.append("webappName='").append(webappName).append('\'');
-    sb.append("\n  contextPath='").append(contextPath).append('\'');
-    sb.append("\n  webappVersion='").append(webappVersion).append('\'');
-    sb.append("\n  webappVersionBuildDate='").append(webappVersionBuildDate).append('\'');
-    sb.append("\n  contentRootPath='").append(contentRootPath).append('\'');
-    sb.append("\n  contentPath='").append(contentPath).append('\'');
-    sb.append("\n  iddContentPath='").append(iddContentPath).append('\'');
-    sb.append("\n  motherlodeContentPath='").append(motherlodeContentPath).append('\'');
-    sb.append("\n  tdsConfigFileName='").append(tdsConfigFileName).append('\'');
-    sb.append("\n  startupContentPath='").append(startupContentPath).append('\'');
-    sb.append("\n  webinfPath='").append(webinfPath).append('\'');
-    sb.append("\n  rootDirectory=").append(rootDirectory);
-    sb.append("\n  contentDirectory=").append(contentDirectory);
-    sb.append("\n  publicContentDirectory=").append(publicContentDirectory);
-    sb.append("\n  tomcatLogDir=").append(tomcatLogDir);
-    sb.append("\n  startupContentDirectory=").append(startupContentDirectory);
-    //sb.append("\n  iddContentDirectory=").append(iddContentDirectory);
-    //sb.append("\n  motherlodeContentDirectory=").append(motherlodeContentDirectory);
-    sb.append("\n  rootDirSource=").append(rootDirSource);
-    sb.append("\n  contentDirSource=").append(contentDirSource);
-    sb.append("\n  publicContentDirSource=").append(publicContentDirSource);
-    sb.append("\n  startupContentDirSource=").append(startupContentDirSource);
-    //sb.append("\n  iddContentPublicDirSource=").append(iddContentPublicDirSource);
-    //sb.append("\n  motherlodeContentPublicDirSource=").append(motherlodeContentPublicDirSource);
-    sb.append("\n  configSource=").append(configSource);
-    sb.append("\n  publicDocSource=").append(publicDocSource);
-    sb.append('}');
-    return sb.toString();
+  public String getContentRootPath() {
+    return this.contentRootPath;
   }
+
+  public String getContentRootPathAbsolute() {
+    File abs = new File(this.contentRootPath);
+    return abs.getAbsolutePath();
+  }
+
+
+  public String getTdsConfigFileName() {
+    return this.tdsConfigFileName;
+  }
+
+
+  public TdsServerInfo getServerInfo() {
+    return serverInfo;
+  }
+
+  public HtmlConfig getHtmlConfig() {
+    return this.htmlConfig;
+  }
+
+  public WmsConfig getWmsConfig() {
+    return wmsConfig;
+  }
+
+  public void setWmsConfig(WmsConfig wmsConfig) {
+    this.wmsConfig = wmsConfig;
+  }
+
+  public CorsConfig getCorsConfig() { return corsConfig; }
+
+
+  public TdsUpdateConfig getTdsUpdateConfig() { return tdsUpdateConfig; }
+
+  /////////////////////////////////////////////////////
+
+  // used by MockTdsContextLoader
+  public void setContentRootPath(String contentRootPath) {
+    this.contentRootPath = contentRootPath;
+  }
+
 }

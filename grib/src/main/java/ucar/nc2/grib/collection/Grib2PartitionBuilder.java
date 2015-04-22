@@ -46,16 +46,16 @@ import java.io.File;
  * @author John
  * @since 12/7/13
  */
-public class Grib2PartitionBuilder extends GribPartitionBuilder {
+class Grib2PartitionBuilder extends GribPartitionBuilder {
   public static final String MAGIC_START = "Grib2Partition2Index";  // was Grib2Partition0Index
 
   public Grib2PartitionBuilder(String name, File directory, PartitionManager tpc, org.slf4j.Logger logger) {
-    super(name, directory, tpc, logger);
+    super(name, tpc, logger);
 
     FeatureCollectionConfig config = null;
     if (tpc != null)
       config = (FeatureCollectionConfig) tpc.getAuxInfo(FeatureCollectionConfig.AUX_CONFIG);
-    this.result = new Grib2Partition(name, directory, config, logger);
+    this.result = new PartitionCollectionMutable(name, directory, config, false, logger);
   }
 
   //////////////////////////////////////////////////////////

@@ -110,6 +110,7 @@ public class ReqState {
      *
      * @serial
      */
+    //Coverity[FB.SS_SHOULD_BE_STATIC]
     private final String defaultSchemaName = "opendap-0.0.0.xsd";
     private String defaultSchemaLocation;
 
@@ -125,7 +126,6 @@ public class ReqState {
 
     private HttpServletRequest myHttpRequest;
     private HttpServletResponse response;
-    private AbstractServlet myServlet;
     private ServletConfig myServletConfig;
     private ServletContext myServletContext;
     private String rootpath;
@@ -135,7 +135,6 @@ public class ReqState {
                     AbstractServlet sv,
                     String serverClassName, String encodedurl, String encodedquery)
     {
-        this.myServlet = sv;
         this.myServletConfig = sv.getServletConfig();
         this.myServletContext = sv.getServletContext();
         this.rootpath = HTTPSession.canonicalpath(this.myServletContext.getRealPath("/"));
@@ -582,26 +581,39 @@ public class ReqState {
     }
 
     public String toString() {
-        String ts;
+        StringBuilder ts = new StringBuilder();
 
-        ts = "ReqState:\n";
-        ts += "  serverClassName:    '" + serverClassName + "'\n";
-        ts += "  dataSet:            '" + dataSetName + "'\n";
-        ts += "  requestSuffix:      '" + requestSuffix + "'\n";
+        ts.append("ReqState:\n");
+        ts.append("  serverClassName:    '");
+        ts.append(serverClassName);
+        ts.append("'\n");
+        ts.append("  dataSet:            '");
+        ts.append(dataSetName);
+        ts.append("'\n");
+        ts.append("  requestSuffix:      '");
+        ts.append(requestSuffix);
+        ts.append("'\n");
         //ts += "  blobURL:            '" + getDodsBlobURL() + "'\n";
-        ts += "  CE:                 '" + CE + "'\n";
-        ts += "  compressOK:          " + getAcceptsCompressed() + "\n";
+        ts.append("  CE:                 '");
+        ts.append(CE);
+        ts.append("'\n");
+        ts.append("  compressOK:          ");
+        ts.append(getAcceptsCompressed());
+        ts.append("\n");
 
-        ts += "  InitParameters:\n";
+        ts.append("  InitParameters:\n");
         Enumeration e = getInitParameterNames();
         while (e.hasMoreElements()) {
             String name = (String) e.nextElement();
             String value = getInitParameter(name);
-
-            ts += "    " + name + ": '" + value + "'\n";
+            ts.append("    ");
+            ts.append(name);
+            ts.append(": '");
+            ts.append(value);
+            ts.append("'\n");
         }
 
-        return (ts);
+        return (ts.toString());
     }
 
     public StringBuffer getRequestURL()

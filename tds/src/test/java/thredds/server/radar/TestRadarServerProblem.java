@@ -2,6 +2,7 @@ package thredds.server.radar;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
@@ -15,6 +16,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import thredds.mock.web.MockTdsContextLoader;
 import thredds.util.ContentType;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 
 /**
  * Single problems in radarServer testing
@@ -24,14 +26,15 @@ import thredds.util.ContentType;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @WebAppConfiguration
-@ContextConfiguration(locations = {"/WEB-INF/applicationContext-tdsConfig.xml"}, loader = MockTdsContextLoader.class)
+@ContextConfiguration(locations = {"/WEB-INF/applicationContext.xml"}, loader = MockTdsContextLoader.class)
+@Category(NeedsCdmUnitTest.class)
 public class TestRadarServerProblem {
 
   @Autowired
   private org.springframework.web.context.WebApplicationContext wac;
 
   private MockMvc mockMvc;
-  private String path = "/radarServer/nexrad/level3/IDD/stations.xml";
+  private String path = "/radarServer2/nexrad/level3/IDD/stations.xml";
 
   @Before
   public void setup() {

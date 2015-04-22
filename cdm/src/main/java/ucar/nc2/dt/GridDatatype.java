@@ -36,7 +36,7 @@ import ucar.ma2.*;
 import ucar.nc2.Dimension;
 import ucar.nc2.Attribute;
 import ucar.nc2.dataset.VariableDS;
-import ucar.nc2.ft.grid.IsMissingEvaluator;
+import ucar.ma2.IsMissingEvaluator;
 import ucar.unidata.geoloc.ProjectionImpl;
 import ucar.unidata.geoloc.LatLonRect;
 
@@ -70,8 +70,8 @@ public interface GridDatatype extends IsMissingEvaluator, Comparable<GridDatatyp
   public String getName();
 
   /**
-   * Get the description/long_name of the Grid
-   * @return the description/long_name of the Grid
+   * Get the description/long_name of the Grid, or null if none.
+   * @return the description/long_name of the Grid, or null if none.
    */
   public String getDescription();
 

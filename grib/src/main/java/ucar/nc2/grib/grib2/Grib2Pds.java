@@ -6,7 +6,6 @@ import ucar.nc2.time.CalendarDate;
 import ucar.unidata.util.Format;
 import ucar.unidata.util.StringUtil2;
 
-import java.io.IOException;
 import java.util.Formatter;
 import java.util.zip.CRC32;
 
@@ -32,9 +31,8 @@ public abstract class Grib2Pds {
    * @param template pds template number
    * @param input   raw bytes
    * @return Grib2Pds or null on error
-   * @throws java.io.IOException on read error
    */
-  static public Grib2Pds factory(int template, byte[] input) throws IOException {
+  static public Grib2Pds factory(int template, byte[] input) {
     switch (template) {
       case 0:
         return new Grib2Pds0(input);
@@ -71,16 +69,15 @@ public abstract class Grib2Pds {
   }
 
   /////////////////////////////////////////////////
-  protected byte[] input;
+  protected final byte[] input;
   protected final int template; // product definition template
 
   /**
    * Constructs a Grib2PDSVariables object from a byte[].
    *
-   * @param input   PDS
-   * @throws java.io.IOException if raf contains no valid GRIB file
+   * @param input   raw bytes
    */
-  protected Grib2Pds(byte[] input) throws IOException {
+  protected Grib2Pds(byte[] input) {
     this.input = input;
     template = GribNumbers.int2(getOctet(8), getOctet(9));
   }
@@ -364,7 +361,7 @@ public abstract class Grib2Pds {
    */
   static private class Grib2Pds0 extends Grib2Pds {
 
-    Grib2Pds0(byte[] input) throws IOException {
+    Grib2Pds0(byte[] input) {
       super(input);
     }
 
@@ -475,7 +472,7 @@ public abstract class Grib2Pds {
    * values over a spatial area at a horizontal level or in a horizontal layer at a point in time
    */
   static private class Grib2Pds15 extends Grib2Pds0 {
-    Grib2Pds15(byte[] input) throws IOException {
+    Grib2Pds15(byte[] input) {
       super(input);
     }
 
@@ -503,7 +500,7 @@ public abstract class Grib2Pds {
    * individual ensemble forecast, control and perturbed, at a horizontal level or in a horizontal layer at a point in time
    */
   static private class Grib2Pds1 extends Grib2Pds0 implements PdsEnsemble {
-    Grib2Pds1(byte[] input) throws IOException {
+    Grib2Pds1(byte[] input) {
       super(input);
     }
 
@@ -554,7 +551,7 @@ public abstract class Grib2Pds {
    */
   static private class Grib2Pds11 extends Grib2Pds1 implements PdsInterval {
 
-    Grib2Pds11(byte[] input) throws IOException {
+    Grib2Pds11(byte[] input) {
       super(input);
     }
 
@@ -589,10 +586,6 @@ public abstract class Grib2Pds {
       return readTimeIntervals(getNumberTimeRanges(), 50);
     }
 
-    public int getStatisticalProcessType() {
-      return super.getStatisticalProcessType();
-    }
-
     @Override
     public int templateLength() {
       return 49 + getNumberTimeRanges() * 12;
@@ -621,7 +614,7 @@ public abstract class Grib2Pds {
    */
   static private class Grib2Pds2 extends Grib2Pds0 implements PdsEnsembleDerived {
 
-    Grib2Pds2(byte[] input) throws IOException {
+    Grib2Pds2(byte[] input) {
       super(input);
     }
 
@@ -665,7 +658,7 @@ public abstract class Grib2Pds {
     //CalendarDate endInterval; // Date msecs
     //int ft;
 
-    Grib2Pds12(byte[] input) throws IOException {
+    Grib2Pds12(byte[] input) {
       super(input);
       //endInterval = calcTime(37);
       //ft = makeForecastTime(endInterval, getTimeUnit());
@@ -702,10 +695,6 @@ public abstract class Grib2Pds {
       return readTimeIntervals(getNumberTimeRanges(), 49);
     }
 
-    public int getStatisticalProcessType() {
-      return super.getStatisticalProcessType();
-    }
-
     @Override
     public int templateLength() {
       return 48 + getNumberTimeRanges() * 12;
@@ -734,7 +723,7 @@ public abstract class Grib2Pds {
    */
   static private class Grib2Pds5 extends Grib2Pds0 implements PdsProbability {
 
-    Grib2Pds5(byte[] input) throws IOException {
+    Grib2Pds5(byte[] input) {
       super(input);
     }
 
@@ -882,7 +871,7 @@ public abstract class Grib2Pds {
     // CalendarDate endInterval; // Date msecs
     //int ft;
 
-    Grib2Pds9(byte[] input) throws IOException {
+    Grib2Pds9(byte[] input) {
       super(input);
       //endInterval = calcTime(48);
       //ft = makeForecastTime(endInterval, getTimeUnit());
@@ -924,10 +913,6 @@ public abstract class Grib2Pds {
       return readTimeIntervals(getNumberTimeRanges(), 60);
     }
 
-    public int getStatisticalProcessType() {
-      return super.getStatisticalProcessType();
-    }
-
     @Override
     public int templateLength() {
       return 59 + getNumberTimeRanges() * 12;
@@ -959,7 +944,7 @@ public abstract class Grib2Pds {
   static private class Grib2Pds8 extends Grib2Pds0 implements PdsInterval {
     // CalendarDate endInterval; // Date msecs
 
-    Grib2Pds8(byte[] input) throws IOException {
+    Grib2Pds8(byte[] input) {
       super(input);
       //endInterval = calcTime(35);
     }
@@ -999,10 +984,6 @@ public abstract class Grib2Pds {
       return readTimeIntervals(getNumberTimeRanges(), 47);
     }
 
-    public int getStatisticalProcessType() {
-      return super.getStatisticalProcessType();
-    }
-
     @Override
     public int templateLength() {
       return 46 + getNumberTimeRanges() * 12;
@@ -1036,7 +1017,7 @@ public abstract class Grib2Pds {
    */
   static private class Grib2Pds6 extends Grib2Pds0 implements PdsPercentile {
 
-    Grib2Pds6(byte[] input) throws IOException {
+    Grib2Pds6(byte[] input) {
       super(input);
     }
 
@@ -1068,7 +1049,7 @@ public abstract class Grib2Pds {
   static private class Grib2Pds10 extends Grib2Pds6 implements PdsInterval {
     // CalendarDate endInterval;
 
-    Grib2Pds10(byte[] input) throws IOException {
+    Grib2Pds10(byte[] input) {
       super(input);
       //endInterval = calcTime(36);
     }
@@ -1104,10 +1085,6 @@ public abstract class Grib2Pds {
       return readTimeIntervals(getNumberTimeRanges(), 48);
     }
 
-    public int getStatisticalProcessType() {
-      return super.getStatisticalProcessType();
-    }
-
     @Override
     public int templateLength() {
       return 48 + getNumberTimeRanges() * 12;
@@ -1131,9 +1108,9 @@ public abstract class Grib2Pds {
    */
   static private class Grib2Pds30 extends Grib2Pds {
 
-    Grib2Pds30(byte[] input) throws IOException {
+    Grib2Pds30(byte[] input) {
       super(input);
-      log.warn("Product Definition Template 4.30 is deprecated in favor of 4.31 (WMO Manual on Codes");
+      log.debug("Product Definition Template 4.30 is deprecated in favor of 4.31 (WMO Manual on Codes");
     }
 
     // LOOK - could put this into a dummy superclass in case others need
@@ -1210,7 +1187,7 @@ public abstract class Grib2Pds {
 
         static int octetsPerBand = 11;
 
-        Grib2Pds31(byte[] input) throws IOException {
+        Grib2Pds31(byte[] input) {
             super(input);
         }
 
@@ -1259,7 +1236,7 @@ public abstract class Grib2Pds {
                 sb.series = GribNumbers.int2(getOctet(pos + 2), getOctet(pos + 3));
                 sb.instrumentType = GribNumbers.int2(getOctet(pos + 4), getOctet(pos + 5));
                 int scaleFactor = getOctetSigned(pos + 6);
-                int svalue = GribNumbers.int4(getOctet(pos + 7), getOctet(pos + 8), getOctet(pos + 9), getOctet(pos + 10));
+                int svalue = GribNumbers.int4(getOctet(pos + 7), getOctet(pos + 8), getOctet(pos + 9), getOctet(pos +  10));
                 sb.value = applyScaleFactor(scaleFactor, svalue);
                 pos += octetsPerBand;
                 result[i] = sb;
@@ -1307,7 +1284,7 @@ public abstract class Grib2Pds {
 
   static private class Grib2Pds48 extends Grib2Pds implements PdsAerosol {
 
-    Grib2Pds48(byte[] input) throws IOException {
+    Grib2Pds48(byte[] input) {
       super(input);
     }
 

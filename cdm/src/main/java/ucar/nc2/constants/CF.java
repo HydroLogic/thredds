@@ -62,6 +62,7 @@ public interface CF {
   // grid mapping names
   public final static String ALBERS_CONICAL_EQUAL_AREA = "albers_conical_equal_area";
   public final static String AZIMUTHAL_EQUIDISTANT = "azimuthal_equidistant";
+  public final static String GEOSTATIONARY = "geostationary";
   public final static String LAMBERT_AZIMUTHAL_EQUAL_AREA = "lambert_azimuthal_equal_area";
   public final static String LAMBERT_CONFORMAL_CONIC = "lambert_conformal_conic";
   public final static String LAMBERT_CYLINDRICAL_EQUAL_AREA = "lambert_cylindrical_equal_area";
@@ -99,6 +100,11 @@ public interface CF {
   public static final String SWEEP_ANGLE_AXIS = "sweep_angle_axis"; // geostationary
   public static final String STANDARD_PARALLEL = "standard_parallel";
   public static final String STRAIGHT_VERTICAL_LONGITUDE_FROM_POLE = "straight_vertical_longitude_from_pole";
+
+  // vertical coordinate
+  public static final String atmosphere_ln_pressure_coordinate = "atmosphere_ln_pressure_coordinate";
+
+  public static final String formula_terms = "formula_terms";
 
   // standard_names
   public static final String TIME = "time";                               // valid; time, obs time

@@ -67,13 +67,11 @@ abstract public class DapNode
     {
         // Use Instanceof to figure out the sort
         // Because of subclass relationships, order is important
-        if(this instanceof DapAtomicVariable
-            || this instanceof DapAtomicVariable)
+        if(this instanceof DapAtomicVariable)
             this.sort = DapSort.ATOMICVARIABLE;
         else if(this instanceof DapSequence)  //must precede structure because seq subclass struct
-                this.sort = DapSort.SEQUENCE;
-        else if(this instanceof DapStructure
-            || this instanceof DapStructure)
+            this.sort = DapSort.SEQUENCE;
+        else if(this instanceof DapStructure)
             this.sort = DapSort.STRUCTURE;
         else if(this instanceof DapOtherXML)
             this.sort = DapSort.OTHERXML;
@@ -127,7 +125,7 @@ abstract public class DapNode
 
     // This may  occur after initial construction
     synchronized public DapAttribute setAttribute(DapAttribute attr)
-        throws DapException
+            throws DapException
     {
         if(attributes == null)
             attributes = new HashMap<String, DapAttribute>();
@@ -138,14 +136,29 @@ abstract public class DapNode
     }
 
     public synchronized void addAttribute(DapAttribute attr)
-        throws DapException
+            throws DapException
     {
         String name = attr.getShortName();
         if(this.attributes == null)
-            this.attributes = new HashMap<String,DapAttribute>();
+            this.attributes = new HashMap<String, DapAttribute>();
         if(this.attributes.containsKey(name))
-            throw new DapException("Attempt to add duplicate attribute: "+attr.getShortName());
+            throw new DapException("Attempt to add duplicate attribute: " + attr.getShortName());
         setAttribute(attr);
+    }
+
+    /**
+     * Used by AbstractDSP to suppress certain attributes.
+     * @param attr
+     * @throws DapException
+     */
+    public synchronized void removeAttribute(DapAttribute attr)
+            throws DapException
+    {
+        if(this.attributes == null)
+            return;
+        String name = attr.getShortName();
+        if(this.attributes.containsKey(name))
+            this.attributes.remove(name);
     }
 
     public synchronized DapAttribute findAttribute(String name)
@@ -300,7 +313,7 @@ abstract public class DapNode
     {
         List<DapNode> path = new ArrayList<DapNode>();
         DapNode current = this;
-        for(;;) {
+        for(; ; ) {
             path.add(0, current);
             if(current.getParent() == null)
                 break;
@@ -319,7 +332,7 @@ abstract public class DapNode
     {
         List<DapNode> path = new ArrayList<DapNode>();
         DapNode current = this.getContainer();
-        for(;;) {
+        for(; ; ) {
             path.add(0, current);
             if(current.getContainer() == null)
                 break;
@@ -338,9 +351,9 @@ abstract public class DapNode
     {
         List<DapGroup> path = new ArrayList<DapGroup>();
         DapNode current = this;
-        for(;;) {
+        for(; ; ) {
             if(current.getSort() == DapSort.GROUP
-                || current.getSort() == DapSort.DATASET)
+                    || current.getSort() == DapSort.DATASET)
                 path.add(0, (DapGroup) current);
             if(current.getContainer() == null)
                 break;
@@ -360,20 +373,22 @@ abstract public class DapNode
     computefqn()
     {
         List<DapNode> path = getPath();
-        String fqn = "";
+        StringBuilder fqn = new StringBuilder();
         DapNode parent = path.get(0);
-        for(int i = 1;i < path.size();i++) {// start past the root dataset
+        for(int i = 1; i < path.size(); i++) {// start past the root dataset
             DapNode current = path.get(i);
             // Depending on what parent is, use different delimiters
             switch (parent.getSort()) {
             case DATASET:
             case GROUP:
-                fqn = fqn + '/' + current.getEscapedShortName();
+                fqn.append('/');
+                fqn.append(current.getEscapedShortName());
                 break;
             // These use '.'
             case STRUCTURE:
             case ENUMERATION:
-                fqn = fqn + '.' + current.getEscapedShortName();
+                fqn.append('.');
+                fqn.append(current.getEscapedShortName());
                 break;
             // Others should never happen
             default:
@@ -381,7 +396,7 @@ abstract public class DapNode
             }
             parent = current;
         }
-        return fqn;
+        return fqn.toString();
     }
 
     //////////////////////////////////////////////////
@@ -390,8 +405,8 @@ abstract public class DapNode
     public boolean isTopLevel()
     {
         return parent == null
-            || parent.getSort() == DapSort.DATASET
-            || parent.getSort() == DapSort.GROUP;
+                || parent.getSort() == DapSort.DATASET
+                || parent.getSort() == DapSort.GROUP;
     }
 
     //////////////////////////////////////////////////

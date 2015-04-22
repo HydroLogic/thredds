@@ -33,11 +33,15 @@
 
 package ucar.nc2.grib.grib1;
 
+import ucar.ma2.DataType;
+import ucar.nc2.grib.GribData;
 import ucar.nc2.grib.QuasiRegular;
+import ucar.nc2.grib.grib1.tables.Grib1Customizer;
 import ucar.nc2.time.CalendarDate;
 import ucar.unidata.io.RandomAccessFile;
 
 import java.io.IOException;
+import java.util.Formatter;
 
 /**
  * A Grib1 message.
@@ -117,6 +121,13 @@ public class Grib1Record {
     return gdss;
   }
 
+  private Grib1Gds gds = null;
+  public Grib1Gds getGDS() {
+    if (gds == null)
+      gds = gdss.getGDS();
+    return gds;
+  }
+
   public Grib1SectionProductDefinition getPDSsection() {
     return pdss;
   }
@@ -141,20 +152,61 @@ public class Grib1Record {
     this.file = file;
   }
 
+  private Grib1ParamTime ptime;
+  public Grib1ParamTime getParamTime(Grib1Customizer cust) {
+    if (ptime == null) ptime = cust.getParamTime(pdss);
+    return ptime;
+  }
+
   /////////////// reading data
 
   // isolate dependencies here - in case we have a "minimal I/O" mode where not all fields are available
   public float[] readData(RandomAccessFile raf) throws IOException {
-    Grib1Gds gds = gdss.getGDS();
+    return readData(raf, GribData.getInterpolationMethod());
+  }
+
+  // dont convertQuasiGrid
+  public float[] readDataRaw(RandomAccessFile raf, GribData.InterpolationMethod method) throws IOException {
+    return readData(raf, method);
+  }
+
+  // isolate dependencies here - in case we have a "minimal I/O" mode where not all fields are available
+  private  float[] readData(RandomAccessFile raf, GribData.InterpolationMethod method) throws IOException {
+    Grib1Gds gds = getGDS();
     Grib1DataReader reader = new Grib1DataReader(pdss.getDecimalScale(), gds.getScanMode(), gds.getNx(), gds.getNy(), gds.getNpts(), dataSection.getStartingPosition());
     byte[] bm = (bitmap == null) ? null : bitmap.getBitmap(raf);
     float[] data = reader.getData(raf, bm);
 
     if (gdss.isThin()) {
-      data = QuasiRegular.convertQuasiGrid(data, gds.getNptsInLine(), gds.getNxRaw(), gds.getNyRaw() );
+      data = QuasiRegular.convertQuasiGrid(data, gds.getNptsInLine(), gds.getNxRaw(), gds.getNyRaw(), method);
     }
 
+    lastRecordRead = this;
     return data;
+  }
+
+ public void showDataInfo(RandomAccessFile raf, Formatter f) throws IOException {
+    Grib1Gds gds = getGDS();
+    f.format(" decimal scale = %d%n", pdss.getDecimalScale());
+    f.format("     scan mode = %d%n", gds.getScanMode());
+    f.format("            nx = %d%n", gds.getNx());
+    f.format("            ny = %d%n", gds.getNy());
+    f.format("          Npts = %d%n", gds.getNpts());
+    f.format("        isThin = %s%n", gdss.isThin());
+
+    GribData.Info info = getBinaryDataInfo(raf);
+    f.format("   dataLength = %d%n", info.dataLength);
+
+    // octet 4, 1st half (packing flag)
+    f.format("    ----flag = %s%n", Long.toHexString(info.flag));
+    f.format("        data = %s%n", info.getGridPointS());
+    f.format("     packing = %s%n", info.getPackingS());
+    f.format("        type = %s%n", info.getDataTypeS());
+    f.format("        more = %s%n", info.hasMore());
+    f.format("    binscale = %d%n", info.binaryScaleFactor);
+    f.format("    decscale = %d%n", info.decimalScaleFactor);
+    f.format("reference value = %f%n", info.referenceValue);
+    f.format("      nbits = %d%n", info.numberOfBits);
   }
 
   /**
@@ -171,6 +223,9 @@ public class Grib1Record {
     Grib1Record gr = new Grib1Record(raf);
     return gr.readData(raf);
   }
+
+  // debugging, do not use
+  static public Grib1Record lastRecordRead;
 
   /*
    * Read data array: use when you want to be independent of the GribRecord
@@ -193,4 +248,38 @@ public class Grib1Record {
 
     return reader.getData(raf, bitmap);
   } */
+
+  public GribData.Info getBinaryDataInfo(RandomAccessFile raf) throws IOException {
+    GribData.Info info = dataSection.getBinaryDataInfo(raf);
+    info.decimalScaleFactor = pdss.getDecimalScale();
+    info.bitmapLength = (bitmap == null) ? 0 : bitmap.getLength(raf);
+    info.nPoints = getGDS().getNpts();
+    info.msgLength = is.getMessageLength();
+
+    if (bitmap == null) {
+      info.ndataPoints = info.nPoints;
+    } else {
+      int bits = 0;   // have to count the bits to see how many data values are stored
+      byte[] bm = bitmap.getBitmap(raf);
+      if (bm == null) {
+        info.ndataPoints = info.nPoints;
+      } else {
+        for (byte b : bm) {
+          short s = DataType.unsignedByteToShort(b);
+          bits += Long.bitCount(s);
+        }
+        info.ndataPoints = bits;
+      }
+    }
+
+    return info;
+  }
+
+    // debugging - do not use
+  public int[] readRawData(RandomAccessFile raf) throws IOException {
+    Grib1Gds gds = getGDS();
+    Grib1DataReader reader = new Grib1DataReader(pdss.getDecimalScale(), gds.getScanMode(), gds.getNx(), gds.getNy(), gds.getNpts(), dataSection.getStartingPosition());
+    byte[] bm = (bitmap == null) ? null : bitmap.getBitmap(raf);
+    return reader.getDataRaw(raf, bm);
+  }
 }

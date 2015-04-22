@@ -1,33 +1,34 @@
 /*
- * Copyright (c) 1998 - 2010. University Corporation for Atmospheric Research/Unidata
- * Portions of this software were developed by the Unidata Program at the
- * University Corporation for Atmospheric Research.
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- * Access and use of this software shall impose the following obligations
- * and understandings on the user. The user is granted the right, without
- * any fee or cost, to use, copy, modify, alter, enhance and distribute
- * this software, and any derivative works thereof, and its supporting
- * documentation for any purpose whatsoever, provided that this entire
- * notice appears in all copies of the software, derivative works and
- * supporting documentation.  Further, UCAR requests that the user credit
- * UCAR/Unidata in any publications that result from the use of this
- * software or in any product that includes this software. The names UCAR
- * and/or Unidata, however, may not be used in any advertising or publicity
- * to endorse or promote any products or commercial entity unless specific
- * written permission is obtained from UCAR/Unidata. The user also
- * understands that UCAR/Unidata is not obligated to provide the user with
- * any support, consulting, training or assistance of any kind with regard
- * to the use, operation and performance of this software nor to provide
- * the user with any updates, revisions, new versions or "bug fixes."
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
- * THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- * WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 package ucar.nc2.ft.fmrc;
@@ -96,7 +97,7 @@ public class Fmrc {
 
   public static Fmrc open(FeatureCollectionConfig config, Formatter errlog) throws IOException {
     if (config.spec.startsWith(MFileCollectionManager.CATALOG)) {
-      String name = config.name != null ? config.name : config.spec;
+      String name = config.collectionName != null ? config.collectionName : config.spec;
       CollectionManagerCatalog manager = new CollectionManagerCatalog(name, config.spec, null, errlog);
       return new Fmrc(manager, config);
     }
@@ -183,38 +184,32 @@ public class Fmrc {
   // LOOK : all of these guys could use ehcache
   public GridDataset getDataset2D(NetcdfDataset result) throws IOException {
     checkNeeded( false);
-    GridDataset gds = fmrcDataset.getNetcdfDataset2D(result);
-    return gds;
+    return fmrcDataset.getNetcdfDataset2D(result);
   }
 
   public GridDataset getDatasetBest() throws IOException {
     checkNeeded( false);
-    GridDataset gds =  fmrcDataset.getBest();
-    return gds;
+    return fmrcDataset.getBest();
   }
 
   public GridDataset getDatasetBest(FeatureCollectionConfig.BestDataset bd) throws IOException {
     checkNeeded( false);
-    GridDataset gds =  fmrcDataset.getBest(bd);
-    return gds;
+    return fmrcDataset.getBest(bd);
   }
 
   public GridDataset getRunTimeDataset(CalendarDate run) throws IOException {
     checkNeeded( false);
-    GridDataset gds =  fmrcDataset.getRunTimeDataset(run);
-    return gds;
+    return fmrcDataset.getRunTimeDataset(run);
   }
 
   public GridDataset getConstantForecastDataset(CalendarDate time) throws IOException {
     checkNeeded( false);
-    GridDataset gds =  fmrcDataset.getConstantForecastDataset(time);
-    return gds;
+    return fmrcDataset.getConstantForecastDataset(time);
   }
 
   public GridDataset getConstantOffsetDataset(double hour) throws IOException {
     checkNeeded( false);
-    GridDataset gds =  fmrcDataset.getConstantOffsetDataset(hour);
-    return gds;
+    return fmrcDataset.getConstantOffsetDataset(hour);
   }
 
   /////////////////////////////////////////
@@ -231,7 +226,7 @@ public class Fmrc {
         try {
           fmrcDataset = new FmrcDataset(config);
         } catch (Throwable t) {
-          logger.error(config.spec+": initial fmrcDataset creation failed", t);
+          logger.error(config.name+": initial fmrcDataset creation failed", t);
           //throw new RuntimeException(t);
         }
       }
@@ -239,13 +234,13 @@ public class Fmrc {
       try {
         FmrcInv fmrcInv = makeFmrcInv(null);
         fmrcDataset.setInventory(fmrcInv, forceProtoLocal);
-        logger.debug(config.spec+": make new Dataset, new proto = {}", forceProtoLocal);
+        logger.debug("{}: make new Dataset, new proto = {}", config.name, forceProtoLocal);
         if (forceProtoLocal) forceProto = false;
         this.lastInvChanged = System.currentTimeMillis();
         if (forceProtoLocal) this.lastProtoChanged = this.lastInvChanged;
 
       } catch (Throwable t) {
-        logger.error(config.spec+": makeFmrcInv failed", t);
+        logger.error(config.name+": makeFmrcInv failed", t);
         //throw new RuntimeException(t);
       }
     }
@@ -266,7 +261,7 @@ public class Fmrc {
       try {
         update();
       } catch (Throwable t) {
-        logger.error(config.spec+": rescan failed");
+        logger.error(config.name+": rescan failed");
         throw new RuntimeException(t);
       }
     }
@@ -280,10 +275,7 @@ public class Fmrc {
 
       // get the inventory, sorted by path
       for (MFile f : manager.getFilesSorted()) {
-        if (logger.isDebugEnabled())
-          logger.debug("Fmrc: "+config.spec+": file="+f.getPath());
-
-        GridDatasetInv inv = null;
+        GridDatasetInv inv;
         try {
           inv = GridDatasetInv.open(manager, f, config.innerNcml); // inventory is discovered for each GDS
         } catch (IOException ioe) {
@@ -310,7 +302,7 @@ public class Fmrc {
       for (FmrInv fmr : fmrList) {
         fmr.finish();
         if (logger.isDebugEnabled())
-          logger.debug("Fmrc: spec="+config.spec+": fmr rundate="+fmr.getRunDate()+" nfiles= "+fmr.getFiles().size());
+          logger.debug("Fmrc:"+config.name+": made fmr with rundate="+fmr.getRunDate()+" nfiles= "+fmr.getFiles().size());
       }
 
       return new FmrcInv("fmrc:"+manager.getCollectionName(), fmrList, config.fmrcConfig.regularize);
@@ -340,7 +332,7 @@ public class Fmrc {
     String specH = "C:/data/datasets/nogaps/US058GMET-GR1mdl.*air_temp";
     String specH2 = "C:/data/ft/grid/cg/.*nc$";
     String specH3 = "C:/data/ft/grid/namExtract/#yyyyMMdd_HHmm#.*nc$";
-    Fmrc fmrc = new Fmrc(specH3, errlog);
+    new Fmrc(specH3, errlog);
     System.out.printf("errlog = %s%n", errlog);
   }
 }

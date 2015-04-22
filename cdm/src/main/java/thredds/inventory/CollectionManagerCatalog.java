@@ -1,50 +1,51 @@
 /*
- * Copyright (c) 1998 - 2010. University Corporation for Atmospheric Research/Unidata
- * Portions of this software were developed by the Unidata Program at the
- * University Corporation for Atmospheric Research.
+ * Copyright 1998-2015 University Corporation for Atmospheric Research/Unidata
  *
- * Access and use of this software shall impose the following obligations
- * and understandings on the user. The user is granted the right, without
- * any fee or cost, to use, copy, modify, alter, enhance and distribute
- * this software, and any derivative works thereof, and its supporting
- * documentation for any purpose whatsoever, provided that this entire
- * notice appears in all copies of the software, derivative works and
- * supporting documentation.  Further, UCAR requests that the user credit
- * UCAR/Unidata in any publications that result from the use of this
- * software or in any product that includes this software. The names UCAR
- * and/or Unidata, however, may not be used in any advertising or publicity
- * to endorse or promote any products or commercial entity unless specific
- * written permission is obtained from UCAR/Unidata. The user also
- * understands that UCAR/Unidata is not obligated to provide the user with
- * any support, consulting, training or assistance of any kind with regard
- * to the use, operation and performance of this software nor to provide
- * the user with any updates, revisions, new versions or "bug fixes."
+ *   Portions of this software were developed by the Unidata Program at the
+ *   University Corporation for Atmospheric Research.
  *
- * THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
- * INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
- * FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
- * WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
+ *   Access and use of this software shall impose the following obligations
+ *   and understandings on the user. The user is granted the right, without
+ *   any fee or cost, to use, copy, modify, alter, enhance and distribute
+ *   this software, and any derivative works thereof, and its supporting
+ *   documentation for any purpose whatsoever, provided that this entire
+ *   notice appears in all copies of the software, derivative works and
+ *   supporting documentation.  Further, UCAR requests that the user credit
+ *   UCAR/Unidata in any publications that result from the use of this
+ *   software or in any product that includes this software. The names UCAR
+ *   and/or Unidata, however, may not be used in any advertising or publicity
+ *   to endorse or promote any products or commercial entity unless specific
+ *   written permission is obtained from UCAR/Unidata. The user also
+ *   understands that UCAR/Unidata is not obligated to provide the user with
+ *   any support, consulting, training or assistance of any kind with regard
+ *   to the use, operation and performance of this software nor to provide
+ *   the user with any updates, revisions, new versions or "bug fixes."
+ *
+ *   THIS SOFTWARE IS PROVIDED BY UCAR/UNIDATA "AS IS" AND ANY EXPRESS OR
+ *   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ *   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL UCAR/UNIDATA BE LIABLE FOR ANY SPECIAL,
+ *   INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING
+ *   FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+ *   NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+ *   WITH THE ACCESS, USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 package thredds.inventory;
 
 import net.jcip.annotations.ThreadSafe;
+import thredds.client.catalog.Access;
+import thredds.client.catalog.CatalogRef;
+import thredds.client.catalog.Dataset;
+import thredds.client.catalog.tools.CatalogCrawler;
+import thredds.client.catalog.tools.DataFactory;
 import ucar.nc2.units.DateType;
-import ucar.nc2.thredds.ThreddsDataFactory;
-import ucar.nc2.ft.fmrc.Fmrc;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.Date;
 import java.util.List;
-
-import thredds.catalog.*;
-import thredds.catalog.crawl.CatalogCrawler;
 
 /**
  * CollectionManager of datasets from a catalog.
@@ -67,8 +68,8 @@ public class CollectionManagerCatalog extends CollectionManagerAbstract implemen
 
     int pos = collectionSpec.indexOf('?');
     if (pos > 0) {
-      this.dateExtractor = new DateExtractorFromName(collectionSpec.substring(pos+1), true);  // WTF ?
-      collectionSpec = collectionSpec.substring(0,pos);
+      this.dateExtractor = new DateExtractorFromName(collectionSpec.substring(pos + 1), true);  // WTF ?
+      collectionSpec = collectionSpec.substring(0, pos);
     }
 
     this.catalogUrl = collectionSpec;
@@ -97,21 +98,12 @@ public class CollectionManagerCatalog extends CollectionManagerAbstract implemen
 
   @Override
   public boolean scan(boolean sendEvent) throws IOException {
-   mfiles = new ArrayList<>(100);
+    mfiles = new ArrayList<>(100);
 
-    InvCatalogFactory catFactory = InvCatalogFactory.getDefaultFactory(true);
-    InvCatalogImpl cat = catFactory.readXML(catalogUrl);
-    StringBuilder buff = new StringBuilder();
-    boolean isValid = cat.check(buff, false);
-    if (!isValid) {
-      logger.warn("Catalog invalid= "+catalogUrl+" validation output= "+ buff);
-      return false;
-    }
-
-    CatalogCrawler crawler = new CatalogCrawler(CatalogCrawler.USE_ALL_DIRECT, false, this);
+    CatalogCrawler crawler = new CatalogCrawler(CatalogCrawler.Type.all_direct, 0, null, this);
     long start = System.currentTimeMillis();
     try {
-      crawler.crawl(cat, null, null, null);
+      crawler.crawl(catalogUrl, null, null, null);
     } finally {
       long took = (System.currentTimeMillis() - start);
       if (debug) System.out.format("***Done " + catalogUrl + " took = " + took + " msecs%n");
@@ -126,16 +118,16 @@ public class CollectionManagerCatalog extends CollectionManagerAbstract implemen
     return mfiles == null ? new ArrayList<MFile>() : mfiles;
   }
 
-  private class MFileRemote implements MFile {
+  private static class MFileRemote implements MFile {
     private Object info;
-    private final InvAccess access;
+    private final Access access;
     private Date lastModified;
 
-    MFileRemote(InvAccess access) {
+    MFileRemote(Access access) {
       this.access = access;
       for (DateType dateType : access.getDataset().getDates()) {
         if (dateType.getType().equals("modified"))
-          lastModified =  dateType.getDate();
+          lastModified = dateType.getDate();
       }
     }
 
@@ -165,6 +157,11 @@ public class CollectionManagerCatalog extends CollectionManagerAbstract implemen
     }
 
     @Override
+    public MFile getParent() throws IOException {
+      return null;
+    }
+
+    @Override
     public int compareTo(MFile o) {
       return getPath().compareTo(o.getPath());
     }
@@ -184,10 +181,11 @@ public class CollectionManagerCatalog extends CollectionManagerAbstract implemen
   // CatalogCrawler.Listener
 
   @Override
-  public void getDataset(InvDataset ds, Object context) {
+  public void getDataset(Dataset ds, Object context) {
     if (ds.hasAccess()) {
-      ThreddsDataFactory tdataFactory = new ThreddsDataFactory();
-      InvAccess access = tdataFactory.chooseDatasetAccess(ds.getAccess());
+      DataFactory tdataFactory = new DataFactory();
+      Access access = tdataFactory.chooseDatasetAccess(ds.getAccess());
+      if (access == null) throw new IllegalStateException();
       MFileRemote mfile = new MFileRemote(access);
       if (mfile.getPath().endsWith(".xml")) return; // eliminate latest.xml  LOOK kludge-o-rama
       mfiles.add(mfile);
@@ -197,12 +195,12 @@ public class CollectionManagerCatalog extends CollectionManagerAbstract implemen
 
 
   @Override
-  public boolean getCatalogRef(InvCatalogRef dd, Object context) {
+  public boolean getCatalogRef(CatalogRef dd, Object context) {
     return true;
   }
 
 
-  public static void main(String arg[]) throws IOException {
+  /* public static void main(String arg[]) throws IOException {
     Formatter errlog = new Formatter();
     String catUrl = "http://thredds.ucar.edu/thredds/catalog/fmrc/NCEP/NDFD/CONUS_5km/files/catalog.xml";
     CollectionManagerCatalog man = new CollectionManagerCatalog("test", catUrl, null, errlog);
@@ -210,7 +208,7 @@ public class CollectionManagerCatalog extends CollectionManagerAbstract implemen
     man.scan(true);
     Fmrc fmrc = Fmrc.open(MFileCollectionManager.CATALOG+catUrl, errlog);
     System.out.printf("errlog = %s %n", errlog);
-  }
+  }  */
 
 
 }

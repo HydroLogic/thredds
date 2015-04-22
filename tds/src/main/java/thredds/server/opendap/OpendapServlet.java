@@ -48,12 +48,19 @@ import java.net.URI;
 
 import opendap.servlet.*;
 import opendap.servlet.AbstractServlet;
-import thredds.server.admin.DebugController;
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import thredds.core.TdsRequestedDataset;
+import thredds.server.admin.DebugCommands;
+import thredds.server.config.ThreddsConfig;
 import thredds.servlet.*;
 import thredds.servlet.filter.CookieFilter;
 import ucar.ma2.DataType;
 import ucar.ma2.Range;
 import ucar.ma2.Section;
+import ucar.nc2.constants.CDM;
 import ucar.nc2.dods.DODSNetcdfFile;
 import ucar.nc2.NetcdfFile;
 import ucar.nc2.util.EscapeStrings;
@@ -65,12 +72,13 @@ import ucar.nc2.util.EscapeStrings;
  * @author Nathan David Potter
  * @since Apr 27, 2009 (branched)
  */
-public class OpendapServlet extends AbstractServlet {
-  static final String DEFAULTCONTEXTPATH = "/thredds";
-  static final String GDATASET = "guarded_dataset";
+//@Controller
+//@RequestMapping("/dodsC")
+public class OpendapServlet extends AbstractServlet implements InitializingBean {
+  static public org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OpendapServlet.class);
 
-  static public org.slf4j.Logger log
-             = org.slf4j.LoggerFactory.getLogger(OpendapServlet.class);
+  //@Autowired
+  //DebugCommands debugCommands;
 
   private boolean allowSessions = false;
   private boolean allowDeflate = false; // handled by Tomcat
@@ -83,6 +91,12 @@ public class OpendapServlet extends AbstractServlet {
   private int binLimit = 500;
 
   private boolean debugSession = false;
+
+
+  @Override
+  public void afterPropertiesSet() throws Exception {
+
+  }
 
   public void init() throws javax.servlet.ServletException {
     super.init();
@@ -97,7 +111,7 @@ public class OpendapServlet extends AbstractServlet {
     logServerStartup.info(getClass().getName() + " version= " + odapVersionString + " ascLimit = " + ascLimit + " binLimit = " + binLimit);
 
     // debugging actions
-    makeDebugActions();
+    // makeDebugActions();
 
     logServerStartup.info(getClass().getName() + " initialization done");
   }
@@ -137,13 +151,9 @@ public class OpendapServlet extends AbstractServlet {
     else
       return -1;
 
-    // if (null != DatasetHandler.findResourceControl( path)) return -1; // LOOK weird Firefox behviour?
+    // if (null != DatasetHandler.findResourceControl( path)) return -1; // LOOK weird Firefox behaviour?
 
-    File file = DataRootHandler.getInstance().getCrawlableDatasetAsFile(path);
-    if ((file != null) && file.exists())
-      return file.lastModified();
-
-    return -1;
+    return TdsRequestedDataset.getLastModified(path);
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -159,9 +169,7 @@ public class OpendapServlet extends AbstractServlet {
     try {
       path = request.getPathInfo();
       log.debug("doGet path={}", path);
-
-      if (thredds.servlet.Debug.isSet("showRequestDetail"))
-        log.debug(ServletUtil.showRequestDetail(this, request));
+      log.debug(ServletUtil.showRequestDetail(this, request));
 
       if (path == null) {
         response.sendError(HttpServletResponse.SC_NOT_FOUND);
@@ -176,10 +184,10 @@ public class OpendapServlet extends AbstractServlet {
         log.debug("doGet(): baseURI was set = {}", baseURI);
       }
 
-      if (path.endsWith("latest.xml")) {   // LOOK: used ??
+      /* if (path.endsWith("latest.xml")) {   // LOOK: used ??
         DataRootHandler.getInstance().processReqForLatestDataset(this, request, response);
         return;
-      }
+      } */
 
       // Redirect all catalog requests at the root level.
       if (path.equals("/") || path.equals("/catalog.html") || path.equals("/catalog.xml")) {
@@ -187,7 +195,7 @@ public class OpendapServlet extends AbstractServlet {
         return;
       }
 
-      // Make sure catalog requests match a dataRoot before trying to handle.  LOOK: used?
+      /*  Make sure catalog requests match a dataRoot before trying to handle.  LOOK: used?
       if (path.endsWith("/") || path.endsWith("/catalog.html") || path.endsWith("/catalog.xml")) {
         if (!DataRootHandler.getInstance().hasDataRootMatch(path)) {
           response.sendError(HttpServletResponse.SC_NOT_FOUND);
@@ -198,7 +206,7 @@ public class OpendapServlet extends AbstractServlet {
           log.error("catalog request failed ");
 
         return;
-      }
+      }  */
 
 
       if (rs != null) {
@@ -243,7 +251,7 @@ public class OpendapServlet extends AbstractServlet {
 
       // plain ol' 404
     } catch (FileNotFoundException e) {
-      //e.printStackTrace();
+      // e.printStackTrace();
       sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, e.getMessage());
 
       // DAP2Exception bad url
@@ -310,7 +318,7 @@ public class OpendapServlet extends AbstractServlet {
       ce.parseConstraint(rs);
       checkSize(dds, true);
 
-      PrintWriter pw = new PrintWriter(response.getOutputStream());
+      PrintWriter pw = response.getWriter();
       dds.printConstrained(pw);
       pw.println("---------------------------------------------");
 
@@ -526,7 +534,7 @@ public class OpendapServlet extends AbstractServlet {
 
       // Send the Data delimiter back to the client
       pw.flush();
-      bOut.write("\nData:\n".getBytes());
+      bOut.write("\nData:\n".getBytes(CDM.utf8Charset));
       bOut.flush();
 
       // Send the binary data back to the client
@@ -552,7 +560,7 @@ public class OpendapServlet extends AbstractServlet {
     response.setHeader("XDODS-Server", getServerVersion());
     response.setHeader("Content-Description", "dods-version");
 
-    PrintWriter pw = new PrintWriter(new OutputStreamWriter(response.getOutputStream()));
+    PrintWriter pw = response.getWriter();
 
     pw.println("Server Version: " + getServerVersion());
     pw.flush();
@@ -565,7 +573,7 @@ public class OpendapServlet extends AbstractServlet {
     response.setHeader("XDODS-Server", getServerVersion());
     response.setHeader("Content-Description", "dods-help");
 
-    PrintWriter pw = new PrintWriter(new OutputStreamWriter(response.getOutputStream()));
+    PrintWriter pw = response.getWriter();
     printHelpPage(pw);
     pw.flush();
   }
@@ -590,7 +598,7 @@ public class OpendapServlet extends AbstractServlet {
       ds = getDataset(rs);
       if (null == ds) return;
 
-      PrintStream pw = new PrintStream(response.getOutputStream());
+      PrintWriter pw = response.getWriter();
       response.setHeader("XDODS-Server", getServerVersion());
       response.setContentType("text/html");
       response.setHeader("Content-Description", "dods-description");
@@ -630,13 +638,13 @@ public class OpendapServlet extends AbstractServlet {
 
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
-  // debugging
+  /* debugging
   private void makeDebugActions() {
-    DebugController.Category debugHandler = DebugController.find("ncdodsServer");
-    DebugController.Action act;
+    DebugCommands.Category debugHandler = debugCommands.findCategory("OPeNDAP");
+    DebugCommands.Action act;
 
-    act = new DebugController.Action("help", "Show help page") {
-      public void doAction(DebugController.Event e) {
+    act = new DebugCommands.Action("help", "Show help page") {
+      public void doAction(DebugCommands.Event e) {
         try {
           doGetHELP(getRequestState(e.req, e.res));
         } catch (Exception ioe) {
@@ -646,14 +654,13 @@ public class OpendapServlet extends AbstractServlet {
     };
     debugHandler.addAction(act);
 
-    act = new DebugController.Action("version", "Show server version") {
-      public void doAction(DebugController.Event e) {
+    act = new DebugCommands.Action("version", "Show server version") {
+      public void doAction(DebugCommands.Event e) {
         e.pw.println("  version= " + getServerVersion());
       }
     };
     debugHandler.addAction(act);
-
-  }
+  }  */
 
   public String getServerName() {
     return this.getClass().getName();
@@ -780,13 +787,15 @@ public class OpendapServlet extends AbstractServlet {
     long size = computeSize(dds, isAscii);
     //System.err.printf("total (constrained) size=%s\n", size);
     log.debug("total (constrained) size={}", size);
-    double dsize = size / (1000 * 1000);
+    double dsize = size / (1000.0 * 1000.0);
     double maxSize = isAscii ? ascLimit : binLimit; // Mbytes
     if (dsize > maxSize) {
       log.info("Reject request size = {} Mbytes", dsize);
       throw new UnsupportedOperationException("Request too big=" + dsize + " Mbytes, max=" + maxSize);
     }
   }
+
+  private static final boolean debugSize = false;
 
   // Recursively compute size of the dds to be returned
   // Note that the dds may be empty (e-support ZTH-269982)
@@ -808,6 +817,9 @@ public class OpendapServlet extends AbstractServlet {
       } else {
         othersize += fieldsize;
       }
+      if (debugSize) {
+        System.out.printf("  computeSize field %s isProject %s fieldsize=%d%n", field.getLongName(), field.isProject(), fieldsize);
+      }
     }
     // Cases to consider:
     // 1. If all of the fields of this ctor are projected,
@@ -816,14 +828,20 @@ public class OpendapServlet extends AbstractServlet {
     //    then return othersize
     // 3. otherwise, at least one field, but not all, is projected,
     //    => return projectsize;
+    long result;
     if (projectedcount == fieldcount)
-      return projectsize;
+      result = projectsize;
     else if (projectedcount == 0)
-      return othersize;
+      result =  othersize;
     else {
       assert (projectedcount > 0 && projectedcount < fieldcount);
-      return projectsize;
+      result =  projectsize;
     }
+
+    if (debugSize) {
+      System.out.printf("  computeSize return=%d (%d, %d) %n", result, projectedcount, fieldcount);
+    }
+    return result;
   }
 
   long computeFieldSize(BaseType bt, boolean isAscii)
@@ -869,11 +887,11 @@ public class OpendapServlet extends AbstractServlet {
     int n = da.numDimensions();
     List<Range> ranges = new ArrayList<>(n);
     long size = 0;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
       ranges.add(new Range(da.getStart(i), da.getStop(i), da.getStride(i)));
-      Section s = new Section(ranges);
-      size += s.computeSize() * elemSize;
-    }
+    Section s = new Section(ranges);
+    size += s.computeSize() * elemSize;
+
     return size;
   }
 
@@ -922,11 +940,11 @@ public class OpendapServlet extends AbstractServlet {
       ncd.close();
     } */
 
-    NetcdfFile ncd = DatasetHandler.getNetcdfFile(req, preq.getResponse(), reqPath);
-    if (null == ncd) return null;
+    NetcdfFile ncd = TdsRequestedDataset.getNetcdfFile(req, preq.getResponse(), reqPath);
+    if (null == ncd) return null; // error message already sent
+    //   throw new FileNotFoundException("Cant find "+ reqPath);
 
     GuardedDataset gdataset = new GuardedDatasetCacheAndClone(reqPath, ncd, acceptSession);
-    //GuardedDataset gdataset = new GuardedDatasetImpl(reqPath, ncd, acceptSession);
 
     if (acceptSession) {
       String cookiePath = req.getRequestURI();
@@ -935,15 +953,10 @@ public class OpendapServlet extends AbstractServlet {
         cookiePath = cookiePath.substring(0, cookiePath.length() - suffix.length());
       session.setAttribute(reqPath, gdataset);
       session.setAttribute(CookieFilter.SESSION_PATH, cookiePath);
-      //session.setAttribute("dataset", ncd.getLocation());  // for UsageValve
-      // session.setMaxInactiveInterval(30); // 30 second timeout !!
       if (debugSession)
         System.out.printf(" added gdataset %s in session %s cookiePath %s %n", reqPath, session.getId(), cookiePath);
       if (log.isDebugEnabled()) log.debug(" added gdataset " + gdataset + " in session " + session.getId());
-    } /* else {
-      session = req.getSession();
-      session.setAttribute("dataset", ncd.getLocation()); // for UsageValve
-    } */
+    }
 
     return gdataset;
   }
@@ -981,7 +994,7 @@ public class OpendapServlet extends AbstractServlet {
       response.setHeader("Content-Description", "dods-error");
       response.setContentType("text/plain");
 
-      PrintWriter pw = new PrintWriter(response.getOutputStream());
+      PrintWriter pw = response.getWriter();
       pw.println("Error {");
       pw.println("    code = " + errorCode + ";");
       pw.println("    message = \"" + errorMessage + "\";");
@@ -994,270 +1007,3 @@ public class OpendapServlet extends AbstractServlet {
   }
 
 }
-
-/*
-
-netcdf CherylMorse/buoy_agg {
-  dimensions:
-    name_strlen = 5;
-    time = 288;
-  variables:
-    char station_name(name_strlen=5);
-      :long_name = "wqbaw";
-      :cf_role = "timeseries_id";
-
-    int qc_flag;
-      :long_name = "Quality control status";
-      :short_name = "qc_flag";
-      :valid_range = 0, 2; // int
-      :flag_values = 0, 1, 2; // int
-      :flag_meanings = "no_qc_applied realtime_qc_applied delayed_mode_qc_applied";
-      :units = "0";
-
-    float temp_raw(time=288);
-      :long_name = "Temperature (raw)";
-      :standard_name = "sea_water_temperature";
-      :short_name = "temp_raw";
-      :units = "Celsius";
-      :coordinates = "time lat lon alt";
-      :valid_range = 10.0, 35.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "measured";
-
-    int temp_qd(time=288);
-      :long_name = "Temperature quality descriptor";
-      :short_name = "temp_qd";
-      :valid_range = -9, 4; // int
-      :flag_values = -9, 0, 1, 2, 3, 4; // int
-      :flag_meanings = "missing_value quality_not_evaluated failed/bad questionable/suspect passed/good interpolated/adjusted";
-      :units = "0";
-
-    float temp(time=288);
-      :long_name = "Temperature (processed)";
-      :standard_name = "sea_water_temperature";
-      :short_name = "temp";
-      :units = "Celsius";
-      :coordinates = "time lat lon alt";
-      :valid_range = 10.0, 35.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "measured";
-
-    float cond_raw(time=288);
-      :long_name = "Conductivity (raw)";
-      :standard_name = "sea_water_electrical_conductivity";
-      :short_name = "cond_raw";
-      :units = "S m-1";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "measured";
-
-    int cond_qd(time=288);
-      :long_name = "Conductivity quality descriptor";
-      :short_name = "cond_qd";
-      :valid_range = -9, 4; // int
-      :flag_values = -9, 0, 1, 2, 3, 4; // int
-      :flag_meanings = "missing_value quality_not_evaluated failed/bad questionable/suspect passed/good interpolated/adjusted";
-      :units = "0";
-
-    float cond(time=288);
-      :long_name = "Conductivity (processed)";
-      :standard_name = "sea_water_electrical_conductivity";
-      :short_name = "cond";
-      :units = "S m-1";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "measured";
-
-    float salt_raw(time=288);
-      :long_name = "Salinity (raw)";
-      :standard_name = "sea_water_salinity";
-      :short_name = "salt_raw";
-      :units = "1e-3";
-      :coordinates = "time lat lon alt";
-      :valid_range = 10.0, 40.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "salinity is calculated from measured temp and condc";
-
-    int salt_qd(time=288);
-      :long_name = "Salinity quality descriptor";
-      :short_name = "salt_qd";
-      :valid_range = -9, 4; // int
-      :flag_values = -9, 0, 1, 2, 3, 4; // int
-      :flag_meanings = "missing_value quality_not_evaluated failed/bad questionable/suspect passed/good interpolated/adjusted";
-      :units = "0";
-
-    float salt(time=288);
-      :long_name = "Salinity (processed)";
-      :standard_name = "sea_water_salinity";
-      :short_name = "salt";
-      :units = "1e-3";
-      :coordinates = "time lat lon alt";
-      :valid_range = 10.0, 40.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "salinity is calculated from measured temp and condc";
-
-    float oxyg_raw(time=288);
-      :long_name = "Dissolved oxygen (raw)";
-      :standard_name = "mass_concentration_of_oxygen_in_sea_water";
-      :short_name = "doxy_raw";
-      :units = "kg m-3";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "oxygen is calculated from measured T, S, P, V (DO thermistor voltage) and U (DO phase delay); see global attrib calib_oxyg; and from mg/L to kg/m3 by oxy*1.4276/1000.0";
-
-    int oxyg_qd(time=288);
-      :long_name = "Oxygen quality descriptor";
-      :short_name = "doxy_qd";
-      :valid_range = -9, 4; // int
-      :flag_values = -9, 0, 1, 2, 3, 4; // int
-      :flag_meanings = "missing_value quality_not_evaluated failed/bad questionable/suspect passed/good interpolated/adjusted";
-      :units = "0";
-
-    float oxyg(time=288);
-      :long_name = "Dissolved oxygen (processed)";
-      :standard_name = "mass_concentration_of_oxygen_in_sea_water";
-      :short_name = "doxy";
-      :units = "kg m-3";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "oxygen is calculated from measured T, S, P, V (DO thermistor voltage) and U (DO phase delay); see global attrib calib_oxyg; and from mg/L to kg/m3 by oxy*1.4276/1000.0";
-
-    float flor_raw(time=288);
-      :long_name = "Chlorophyll (raw)";
-      :standard_name = "mass_concentration_of_chlorophyll_in_sea_water";
-      :short_name = "flor_raw";
-      :units = "kg m-3";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "flor is calculated from voltage using scale factor (FSF) and dark count (FDC); see global attrib calib_flnt; and from ug/L to kg m-3 by flor*1E-6";
-
-    int flor_qd(time=288);
-      :long_name = "Chlorophyll quality descriptor";
-      :short_name = "flor_qd";
-      :valid_range = -9, 4; // int
-      :flag_values = -9, 0, 1, 2, 3, 4; // int
-      :flag_meanings = "missing_value quality_not_evaluated failed/bad questionable/suspect passed/good interpolated/adjusted";
-      :units = "0";
-
-    float flor(time=288);
-      :long_name = "Chlorophyll (processed)";
-      :standard_name = "mass_concentration_of_chlorophyll_in_sea_water";
-      :short_name = "flor";
-      :units = "kg m-3";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "flor is calculated from voltage using scale factor (FSF) and dark count (FDC); see global attrib calib_flnt; and from ug/L to kg m-3 by flor*1E-6";
-
-    float turb_raw(time=288);
-      :long_name = "Turbidity (raw)";
-      :standard_name = "sea_water_turbidity";
-      :short_name = "turb_raw";
-      :units = "ntu";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "turb is calculated from voltage using scale factor (TSF) and dark count (TDC); see global attrib calib_flnt";
-
-    int turb_qd(time=288);
-      :long_name = "Turbidity quality descriptor";
-      :short_name = "turb_qd";
-      :valid_range = -9, 4; // int
-      :flag_values = -9, 0, 1, 2, 3, 4; // int
-      :flag_meanings = "missing_value quality_not_evaluated failed/bad questionable/suspect passed/good interpolated/adjusted";
-      :units = "0";
-
-    float turb(time=288);
-      :long_name = "Turbidity (processed)";
-      :standard_name = "sea_water_turbidity";
-      :short_name = "turb";
-      :units = "ntu";
-      :coordinates = "time lat lon alt";
-      :valid_range = 0.0, 10.0; // double
-      :_FillValue = -999.0f; // float
-      :observation_type = "calculated";
-      :comment = "turb is calculated from voltage using scale factor (TSF) and dark count (TDC); see global attrib calib_flnt";
-
-    float alt;
-      :long_name = "depth below mean sea level";
-      :standard_name = "depth";
-      :short_name = "depth";
-      :axis = "z";
-      :units = "meters";
-      :_CoordinateAxisType = "Height";
-
-    float lat;
-      :long_name = "Latitude";
-      :standard_name = "latitude";
-      :short_name = "lat";
-      :axis = "Y";
-      :units = "degrees_north";
-      :_CoordinateAxisType = "Lat";
-
-    float lon;
-      :long_name = "Longitude";
-      :standard_name = "longitude";
-      :short_name = "lon";
-      :axis = "X";
-      :units = "degrees_east";
-      :_CoordinateAxisType = "Lon";
-
-    float time(time=288);
-      :long_name = "Time";
-      :standard_name = "time";
-      :short_name = "time";
-      :axis = "T";
-      :units = "minutes since 2008-01-01 00:00:00 -10:00";
-      :_CoordinateAxisType = "Time";
-
-  // global attributes:
-  :project = "PacIOOS";
-  :Conventions = "CF-1.6";
-  :featureType = "timeSeries";
-  :cdm_data_type = "Station";
-  :title = "Water Quality Buoy: Ala Wai";
-  :insitution = "UH/SOEST";
-  :date_created = "2013-05-08Z00:18:01 ";
-  :abstract = "The water quality buoys are part of the Pacific Islands Ocean Observing System (PacIOOS) and are designed to measure a variety of ocean parameters at fixed points.  WQBAW is located at the mouth of the Ala Wai Canal near Magic Island.  The Ala Wai is a main conduit for runoff from the area in-shore Waikiki.  Continuous sampling of this area provides a record of baseline conditions of the chemical and biological environment for comparison when there are pollultion events such as storm runoff or a sewage spill.";
-  :calib_oxyg = "SBE63-0317, Calib 30-Nov-12: A0=1.0513E0, A1-1.50E-3, A2=4.0970E-1, B0=-2.-2.3697E-3, B1=1.6307E0, TA0=7.5623 24E-4, TA1=2.379507E-4, TA2=1.872606E-6, TA3=6.04944E-8 (effective date 01-31-2013)    ";
-  :calib_flnt = "FLNTUS-1027, Calib 25-Oct-12: FSF=16, FDC=0.78, TSF=39, TDC=0.058 (effective date 01-31-2013)                     ";
-  :keywords = "Turbidity, Chlorophyll, Oxygen, Fluorescence, Scattering, Water Temperature, Conductivity, Salinity";
-  :references = "http://pacioos.org";
-  :platform_code = "WQBAW";
-  :naming_authority = "PacIOOS";
-  :geospatial_lat_min = "21.2799 ";
-  :geospatial_lat_max = "21.2799 ";
-  :geospatial_lon_min = "-157.848";
-  :geospatial_lon_max = "-157.848";
-  :geospatial_vertical_min = "-1.0";
-  :geospatial_vertical_max = "-1.0";
-  :time_coverage_start = "2013-05-03T00:01:32-10:00";
-  :time_coverage_end = "2013-05-03T23:21:32-10:00";
-  :local_time_zone = "-10.";
-  :data_center = "PacIOOS";
-  :data_center_email = "jimp@hawaii.edu";
-  :author_email = "jimp@hawaii.edu";
-  :author = "Dr. J. T. Potemra";
-  :principal_investigator = "Prof. Eric H. De Carlo";
-  :principal_investigator_email = "edecarlo@hawaii.edu";
-  :technical_contact = "Mike Tomlonson";
-  :technical_contact_email = "tomlinson86@q.com";
-  :citation = "Citation to be used in publications should follow the form: \"PacIOOS.[year-of-data-download],[Title],[Data access URL], accessed [date-of-access].\"";
-  :acknowledgement = "Data provided by PacIOOS (http://pacioos.org) which is part of the U.S. Integrated Ocean Observing System (IOOS) and are funded in part by the National Oceanic and Atmospheric Administration (NOAA) award #NA11NOS0120039.";
-  :distribution_statement = "PacIOOS data may be re-used, provided that related metadata explaning the data have been reviewed by the user, and that the data are appropriately acknowledged.  Data, products and services from PacIOOS are provided \"as is\" without and warranty as to fitness for a particular purpose.";
-  :_CoordSysBuilder = "ucar.nc2.dataset.conv.CF1Convention";
-}
-
-*/

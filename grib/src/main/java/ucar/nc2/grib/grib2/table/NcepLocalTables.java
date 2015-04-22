@@ -36,11 +36,7 @@ package ucar.nc2.grib.grib2.table;
 import org.jdom2.Element;
 import org.jdom2.JDOMException;
 import org.jdom2.input.SAXBuilder;
-import ucar.nc2.grib.GribResourceReader;
-import ucar.nc2.grib.GribNumbers;
-import ucar.nc2.grib.GribStatType;
-import ucar.nc2.grib.GribTables;
-import ucar.nc2.grib.TimeCoord;
+import ucar.nc2.grib.*;
 import ucar.nc2.grib.grib1.tables.NcepTables;
 import ucar.nc2.grib.grib2.Grib2Parameter;
 import ucar.nc2.grib.grib2.Grib2Pds;
@@ -63,20 +59,33 @@ import java.util.jar.JarFile;
  */
 public class NcepLocalTables extends LocalTables {
   static private final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(NcepLocalTables.class);
+  //static private final String oldResourcePath = "resources/grib2/ncep/";       // not sure what version this is, assume 13 overrides all
+  static private final String defaultResourcePath = "resources/grib2/ncep/v13.0.0/";
+  private static NcepLocalTables single;
 
-  protected final int genProcessId;
-  NcepLocalTables(int center, int subCenter, int masterVersion, int localVersion, int genProcessId) {
-    super(center, subCenter, masterVersion, localVersion);
-    this.genProcessId = genProcessId;
+  public static Grib2Customizer getCust(Grib2Table table) {
+    if (single == null) single = new NcepLocalTables(table);
+    return single;
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////////
+  protected final NcepLocalParams params;
+
+  NcepLocalTables(Grib2Table grib2Table) {
+    super(grib2Table);
+    if (grib2Table.getPath() == null)
+      grib2Table.setPath(defaultResourcePath);
+    this.params =  new NcepLocalParams(grib2Table.getPath());
     initCodes();
   }
 
   @Override
   public String getTablePath(int discipline, int category, int number) {
     if ((category <= 191) && (number <= 191)) return super.getTablePath(discipline, category, number);
-    return NcepLocalParams.getTablePath(discipline, category);
+    return params.getTablePath(discipline, category);
   }
 
+  // stuff Robb took from Jeff McW; I dont understand it  9/11/2014
   //public  File[] getResourceListing(Class clazz, String path) {
   // URL dirURL = clazz.getClassLoader().getResource(path);
   //  try {
@@ -92,20 +101,21 @@ public class NcepLocalTables extends LocalTables {
   //  return null;
   //}
 
-  private String[] getResourceListing(Class clazz, String path) throws URISyntaxException, IOException {
+  private String[] getResourceListing(String path) throws URISyntaxException, IOException {
+    Class clazz = this.getClass();
     URL dirURL = clazz.getClassLoader().getResource(path);
     if (dirURL != null && dirURL.getProtocol().equals("file")) {
-            /* A file path: easy enough */
       return new File(dirURL.toURI()).list();
     }
 
     if (dirURL == null) {
-            /*
-            * In case of a jar file, we can't actually find a directory.
-            * Have to assume the same jar as clazz.
-            */
+      //In case of a jar file, we can't actually find a directory.
+      //Have to assume the same jar as clazz.
       String me = clazz.getName().replace(".", "/") + ".class";
       dirURL = clazz.getClassLoader().getResource(me);
+    }
+    if (dirURL == null) {
+      throw new UnsupportedOperationException("Cannot list files for path "+path);
     }
 
     if (dirURL.getProtocol().equals("jar")) {
@@ -135,17 +145,17 @@ public class NcepLocalTables extends LocalTables {
   @Override
   public List<GribTables.Parameter> getParameters() {
     List<GribTables.Parameter> allParams = new ArrayList<>(3000);
-    String path = "resources/grib2/ncep/";
     try {
-      String[] fileNames = getResourceListing(ucar.nc2.grib.GribNumbers.class, path);
+      String[] fileNames = getResourceListing(grib2Table.getPath());
       for (String fileName : fileNames) {
         File f = new File(fileName);
         if (f.isDirectory()) continue;
         if (!f.getName().contains("Table4.2.")) continue;
         if (!f.getName().endsWith(".xml")) continue;
         try {
-          NcepLocalParams params = NcepLocalParams.factory(path + f.getPath());
-          allParams.addAll(params.getParameters());
+          NcepLocalParams.Table table = params.factory(grib2Table.getPath() + f.getPath());
+          if (table != null)
+            allParams.addAll(table.getParameters());
         } catch (Exception e) {
           System.out.printf("Error reading wmo tables = %s%n", e.getMessage());
         }
@@ -239,9 +249,7 @@ public class NcepLocalTables extends LocalTables {
       return te.getName();
   }
 
-
-
-  public GribTables.Parameter getParameterOld(int discipline, int category, int number) {
+  /* public GribTables.Parameter getParameterOld(int discipline, int category, int number) {
     if ((category <= 191) && (number <= 191)) {
       GribTables.Parameter p = WmoCodeTable.getParameterEntry(discipline, category, number);
       if (p != null) return p; // allow ncep to use values not already in use by WMO (!)
@@ -249,19 +257,19 @@ public class NcepLocalTables extends LocalTables {
 
     /* email from boi.vuong@noaa.gov 1/19/2012
      "I find that the parameter 2-4-3 (Haines Index) now is parameter 2 in WMO version 8.
-      The NAM fire weather nested  will take change in next implementation of cnvgrib (NCEP conversion program)."  */
+      The NAM fire weather nested  will take change in next implementation of cnvgrib (NCEP conversion program)."
     if (makeHash(discipline, category, number) == makeHash(2, 4, 3))
       return getParameter(2, 4, 2);
 
     /* email from boi.vuong@noaa.gov 1/26/2012
      The parameter 0-19-242 (Relative Humidity with Respect to Precipitable Water)  was in http://www.nco.ncep.noaa.gov/pmb/docs/grib2/grib2_table4-2-0-1.shtml
      It was a mistake in table conversion (from grib1 to grib2) in cnvgrib. It will be fixed in next implementation of cnvgrib in June or July, 2012.
-     RHPW  in grib1 in table 129 parameter 230  and in grib2 in 0-1-242  */
+     RHPW  in grib1 in table 129 parameter 230  and in grib2 in 0-1-242
     if (makeHash(discipline, category, number) == makeHash(0, 19, 242))
       return getParameter(0, 1, 242);
 
     return NcepLocalParams.getParameter(discipline, category, number);
-  }
+  } */
 
   @Override
   public GribTables.Parameter getParameter(int discipline, int category, int number) {
@@ -278,7 +286,7 @@ public class NcepLocalTables extends LocalTables {
     // if (makeHash(discipline, category, number) == makeHash(0, 19, 242))
     //   return getParameter(0, 1, 242);
 
-    Grib2Parameter plocal = NcepLocalParams.getParameter(discipline, category, number);
+    Grib2Parameter plocal = params.getParameter(discipline, category, number);
 
     if ((category <= 191) && (number <= 191)) {
       GribTables.Parameter pwmo = WmoCodeTable.getParameterEntry(discipline, category, number);
@@ -286,13 +294,17 @@ public class NcepLocalTables extends LocalTables {
 
       // allow local table to override all but name, units
       if (pwmo != null) {
-        plocal.name = pwmo.getName();
-        plocal.unit = pwmo.getUnit();
+        return new Grib2Parameter(plocal, pwmo.getName(), pwmo.getUnit());
       }
     }
 
     return plocal;
   }
+
+  @Override
+  public GribTables.Parameter getParameterRaw(int discipline, int category, int number) {
+     return params.getParameter(discipline, category, number);
+   }
 
   @Override
   public String getTableValue(String tableName, int code) {
@@ -306,14 +318,38 @@ public class NcepLocalTables extends LocalTables {
     return codeMap.get(tableName + "." + code);
   }
 
+  ////////////////////////////////////////////////////////////////////
+  // Vert
+
+  @Override
+  public VertCoord.VertUnit getVertUnit(int code) {
+
+    switch (code) {
+      case 235:
+        return new GribLevelType(code, "0.1 C", null, true);
+
+      case 237:
+        return new GribLevelType(code, "m", null, true);
+
+      case 238:
+        return new GribLevelType(code, "m", null, true);
+
+      case 241:
+        return new GribLevelType(code, "seq", null, true);   // eg see NCEP World Watch datasets
+
+      default:
+        return super.getVertUnit(code);
+    }
+  }
+
   @Override
   public String getLevelNameShort(int id) {
     if (id < 192) return super.getLevelNameShort(id);
     switch (id) {
       case 200:
-        return "entire_atmosphere";
+        return "entire_atmosphere_single_layer";
       case 201:
-        return "entire_ocean";
+        return "entire_ocean_single_layer";
       case 204:
         return "highest_tropospheric_freezing";
       case 206:
@@ -484,7 +520,7 @@ public class NcepLocalTables extends LocalTables {
 
   // public so can be called from Grib2
   private Map<Integer, String> initTable410() {
-    String path = "resources/grib2/ncep/Table4.10.xml";
+    String path = grib2Table.getPath() + "Table4.10.xml";
     try (InputStream is = GribResourceReader.getInputStream(path)) {
       if (is == null) {
         logger.error("Cant find = " + path);
@@ -529,7 +565,7 @@ public class NcepLocalTables extends LocalTables {
 
   @Override
   public String getCategory(int discipline, int category) {
-    String catName = NcepLocalParams.getCategory(discipline, category);
+    String catName = params.getCategory(discipline, category);
     if (catName != null) return catName;
     return super.getCategory(discipline, category);
   }
@@ -628,55 +664,6 @@ Updated again on 3/26/2008
     codeMap.put("4.10.207", "Average of forecast averages");
 
     return codeMap;
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  private static class CompTable {
-    int key;
-    GribTables.Parameter local;
-    GribTables.Parameter org;
-
-    private CompTable(int key, Parameter local, Parameter org) {
-      this.key = key;
-      this.local = local;
-      this.org = org;
-    }
-  }
-
-  public static void main(String arg[]) {
-    Map<Integer, CompTable> map = new HashMap<>(500);
-
-    NcepLocalTables tables = new NcepLocalTables(0, 0, 0, 0, 0);
-    NcepLocalParamsOld ncepOld = new NcepLocalParamsOld();
-
-    for (int key : ncepOld.local.keySet()) {
-      Grib2Customizer.Parameter p = ncepOld.local.get(key);
-      map.put(key, new CompTable(key, p, null));
-    }
-
-    NcepLocalParamsVeryOld.init();
-    Map<String, Grib2Parameter> org = NcepLocalParamsVeryOld.getParamMap();
-    for (String skey : org.keySet()) {
-      Grib2Parameter p = org.get(skey);
-      int key = makeHash(p.discipline, p.category, p.number);
-      CompTable ct = map.get(key);
-      if (ct == null) {
-        map.put(key, new CompTable(key, null, p));
-      } else {
-        ct.org = p;
-      }
-    }
-
-    System.out.printf("NcepLocalTables%nNcepLocalParamsOld%n%n");
-    ArrayList<Integer> keys = new ArrayList<>();
-    for (int key : map.keySet()) keys.add(key);
-    Collections.sort(keys);
-    for (int key : keys) {
-      CompTable ct = map.get(key);
-      System.out.printf("%s%n", ct.local);
-      System.out.printf("%s%n%n", ct.org);
-    }
   }
 
 }

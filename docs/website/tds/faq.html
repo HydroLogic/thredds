@@ -23,6 +23,7 @@
 <ul>
   <li><a href="#CatalogURLs">How do I construct the URLs I find in a THREDDS Catalog?</a></li>
   <li><a href="#extraDataset">How do I eliminate the extra dataset level when using a Catalog Reference?</a></li>
+  <li><a href="#externalService">How do I provide an external service, one that is not provided by the TDS?</a></li>
 </ul>
 <h2>TDS</h2>
 <ul>
@@ -55,17 +56,17 @@
   <li><a href="#rh5SymLinksAndContent">Why does the TDS fail to deploy in the Tomcat provided with RedHat 5 or 6?</a></li>
   <li>What does this error mean:
     <ul>
-      <li><a href="#listenerStart">SEVERE: Error listenerStart</a>
-      </li>
+      <li><a href="#listenerStart">SEVERE: Error listenerStart</a></li>
+        <li><a href="#log4jAppender">log4j:ERROR Attempted to append to closed appender named [foobar]</a></li>
+        <li><a href="#javaUtilPrefs">Couldn't flush system prefs: java.util.prefs.BackingStoreException:
+            /etc/.java/.systemPrefs/org create failed</a></li>
+        <li><a href="#SizeLimitExceededException">FAIL - Deploy Upload Failed: the request was rejected because its size (xxx) exceeds the configured maximum (yyy)</a></li>
     </ul>
   </li>
-  <ul>
-    <li><a href="#log4jAppender">log4j:ERROR Attempted to append to closed appender named [foobar]</a></li>
-    <li><a href="#log4jAppender">Couldn't flush system prefs: java.util.prefs.BackingStoreException: /etc/.java/.systemPrefs/org create failed</a></li>
-  </ul>
 </ul>
 <h2>Tomcat</h2>
 <ul>
+  <li><a href="#OutOfMemoryError">Im getting "java.lang.OutOfMemoryError: Java heap space" Whats up?</a></li>
   <li><a href="#permGenOutOfMemoryError">I'm getting the error "java.lang.OutOfMemoryError: PermGen space". Whats up?</a></li>
   <li><a href="#shutdownUnstoppedThreads">During shutdown I'm getting messages about threads (ThreadLocal) having to be shut down to prevent memory leaks. Whats
     up?</a></li>
@@ -74,8 +75,9 @@
   <li><a href="#controlWebCrawlers">How can I control whether I want Web crawlers to access my server?</a></li>
   <li><a href="#removeServletAutodeploy">How do I remove Servlet Autodeploy?</a></li>
   <li><a href="#howRemovePort8009">How do I remove port 8009 when using tomcat in standalone mode?</a></li>
+  <li><a href="#SizeLimitExceededException">Manager fails to upload new thredds.war with SizeLimitExceededException</a></li>
+  <li><a href="#Logging">Logging</a> is not working</li>
 </ul>
-
 <hr width="100%">
 <h2>General</h2>
 
@@ -131,20 +133,22 @@
 <p>A: In order to configure your maven project correctly, you need to edit your pom.xml file to reflect the location of Unidata's repository. To do this, you
   need to add the following pom snippet to your pom.xml file:</p>
 
-&lt;distributionManagement&gt;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&lt;repository&gt;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;id&gt;unidata-releases&lt;/id&gt;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;name>UNIDATA Releases&lt;/name&gt;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;url&gt;https://artifacts.unidata.ucar.edu/content/repositories/unidata-releases/&lt;/url&gt;<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&lt;/repository&gt;<br>
-&lt;/distributionManagement&gt;<br>
+<pre>
+&lt;repositories&gt;
+    &lt;repository&gt;
+        &lt;id&gt;unidata-releases&lt;/id&gt;
+        &lt;name>UNIDATA Releases&lt;/name&gt;
+        &lt;url&gt;https://artifacts.unidata.ucar.edu/content/repositories/unidata-releases/&lt;/url&gt;
+    &lt;/repository&gt;
+&lt;/repositories&gt;
+</pre>
 
 <p>
   Alternatively, you can configure your settings.xml file to reflect the repository location. Information on doing either is located here:
 
 <p>
 
-  &nbsp;&nbsp;<a href="http://maven.apache.org/pom.html#Repositories">Maven Repository information</a>
+    <a href="http://maven.apache.org/pom.html#Repositories">Maven Repository information</a>
 
 <p>
 
@@ -152,7 +156,7 @@
 
 <p>
 
-  &nbsp;&nbsp;<a href="http://maven.apache.org/settings.html">Maven Settings information</a>
+    <a href="http://maven.apache.org/settings.html">Maven Settings information</a>
 
 <p>
 
@@ -163,8 +167,8 @@
 <p><strong>Q:<a name="CatalogURLs"></a> How do I construct the URLs I find in a THREDDS Catalog? </strong><br>
 </p>
 
-<p>A: Heres the general idea in the <a href="tutorial/BasicConfig.html">tutorial</a> and the
-  <a href="http://www.unidata.ucar.edu/projects/THREDDS/tech/catalog/v1.0.2/InvCatalogSpec.html#constructingURLs">reference</a> docs. If you are using the CDM
+<p>A: Heres the general idea in the <a href="tutorial/CatalogPrimer.html#Constructing_an_access_URL">tutorial</a> and the
+  <a href="catalog/InvCatalogSpec.html#constructingURLs">catalog spec</a> docs. If you are using the CDM
   library, you can call </p>
 <pre>InvAccess.getUrlPath()</pre>
 
@@ -191,6 +195,22 @@
 
 <hr width="100%">
 
+<p><strong><a name="externalService"></a>Q: How do I provide an external service, one that is not provided by the TDS?</strong></p>
+<p>Make up your own service element, with an absolute URL for its base, in the configuration catalog. For example, suppose you want to use the THREDDS OPeNDAP server, and an external  WMS server:</p>
+<pre>
+&lt;?xml version="1.0" ?&gt;  
+&lt;catalog xmlns="http://www.unidata.ucar.edu/namespaces/thredds/InvCatalog/v1.0" &gt;
+  &lt;service name=&quot;both&quot; serviceType=&quot;compound&quot; base=&quot;&quot;&gt;
+   &lt;service name=&quot;ncdods&quot; serviceType=&quot;OPENDAP&quot; base=&quot;/thredds/dodsC/&quot;/&gt;
+   &lt;service name="extWMS" serviceType="WMS" base="http://myserver:8080/wms" /&gt;
+  &lt;/service&gt;
+
+  &lt;dataset name="SAGE III Ozone 2006-10-31" serviceName="both" urlPath="sage/20061031.nc" ID="20061031.nc"/&gt;
+&lt;/catalog&gt;
+</pre>
+<p>The problem is communicating the correct URL to your external WMS server.</p>
+<hr width="100%">
+<p>&nbsp;</p>
 <h2>TDS</h2>
 <h4><a name="throttleRequests"></a>Q: How do I keep client requests from overwhelming my server?</h4>
 
@@ -354,7 +374,7 @@ mkdir javaUtilPrefs/.usermPrefs
   catalog is unchanged? When do referenced catalogs get scanned?</strong></p>
 <blockquote>
   <p> The TDS reads in all the config catalogs at startup. It caches all of them, and uses the "expires" attribute on the catalog to decide if/when it needs to
-    re-read a catalog.&nbsp; It must read all catalogs, including catalogRefs, because it has to know what the possible dataset URLs are, and there is no
+    re-read a catalog.  It must read all catalogs, including catalogRefs, because it has to know what the possible dataset URLs are, and there is no
     contract that a client has to read a catalog before accessing the dataset. </p>
 </blockquote>
 
@@ -509,24 +529,43 @@ Jul 11, 2011 2:22:12 PM org.apache.catalina.core.StandardContext start SEVERE: C
   <p>The log4j.xml file has 2 loggers with the same name, that uses the appender &quot;foobar&quot;. You must delete one
     of the loggers.</p>
 </blockquote>
+<hr width="50%" align="left">
+<p><strong>Q: <a name="SizeLimitExceededException" id="SizeLimitExceededException"></a>What does this error mean: &quot;FAIL - Deploy Upload Failed, Exception: org.apache.tomcat.util.http.fileupload.FileUploadBase$SizeLimitExceededException: the request was rejected because its size (xxx) exceeds the configured maximum (yyy)&quot; ?</strong></p>
+  <blockquote>
+    <p>You are using the Tomcat Manager, which limits the size of the thredds.war file that can be uploaded. You can install the war file directly into the tomcat webapps directory, or you can change the manager configuration:</p>
+    <pre>cd ${tomcat}/webapps/manager/WEB-INF/
+vi web.xml
+
+change  &lt;max-file-size&gt; and  &lt;max-request-size&gt; to be larger than xxx.
+
+you must restart tomcat for this to take effect.
+  </pre>
+  </blockquote>
 
 <hr>
 <h2>Tomcat</h2>
-
+<h4>Q: <a name="OutOfMemoryError" id="OutOfMemoryError">Im getting the error "java.lang.OutOfMemoryError: Java heap space". Whats up?</a></h4>
+<blockquote>
+  <p>If you reload the <strong>thredds.war</strong> webapp enough times without restarting Tomcat, you will eventually run into "<strong>java.lang.OutOfMemoryError</strong>". This is a known bug in JDK/Tomcat. The only thing to do is to stop and restart Tomcat. </p>
+  <p>The other possibility is that you havent given the TDS enough heap space. The default heap size is quite small, so you need to always set this, eg in <a href="reference/ChecklistReference.html">setenv.sh</a>, this sets the heap to 4 GB.</p>
+  <pre>NORMAL="-Xmx4g -Xms512m -server&quot;
+</pre>
+</blockquote>
+<hr width="50%" align="left">
 <h4>Q: <a name="permGenOutOfMemoryError">Im getting the error "java.lang.OutOfMemoryError: PermGen space". Whats up?</a></h4>
 <blockquote>
-  <p>If you reload the <strong>thredds.war</strong> webapp enough times without restarting Tomcat, you will eventually run into "<strong>java.lang.OutOfMemoryError:
+  <p>The good news is that this problem goes away with Java 8, and we recommend that you switch to Java 8 NOW.</p>
+  <p>Before Jaba 8, if you reload the <strong>thredds.war</strong> webapp enough times without restarting Tomcat, you will eventually run into "<strong>java.lang.OutOfMemoryError:
     PermGen space</strong>". This is a known bug in JDK/Tomcat. The only thing to do is to stop and restart Tomcat. </p>
 
-  <p>You can increase PermGen using this JVM option: </p>
+  <p>You  can  increase PermGen using this JVM option, eg in <a href="reference/ChecklistReference.html">setenv.sh</a>:</p>
 
-  <p><strong>-XX:MaxPermSize=180m </strong></p>
+  <pre>MAX_PERM_GEN="-XX:MaxPermSize=256m"</pre>
 
-  <p>On
-    the JDK1.6 -server JVM, the default seems to be 64m. However, with
+  <p>In Java 6 and 7, the default is 64m. However, with
     enough redeploys , you will eventually run out of PermGen space no
     matter what your <strong>MaxPermSize</strong> setting is. We have
-    gotten into the habit of restarting tomcat on our production server
+    gotten into the habit of restarting Tomcat on our production server
     whenever we redeploy. Lots of redeploys only happen on our test server.</p>
 
   <p>Resources:</p>
@@ -536,7 +575,7 @@ Jul 11, 2011 2:22:12 PM org.apache.catalina.core.StandardContext start SEVERE: C
     <li>"<a href="http://my.opera.com/karmazilla/blog/2007/03/15/permgen-strikes-back">PermGen Strikes Back</a>" (2007-03-15)</li>
     <li>"<a href="http://my.opera.com/karmazilla/blog/2007/03/13/good-riddance-permgen-outofmemoryerror">Good Riddance PermGen OutOfMemoryError</a>"
       (2007-03-13)
-    </li>
+</li>
   </ul>
 </blockquote>
 
@@ -628,28 +667,37 @@ deny="18\.83\.0\.150,128\.100\.34\.99,128\.117\.140\..*"
    ...
   &lt;/Host&gt;</pre>
 </blockquote>
-
 <hr width="50%" align="left">
-
 <h4>Q: <a name="howRemovePort8009">How do I remove port 8009 when using tomcat in standalone mode?</a></h4>
 <blockquote>
   <p>Unless you are using Tomcat with the Apache server, comment out this line in <strong>server.xml:</strong></p>
-    <pre>  &lt;Connector port="8009" enableLookups="false" redirectPort="8443" protocol="AJP/1.3" /&gt;<br>
+  <pre>  &lt;Connector port="8009" enableLookups="false" redirectPort="8443" protocol="AJP/1.3" /&gt;<br>
     </pre>
 </blockquote>
-
-<hr>
-<h2>Tomcat Resources</h2>
-<ul>
-  <li><a href="http://jakarta.apache.org/tomcat/faq/">Tomcat FAQ (Apache site)</a></li>
-  <li><a href="http://tomcat.apache.org/tomcat-6.0-doc/index.html">Tomcat documentation</a></li>
-  <li><a href="http://www.coreservlets.com/Apache-Tomcat-Tutorial/">coreservlets.com tutorial</a></li>
-</ul>
-
+<p></p>
+<hr width="50%" align="left">
+<h4>Q: <a name="SizeLimitExceededException">Manager fails to upload new thredds.war with SizeLimitExceededException</a></h4>
+<blockquote>
+  <p>This happens when you are using the Tomcat manager app to upload a new war file that is too large. Message looks like:</p>
+<pre>FAIL - Deploy Upload Failed, Exception: org.apache.tomcat.util.http.fileupload.FileUploadBase$SizeLimitExceededException: the request was rejected 
+because its size (57150447) exceeds the configured maximum (52428800)</pre>
+  <p>Solution:</p>
+  <ul>
+    <li>Go to the web.xml of the manager application (for instance it could be under /tomcat7/webapps/manager/WEB-INF/web.xml.</li>
+    <li>Increase the max-file-size and max-request-size:</li>
+  </ul>
+  <p>&nbsp;</p>
+</blockquote>
+<hr width="50%" align="left">
+<h4>Q: <a name="SizeLimitExceededException">Logging is not working</a></h4>
+<blockquote>
+  <p>You must use a version of Tomcat &gt;= 7.0.43. See <a href="http://logging.apache.org/log4j/2.0/manual/webapp.html">log4j2 docs</a>. </p>
+</blockquote>
+<p>&nbsp;</p>
 <hr>
 <address>
   <img src="thread.png" alt="THREDDS" height="108" width="110">
-  This document is maintained by Unidata and was last updated May 2013.
+  This document is maintained by Unidata and was last updated Oct 2014.
   Send comments to <a href="mailto:support-thredds@unidata.ucar.edu">THREDDS support</a>.
 </address>
 </body>

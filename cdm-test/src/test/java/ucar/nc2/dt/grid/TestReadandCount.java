@@ -32,12 +32,15 @@
  */
 package ucar.nc2.dt.grid;
 
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import ucar.nc2.constants.CDM;
 import ucar.nc2.dataset.CoordinateAxis;
 import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.constants.AxisType;
 import ucar.nc2.ncml.NcMLReader;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 
 import java.util.ArrayList;
@@ -48,6 +51,7 @@ import java.io.ByteArrayInputStream;
 /** Count geogrid objects - sanity check when anything changes. */
 
 @RunWith(Parameterized.class)
+@Category(NeedsCdmUnitTest.class)
 public class TestReadandCount {
   private static final boolean show = false, showCount = true;
   private static String griddir = TestDir.cdmUnitTestDir +"conventions/";
@@ -215,9 +219,9 @@ public class TestReadandCount {
   }
 
   static public void doOne( String dir, String name, int ngrids, int ncoordSys, int ncoordAxes, int nVertCooordAxes) throws Exception {
-    System.out.println("test read GridDataset = " + dir + name);
-
+    System.out.printf("test read GridDataset= %s%s%n", dir, name);
     ucar.nc2.dt.grid.GridDataset gridDs = GridDataset.open(dir + name);
+    System.out.printf(" location= %s%n%n", gridDs.getLocation());
 
     int countGrids = gridDs.getGrids().size();
     int countCoordAxes = gridDs.getNetcdfDataset().getCoordinateAxes().size();
@@ -275,7 +279,7 @@ public class TestReadandCount {
         "    <netcdf location=\"file:G:/work/jasmin/GMTCO_npp_d20120120_t0531354_e0532596_b01189_c20120120115420527613_noaa_ops.h5\" />\n" +
         "  </aggregation>\n" +
         "</netcdf>";
-    NetcdfDataset aggregatedDataset = NcMLReader.readNcML( new ByteArrayInputStream(ncml.getBytes()), null );
+    NetcdfDataset aggregatedDataset = NcMLReader.readNcML( new ByteArrayInputStream(ncml.getBytes(CDM.utf8Charset)), null );
     GridDataset emptyDataset = new GridDataset( aggregatedDataset );
     System.out.printf("empty= %s%n", emptyDataset.getGrids().size());
 

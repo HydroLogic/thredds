@@ -85,16 +85,17 @@ public class DMRPrint
             throws IOException
     {
         CEConstraint ce = CEConstraint.getUniversal(dataset);
-        printDMR(ce);
+        assert(ce != null);
+        printDMR(ce,dataset);
     }
 
 
     public void
-    printDMR(CEConstraint ce)
+    printDMR(CEConstraint ce, DapDataset dmr)
             throws IOException
     {
         this.printer.setIndent(0);
-        print(ce.getDMR(), ce); // start printing at the root
+        print(dmr, ce); // start printing at the root
         printer.eol();
     }
 
@@ -363,8 +364,8 @@ public class DMRPrint
         if (attributes.size() == 0) {
             return;
         }
-        for (String key : attributes.keySet()) {
-            DapAttribute attr = attributes.get(key);
+        for (Map.Entry<String,DapAttribute> entry : attributes.entrySet()) {
+            DapAttribute attr = entry.getValue();
             assert (attr != null);
             switch (attr.getSort()) {
             case ATTRIBUTE:

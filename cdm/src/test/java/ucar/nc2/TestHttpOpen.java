@@ -38,6 +38,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.dt.grid.GridDataset;
+import ucar.unidata.test.util.TestDir;
 
 import java.io.IOException;
 import java.util.*;

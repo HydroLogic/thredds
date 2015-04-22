@@ -32,26 +32,33 @@
  */
 package thredds.server.opendap;
 
-import java.io.*;
-import java.util.*;
-
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import thredds.TestWithLocalServer;
-import ucar.nc2.*;
+import ucar.nc2.Attribute;
+import ucar.nc2.Variable;
 import ucar.nc2.constants.CDM;
-import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.constants._Coordinate;
+import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.util.CompareNetcdf2;
+import ucar.unidata.test.util.NeedsCdmUnitTest;
 import ucar.unidata.test.util.TestDir;
 import ucar.unidata.util.StringUtil2;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Formatter;
+import java.util.List;
 
 /**
  * compare files served through netcdf-DODS server.
  */
 
 @RunWith(Parameterized.class)
+@Category(NeedsCdmUnitTest.class)
 public class TestDODScompareWithFiles {
   static boolean showCompare = false, showEach = false, compareData  = false;
   static String contentRoot = TestDir.cdmUnitTestDir;
@@ -119,7 +126,7 @@ public class TestDODScompareWithFiles {
   // @Test
   public void problem() throws IOException {
     String filename = "conventions/coards/inittest24.QRIDV07200.ncml";
-    String dodsUrl = TestWithLocalServer.server + path + filename;
+    String dodsUrl = TestWithLocalServer.withPath(path + filename);
     String localPath = contentRoot + filename;
     compareDatasets(dodsUrl, localPath);
   }
@@ -127,7 +134,7 @@ public class TestDODScompareWithFiles {
   @Test
   public void compare() throws IOException {
     filename = StringUtil2.replace(filename, '\\', "/");
-    String dodsUrl = TestWithLocalServer.server + path + filename;
+    String dodsUrl = TestWithLocalServer.withPath(path + filename);
     String localPath = contentRoot + filename;
     compareDatasets(dodsUrl, localPath);
   }

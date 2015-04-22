@@ -40,6 +40,9 @@ import ucar.util.prefs.XMLStore;
 import java.beans.*;
 
 public class TestField {
+  static {
+      System.setProperty("java.util.prefs.PreferencesFactory", "ucar.util.prefs.PreferencesExtFactory");
+  }
   static private XMLStore xstore;
   static private PreferencesExt store;
 
@@ -76,7 +79,7 @@ public class TestField {
       });
 
     d.finish();
-    d.show();
+    d.setVisible(true);
 
     assert gotEvent1 == 0;
     tf.setEditValue("better value");

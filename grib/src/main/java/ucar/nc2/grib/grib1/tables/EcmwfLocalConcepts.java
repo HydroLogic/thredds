@@ -45,6 +45,7 @@ import java.util.*;
  * The purpose of this class is to read in the files from ECMWFs gribapi software and
  * create useful grib 1 tables for the CDM. Note that the intent is to process these
  * local concept files as minimally as possible. Only run this from the git directory.
+ * This is run offline
  */
 public class EcmwfLocalConcepts {
     // super hash map keys
@@ -75,7 +76,12 @@ public class EcmwfLocalConcepts {
         String classPath = EcmwfLocalConcepts.class.getProtectionDomain().getCodeSource().getLocation().getPath();
         String split = "thredds"+sep+"grib";
         String sourcesPath = classPath.split(split)[0];
-        ecmwfLocalConceptsLoc = sourcesPath+"thredds"+sep+"grib"+sep+"src"+sep+"main"+sep+"sources"+sep+"ecmwfGribApi"+sep;
+        if (classPath.equals(sourcesPath)) {
+            split = "grib"+sep+"build";
+            sourcesPath = classPath.split(split)[0];
+            sourcesPath = classPath.split("/grib")[0];
+        }
+        ecmwfLocalConceptsLoc = sourcesPath+sep+"grib"+sep+"src"+sep+"main"+sep+"sources"+sep+"ecmwfGribApi"+sep;
         // initialize input streams for reading the localConcept files
         try {
           parseLocalConcept(ecmwfLocalConceptsLoc + "shortName.def", SHORTNAME_ID);
@@ -249,6 +255,7 @@ public class EcmwfLocalConcepts {
      */
     private void writeLookupTableFile(List<String> tableNums, Path dir, String writeDate) throws IOException {
 
+        System.out.println("Writing: lookupTables.txt");
         Collections.sort(tableNums);
         Path lookupTableReg = dir.resolve("lookupTables.txt");
         Files.deleteIfExists(lookupTableReg);
@@ -288,6 +295,7 @@ public class EcmwfLocalConcepts {
         EcmwfLocalConcepts ec = new EcmwfLocalConcepts();
         try {
             ec.writeGrib1Tables();
+            System.out.println("Finished!");
         } catch (IOException | ParseException e) {
             e.printStackTrace();
         }

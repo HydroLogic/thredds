@@ -32,7 +32,7 @@
  */
 package ucar.nc2.iosp.hdf4;
 
-import thredds.catalog.DataFormatType;
+import ucar.nc2.constants.DataFormatType;
 import ucar.nc2.iosp.*;
 import ucar.nc2.NetcdfFile;
 import ucar.nc2.Variable;
@@ -66,7 +66,7 @@ public class H4iosp extends AbstractIOServiceProvider {
 
     public String getFileTypeId() {
       if (header.isEos()) return "HDF4-EOS";
-      return DataFormatType.HDF4.toString();
+      return DataFormatType.HDF4.getDescription();
     }
 
     public String getFileTypeDescription() {
@@ -238,7 +238,6 @@ public class H4iosp extends AbstractIOServiceProvider {
 
   private class LinkedInputStream extends InputStream {
     byte[] buffer;
-    long pos = 0;
 
     int nsegs;
     long[] segPosA;
@@ -383,12 +382,9 @@ public class H4iosp extends AbstractIOServiceProvider {
     } // */
   }
 
-  private class H4ChunkIterator implements LayoutTiled.DataChunkIterator {
+  private static class H4ChunkIterator implements LayoutTiled.DataChunkIterator {
     List<H4header.DataChunk> chunks;
     int chunkNo;
-
-    byte[] buffer;
-    int segPos, segSize;
 
     H4ChunkIterator(H4header.Vinfo vinfo) {
       this.chunks = vinfo.chunks;

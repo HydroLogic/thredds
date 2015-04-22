@@ -501,7 +501,6 @@ public class Structure extends Variable {
     private int readStart; // current buffer starts at
     private int readCount; // count within the current buffer [0,readAtaTime)
     private int outerCount;  // over the outer Dimension
-    private int readAtaTime;
     private ArrayStructure as = null;
 
     protected Iterator(int bufferSize) {
@@ -520,7 +519,6 @@ public class Structure extends Variable {
       readStart = 0;
       readCount = 0;
       outerCount = 0;
-      readAtaTime = (int) getSize() / shape[0];
       return this;
     }
 

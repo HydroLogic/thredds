@@ -41,6 +41,7 @@ import ucar.unidata.io.RandomAccessFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.*;
 
 /**
@@ -79,7 +80,7 @@ public class BufrCdmIndex {
 
   public static BufrCdmIndex readIndex(String indexFilename) throws IOException {
     BufrCdmIndex index =  new BufrCdmIndex();
-    try (RandomAccessFile raf = new RandomAccessFile(indexFilename, "r")) {
+    try (RandomAccessFile raf = RandomAccessFile.acquire(indexFilename)) {
        index.readIndex(raf);
     }
     return index;
@@ -247,7 +248,7 @@ public class BufrCdmIndex {
       raf.seek(0);
 
       //// header message
-      if (!NcStream.readAndTest(raf, MAGIC_START.getBytes())) {
+      if (!NcStream.readAndTest(raf, MAGIC_START.getBytes(CDM.utf8Charset))) {
         log.error("BufrCdmIndex {}: invalid index", raf.getLocation());
         return false;
       }

@@ -33,10 +33,12 @@
 package thredds.tds.ethan;
 
 import junit.framework.TestCase;
+import org.junit.experimental.categories.Category;
+import thredds.client.catalog.Catalog;
+import ucar.unidata.test.util.NotTravis;
 
+import java.io.IOException;
 import java.util.Properties;
-
-import thredds.catalog.InvCatalogImpl;
 
 /**
  * _more_
@@ -44,6 +46,7 @@ import thredds.catalog.InvCatalogImpl;
  * @author edavis
  * @since Nov 30, 2006 11:13:36 AM
  */
+@Category(NotTravis.class)
 public class TestTdsPingMotherlode extends TestCase
 {
 
@@ -70,7 +73,7 @@ public class TestTdsPingMotherlode extends TestCase
     String catUrl = targetTdsUrl + "/catalog.xml";
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
+    Catalog catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
     if ( catalog == null )
     {
       fail( msg.toString() );
@@ -82,7 +85,7 @@ public class TestTdsPingMotherlode extends TestCase
     String catUrl = targetTdsUrl + "/topcatalog.xml";
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
+    Catalog catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
     if ( catalog == null )
     {
       fail( msg.toString() );
@@ -94,15 +97,14 @@ public class TestTdsPingMotherlode extends TestCase
     String catUrl = targetTdsUrl + "/idv/models.xml";
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
+    Catalog catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
     if ( catalog == null )
     {
       fail( msg.toString() );
     }
   }
 
-  public void testIdvLatestModelsCatalog()
-  {
+  public void testIdvLatestModelsCatalog() throws IOException {
     TestAll.openValidateAndCheckAllLatestModelsInCatalogTree( targetTdsUrl + "/idv/latestModels.xml" );
   }
 
@@ -111,7 +113,7 @@ public class TestTdsPingMotherlode extends TestCase
     String catUrl = targetTdsUrl + "/idv/rt-models.1.0.xml";
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openValidateAndCheckExpires( catUrl, msg );
+    Catalog catalog = TestAll.openValidateAndCheckExpires( catUrl, msg );
     if ( catalog == null )
     {
       fail( msg.toString() );
@@ -125,7 +127,7 @@ public class TestTdsPingMotherlode extends TestCase
     String catUrl = targetTdsUrl + "/idv/rt-models.xml";
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openValidateAndCheckExpires( catUrl, msg );
+    Catalog catalog = TestAll.openValidateAndCheckExpires( catUrl, msg );
     if ( catalog == null )
     {
       fail( msg.toString() );
@@ -139,7 +141,7 @@ public class TestTdsPingMotherlode extends TestCase
     String catUrl = targetTdsUrl + "/cataloggen/catalogs/uniModelsInvCat1.0en.xml";
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openValidateAndCheckExpires( catUrl, msg );
+    Catalog catalog = TestAll.openValidateAndCheckExpires( catUrl, msg );
     if ( catalog == null )
     {
       fail( msg.toString() );
@@ -181,15 +183,11 @@ public class TestTdsPingMotherlode extends TestCase
     String catUrl = targetTdsUrl + "/idd/allModels.TDS-nc.xml";
 
     StringBuilder msg = new StringBuilder();
-    InvCatalogImpl catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
+    Catalog catalog = TestAll.openAndValidateCatalog( catUrl, msg, false );
     if ( catalog == null )
     {
       fail( msg.toString() );
     }
   }
 
-  public void testDqcServletCatalog()
-  {
-    TestAll.openAndValidateDqcDoc( targetTomcatUrl + "/dqcServlet/latestModel.xml" );
-  }
 }

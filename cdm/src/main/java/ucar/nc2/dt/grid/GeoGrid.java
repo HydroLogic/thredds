@@ -349,7 +349,7 @@ public class GeoGrid implements NamedObject, ucar.nc2.dt.GridDatatype {
   }
 
   /**
-   * get the standardized description
+   * get the standardized description, or null if none.
    */
   public String getDescription() {
     return vs.getDescription();
@@ -605,7 +605,7 @@ public class GeoGrid implements NamedObject, ucar.nc2.dt.GridDatatype {
     try {
       dataVolume = vs.read(start, shape);
     } catch (Exception ex) {
-      log.error("GeoGrid.getdataSlice() on dataset " + getFullName()+" "+ dataset.getLocation(), ex);
+      log.error("GeoGrid.getdataSlice() on variable " + vs.getFullName()+" dataset "+ dataset.getLocation(), ex);
       throw new java.io.IOException(ex);
     }
 

@@ -33,11 +33,10 @@
 package ucar.nc2.iosp.bufr;
 
 import org.jdom2.Element;
-import thredds.catalog.DataFormatType;
+import ucar.nc2.constants.DataFormatType;
 import ucar.ma2.*;
 
 import ucar.nc2.*;
-//import ucar.nc2.dataset.NetcdfDataset;
 import ucar.nc2.iosp.AbstractIOServiceProvider;
 import ucar.nc2.util.CancelTask;
 
@@ -47,7 +46,7 @@ import java.io.*;
 import java.util.*;
 
 /**
- * IOSP for BUFR data - version 2, use the preprocssor
+ * IOSP for BUFR data - version 2, use the preprocessor
  *
  * @author caron
  * @since 8/8/13
@@ -61,10 +60,9 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
 
   // debugging
   static private boolean debugIter = false;
-  static private boolean debugOpen = false;
 
   static public void setDebugFlags(ucar.nc2.util.DebugFlags debugFlag) {
-    debugOpen = debugFlag.isSet("Bufr/open");
+//    debugOpen = debugFlag.isSet("Bufr/open");
     debugIter = debugFlag.isSet("Bufr/iter");
   }
 
@@ -88,10 +86,9 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
 
   @Override
   public void open(RandomAccessFile raf, NetcdfFile ncfile, CancelTask cancelTask) throws IOException {
-    this.raf = raf;
+    super.open(raf, ncfile, cancelTask);
 
     scanner = new MessageScanner(raf);
-    int count = 0;
     protoMessage = scanner.getFirstDataMessage();
     if (protoMessage == null)
       throw new IOException("No data messages in the file= "+ncfile.getLocation());
@@ -163,11 +160,8 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
   private class SeqIter implements StructureDataIterator {
     StructureDataIterator currIter;
     int recnum = 0;
-    int bufferSize = -1;
-    boolean addTime;
 
     SeqIter() {
-      addTime = false; // construct.recordStructure.findVariable(ConstructNC.TIME_NAME) != null;
       reset();
     }
 
@@ -206,12 +200,16 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
     private StructureDataIterator readNextMessage() throws IOException {
       if (!scanner.hasNext()) return null;
       Message m = scanner.next();
+      if (m == null) {
+          log.warn("BUFR scanner hasNext() true but next() null!");
+          return null;
+      }
       if (m.containsBufrTable()) // data messages only
         return readNextMessage();
 
       // mixed messages
       if (!protoMessage.equals(m)) {
-        if (messHash == null) messHash = new HashSet<Integer>(20);
+        if (messHash == null) messHash = new HashSet<>(20);
         if (!messHash.contains(m.hashCode()))  {
           log.warn("File " + raf.getLocation() + " has different BUFR message types hash=" + protoMessage.hashCode() + "; skipping");
           messHash.add(m.hashCode());
@@ -237,7 +235,7 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
 
     @Override
     public void setBufferSize(int bufferSize) {
-      this.bufferSize = bufferSize;
+      log.warn("Calling setBufferSize() on BUFR does nothing!");
     }
 
     @Override
@@ -256,7 +254,6 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
   private class SeqIterSingle implements StructureDataIterator {
     StructureDataIterator currIter;
     int recnum = 0;
-    int bufferSize = -1;
 
     SeqIterSingle() {
       reset();
@@ -279,11 +276,7 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
         }
       }
 
-      if (!currIter.hasNext()) {
-        return false;
-      }
-
-      return true;
+      return currIter.hasNext();
     }
 
     @Override
@@ -308,7 +301,7 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
 
     @Override
     public void setBufferSize(int bufferSize) {
-      this.bufferSize = bufferSize;
+      log.warn("Calling setBufferSize() on BUFR does nothing!");
     }
 
     @Override
@@ -337,7 +330,7 @@ public class BufrIosp2 extends AbstractIOServiceProvider {
 
   @Override
   public String getFileTypeId() {
-    return DataFormatType.BUFR.toString();
+    return DataFormatType.BUFR.getDescription();
   }
 
   @Override

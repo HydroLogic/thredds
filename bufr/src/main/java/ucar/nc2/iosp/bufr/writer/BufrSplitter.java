@@ -33,9 +33,10 @@
 
 package ucar.nc2.iosp.bufr.writer;
 
-import com.lexicalscope.jewel.cli.CliFactory;
-import com.lexicalscope.jewel.cli.HelpRequestedException;
-import com.lexicalscope.jewel.cli.Option;
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
+import ucar.nc2.constants.CDM;
 import ucar.nc2.iosp.bufr.*;
 import ucar.unidata.io.InMemoryRandomAccessFile;
 import ucar.unidata.io.RandomAccessFile;
@@ -45,7 +46,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Formatter;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Reads BUFR files and splits them into separate files based on Message.hashCode()
@@ -55,7 +55,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class BufrSplitter {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(BufrSplitter.class);
-  private static final ucar.unidata.io.KMPMatch matcher = new ucar.unidata.io.KMPMatch("BUFR".getBytes());
+  private static final ucar.unidata.io.KMPMatch matcher = new ucar.unidata.io
+          .KMPMatch(new byte[]{'B', 'U', 'F', 'R'});
 
   File dirOut;
   MessageDispatchDDS dispatcher;
@@ -89,7 +90,6 @@ public class BufrSplitter {
   //////////////////////////////////////////////////////
   // Step 1 - read and extract a Bufr Message
 
-  private static AtomicInteger seqId = new AtomicInteger();
   int total_msgs = 0;
   int bad_msgs = 0;
 
@@ -106,8 +106,8 @@ public class BufrSplitter {
 
   /**
    *
-   * @param b
-   * @param is
+   * @param b buffer of input data
+   * @param is InputStream to read
    * @return pos in the buffer we got to
    * @throws IOException
    */
@@ -182,17 +182,15 @@ public class BufrSplitter {
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
   // extract and parse a BUFR message so that we know its DDS type
 
-  private class MessageTask {
+  private static class MessageTask {
     byte[] mess;
     int len, have;
-    int id;
     String header;
 
     MessageTask(int messlen) {
       this.len = messlen;
       this.mess = new byte[messlen];
       this.have = 0;
-      this.id = seqId.getAndIncrement();
     }
 
     void extractHeader(int startScan, int messagePos, Buffer buff) {
@@ -217,7 +215,7 @@ public class BufrSplitter {
         if (b >= 32 && b < 127) // ascii only
           bb[count++] = b;
       }
-      header = new String(bb, 0, count);
+      header = new String(bb, 0, count, CDM.utf8Charset);
     }
 
   }
@@ -337,40 +335,47 @@ public class BufrSplitter {
     return b;
   }
 
-
   ///////////////////////////////////////////////////////////////////////////
 
-  public interface Options {
-     @Option String getFileSpec();
-     @Option String getDirOut();
+  private static class CommandLine {
+    @Parameter(names = {"--fileSpec"}, description = "File specification", required = true)
+    public File fileSpec;
 
-     @Option(helpRequest = true)
-     boolean getHelp();
-   }
+    @Parameter(names = {"--dirOut"}, description = "Output directory", required = true)
+    public File dirOut;
 
-  void printOptions(Options opt) {
-    System.out.printf("Options are ok:%n");
-    System.out.printf(" fileSpec= %s%n", opt.getFileSpec());
-    System.out.printf(" dirOut= %s%n", opt.getDirOut());
+    @Parameter(names = {"-h", "--help"}, description = "Display this help and exit", help = true)
+    public boolean help = false;
+
+    private final JCommander jc;
+
+    public CommandLine(String progName, String[] args) throws ParameterException {
+      this.jc = new JCommander(this, args);  // Parses args and uses them to initialize *this*.
+      jc.setProgramName(progName);           // Displayed in the usage information.
+    }
+
+    public void printUsage() {
+      jc.usage();
+    }
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
+    String progName = "BufrSpitter";
+
     try {
-      Options options;
-      if (args == null) {
-         options = CliFactory.parseArguments(Options.class, "--fileSpec", "E:/data/work/manross/gdas.adpsfc.t00z.20120603.bufr.le", "--dirOut", "E:/data/work/manross/split_adpsfc" );
-      } else {
-        options = CliFactory.parseArguments(Options.class, args);
+      CommandLine cmdLine = new CommandLine(progName, args);
+
+      if (cmdLine.help) {
+        cmdLine.printUsage();
+        return;
       }
-      BufrSplitter splitter = new BufrSplitter(options.getDirOut(), new Formatter(System.out));
-      splitter.execute(options.getFileSpec());
+
+      BufrSplitter splitter = new BufrSplitter(cmdLine.dirOut.getAbsolutePath(), new Formatter(System.out));
+      splitter.execute(cmdLine.fileSpec.getAbsolutePath());
       splitter.exit();
-
-    } catch (HelpRequestedException e) {
-      System.out.printf("BufrSpitter: %s%n", e.getMessage());
-
-    } catch (Exception e) {
-      e.printStackTrace();
+    } catch (ParameterException e) {
+      System.err.println(e.getMessage());
+      System.err.printf("Try \"%s --help\" for more information.%n", progName);
     }
   }
 }

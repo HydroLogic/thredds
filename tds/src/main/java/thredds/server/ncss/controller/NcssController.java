@@ -37,9 +37,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.RequestMapping;
+import thredds.core.TdsRequestedDataset;
 import thredds.server.config.FormatsAvailabilityService;
 import thredds.server.config.TdsContext;
-import thredds.server.ncss.dataservice.FeatureDatasetService;
 import thredds.server.ncss.exception.NcssException;
 import thredds.server.ncss.exception.UnsupportedOperationException;
 import thredds.server.ncss.exception.UnsupportedResponseFormatException;
@@ -47,6 +47,7 @@ import thredds.server.ncss.format.SupportedFormat;
 import thredds.server.ncss.format.SupportedOperation;
 import thredds.server.ncss.params.NcssParamsBean;
 import thredds.server.ncss.view.dsg.DsgSubsetWriterFactory;
+import thredds.servlet.ServletUtil;
 import thredds.util.Constants;
 import thredds.util.ContentType;
 import ucar.ma2.InvalidRangeException;
@@ -76,145 +77,156 @@ import java.util.Set;
 @Controller
 @RequestMapping("/ncss")
 public class NcssController extends AbstractNcssController {
-    //static private final Logger log = LoggerFactory.getLogger(NcssController.class);
+  //static private final Logger log = LoggerFactory.getLogger(NcssController.class);
 
-    @Autowired
-    FeatureDatasetService datasetService;
+  //@Autowired
+  //FeatureDatasetService datasetService;
 
-    @Autowired
-    TdsContext tdsContext;
+  @Autowired
+  TdsContext tdsContext;
 
-    /**
-     * Handles ncss data requests.
-     * Dont know what responder to use until we can open the dataset.
-     *
-     * @param req request
-     * @param res result
-     * @throws IOException
-     * @throws UnsupportedResponseFormatException
-     * @throws InvalidRangeException
-     * @throws ParseException
-     */
-    @RequestMapping("**")
-    public void handleRequest(HttpServletRequest req, HttpServletResponse res,
-            @Valid NcssParamsBean params,
-            BindingResult validationResult) throws Exception {
+  /* @RequestMapping("/ncss/grid/**")
+  public String forwardGrid(HttpServletRequest req) {
+    String reqString = req.getServletPath();
+    assert reqString.startsWith("/ncss/grid");
+    reqString = reqString.substring(10);
+    String forwardString = "forward:/ncss" + reqString;  // strip off '?/grid
+    if (null != req.getQueryString())
+      forwardString += "?"+req.getQueryString();
 
-        // System.out.printf("%s%n", ServletUtil.showRequestDetail(null, req));
+     return forwardString;
+  }  */
 
-        if (validationResult.hasErrors()) {
-            handleValidationErrorsResponse(res, HttpServletResponse.SC_BAD_REQUEST, validationResult);
-            return;
-        }
+  /**
+   * Handles ncss data requests.
+   * Dont know what responder to use until we can open the dataset.
+   *
+   * @param req request
+   * @param res result
+   * @throws IOException
+   * @throws UnsupportedResponseFormatException
+   * @throws InvalidRangeException
+   * @throws ParseException
+   */
+  @RequestMapping("**")
+  public void handleRequest(HttpServletRequest req, HttpServletResponse res,
+                            @Valid NcssParamsBean params,
+                            BindingResult validationResult) throws Exception {
 
-        String datasetPath = getDatasetPath(req);
-        try (FeatureDataset fd = datasetService.findDatasetByPath(req, res, datasetPath)) {
-            if (fd == null) {
-                handleValidationErrorMessage(res, HttpServletResponse.SC_NOT_FOUND,
-                        "dataset path not found " + datasetPath);
-                return;
-            }
+    // System.out.printf("%s%n", ServletUtil.showRequestDetail(null, req));
 
-            Formatter errs = new Formatter();
-            if (!params.intersectsTime(fd, errs)) {
-                handleValidationErrorMessage(res, HttpServletResponse.SC_BAD_REQUEST, errs.toString());
-                return;
-            }
-
-            FeatureType ft = fd.getFeatureType();
-            if (ft == FeatureType.GRID) {
-                if (!params.hasLatLonPoint()) {
-                    handleRequestGrid(req, res, params, datasetPath, (GridDataset) fd);
-                } else {
-                    handleRequestGridAsPoint(res, params, datasetPath, fd);
-                }
-            } else if (ft == FeatureType.POINT) {
-                handleRequestDsg(res, params, datasetPath, fd);
-            } else if (ft == FeatureType.STATION) {
-                handleRequestDsg(res, params, datasetPath, fd);
-            } else {
-                throw new UnsupportedOperationException("Feature Type " + ft.toString() + " not supported");
-            }
-
-     /* } catch (FileNotFoundException t) {
-       handleValidationErrorMessage(res, HttpServletResponse.SC_NOT_FOUND, t.getMessage());
-
-     } catch (thredds.server.ncss.exception.UnsupportedOperationException t) {
-       handleValidationErrorMessage(res, HttpServletResponse.SC_BAD_REQUEST, t.getMessage());
-
-     } catch (Throwable t) {
-       t.printStackTrace();  */
-        }
+    if (validationResult.hasErrors()) {
+      handleValidationErrorsResponse(res, HttpServletResponse.SC_BAD_REQUEST, validationResult);
+      return;
     }
 
-    void handleRequestGrid(HttpServletRequest req, HttpServletResponse res, NcssParamsBean params, String datasetPath,
-            GridDataset gridDataset) throws IOException, NcssException, ParseException, InvalidRangeException {
+    String datasetPath = getDatasetPath(req);
+    try (FeatureDataset fd = TdsRequestedDataset.getFeatureDataset(req, res, datasetPath)) {
+      if (fd == null) return;
 
-        //params.isValidGridRequest(); ???
+      Formatter errs = new Formatter();
+      if (!params.intersectsTime(fd, errs)) {
+        handleValidationErrorMessage(res, HttpServletResponse.SC_BAD_REQUEST, errs.toString());
+        return;
+      }
 
-        // Supported formats are netcdf3 (default) and netcdf4 (if available)
-        SupportedFormat sf = SupportedOperation.GRID_REQUEST.getSupportedFormat(params.getAccept());
-        NetcdfFileWriter.Version version = NetcdfFileWriter.Version.netcdf3;
-        if (sf.equals(SupportedFormat.NETCDF4)) {
-            if (FormatsAvailabilityService.isFormatAvailable(SupportedFormat.NETCDF4)) {
-                version = NetcdfFileWriter.Version.netcdf4;
-            } else {
-                handleValidationErrorMessage(res, HttpServletResponse.SC_BAD_REQUEST, "NetCDF-4 format not available");
-                return;
-            }
+      FeatureType ft = fd.getFeatureType();
+      if (ft == FeatureType.GRID) {
+        if (!params.hasLatLonPoint()) {
+          handleRequestGrid(res, params, datasetPath, (GridDataset) fd);
+        } else {
+          handleRequestGridAsPoint(res, params, datasetPath, fd);
         }
+      } else if (ft == FeatureType.POINT) {
+        handleRequestDsg(res, params, datasetPath, fd);
+      } else if (ft == FeatureType.STATION) {
+        handleRequestDsg(res, params, datasetPath, fd);
+      } else {
+        throw new UnsupportedOperationException("Feature Type " + ft.toString() + " not supported");
+      }
 
-        GridResponder gds = GridResponder.factory(gridDataset, datasetPath);
-        File netcdfResult = gds.getResponseFile(req, res, params, version);
+    }
+  }
 
-        // filename download attachment
-        String suffix = (version == NetcdfFileWriter.Version.netcdf4) ? ".nc4" : ".nc";
-        int pos = datasetPath.lastIndexOf("/");
-        String filename = (pos >= 0) ? datasetPath.substring(pos + 1) : datasetPath;
-        if (!filename.endsWith(suffix)) {
-            filename += suffix;
-        }
+  void handleRequestGrid(HttpServletResponse res, NcssParamsBean params, String datasetPath,
+                         GridDataset gridDataset) throws IOException, NcssException, ParseException, InvalidRangeException {
 
-        // Headers...
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.set(ContentType.HEADER, sf.getResponseContentType());
-        httpHeaders.set(Constants.Content_Disposition, Constants.setContentDispositionValue(filename));
-        setResponseHeaders(res, httpHeaders);
+    //params.isValidGridRequest(); ???
 
-        IO.copyFileB(netcdfResult, res.getOutputStream(), 60000);
-        res.flushBuffer();
-        res.getOutputStream().close();
-        res.setStatus(HttpServletResponse.SC_OK);
+    // Supported formats are netcdf3 (default) and netcdf4 (if available)
+    SupportedFormat sf = SupportedOperation.GRID_REQUEST.getSupportedFormat(params.getAccept());
+    NetcdfFileWriter.Version version = NetcdfFileWriter.Version.netcdf3;
+    if (sf.equals(SupportedFormat.NETCDF4)) {
+      if (FormatsAvailabilityService.isFormatAvailable(SupportedFormat.NETCDF4)) {
+        version = NetcdfFileWriter.Version.netcdf4;
+      } else {
+        handleValidationErrorMessage(res, HttpServletResponse.SC_BAD_REQUEST, "NetCDF-4 format not available");
+        return;
+      }
     }
 
-    void handleRequestGridAsPoint(HttpServletResponse res, NcssParamsBean params, String datasetPath,
-            FeatureDataset fd) throws Exception {
-        SupportedFormat format = SupportedOperation.POINT_REQUEST.getSupportedFormat(params.getAccept());
-        DiskCache2 diskCache = NcssDiskCache.getInstance().getDiskCache();
+    //File netcdfResult = null;
+    //try {
+    GridResponder gds = GridResponder.factory(gridDataset, datasetPath);
+    File netcdfResult = gds.getResponseFile(res, params, version);
+    //} catch (Exception e) {
+    //  handleValidationErrorMessage(res, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+    //  return;
+    //}
 
-        NcssResponder pds = GridAsPointResponder.factory(diskCache, format, res.getOutputStream());
-        setResponseHeaders(res, pds.getResponseHeaders(fd, format, datasetPath));
-        pds.respond(res, fd, datasetPath, params, format);
+    // filename download attachment
+    String suffix = (version == NetcdfFileWriter.Version.netcdf4) ? ".nc4" : ".nc";
+    int pos = datasetPath.lastIndexOf("/");
+    String filename = (pos >= 0) ? datasetPath.substring(pos + 1) : datasetPath;
+    if (!filename.endsWith(suffix)) {
+      filename += suffix;
     }
 
-    void handleRequestDsg(HttpServletResponse res, NcssParamsBean params, String datasetPath,
-            FeatureDataset fd) throws Exception {
-        SupportedOperation supportedOp;
-        switch (fd.getFeatureType()) {
-            case POINT:   supportedOp = SupportedOperation.POINT_REQUEST;   break;
-            case STATION: supportedOp = SupportedOperation.STATION_REQUEST; break;
-            default: throw new UnsupportedOperationException(String.format(
-                        "%s format not currently supported for DSG subset writing.", fd.getFeatureType()));
-        }
+    // Headers...
+    HttpHeaders httpHeaders = new HttpHeaders();
+    httpHeaders.set(ContentType.HEADER, sf.getResponseContentType());
+    httpHeaders.set(Constants.Content_Disposition, Constants.setContentDispositionValue(filename));
+    setResponseHeaders(res, httpHeaders);
 
-        SupportedFormat format = supportedOp.getSupportedFormat(params.getAccept());
-        DiskCache2 diskCache = NcssDiskCache.getInstance().getDiskCache();
+    IO.copyFileB(netcdfResult, res.getOutputStream(), 60000);
+    res.flushBuffer();
+    res.getOutputStream().close();
+    res.setStatus(HttpServletResponse.SC_OK);
+  }
 
-        NcssResponder pds = DsgSubsetWriterFactory.newInstance(
-                (FeatureDatasetPoint) fd, params, diskCache, res.getOutputStream(), format);
-        setResponseHeaders(res, pds.getResponseHeaders(fd, format, datasetPath));
-        pds.respond(res, fd, datasetPath, params, format);
+  void handleRequestGridAsPoint(HttpServletResponse res, NcssParamsBean params, String datasetPath,
+                                FeatureDataset fd) throws Exception {
+    SupportedFormat format = SupportedOperation.POINT_REQUEST.getSupportedFormat(params.getAccept());
+    DiskCache2 diskCache = NcssDiskCache.getInstance().getDiskCache();
+
+    NcssResponder pds = GridAsPointResponder.factory(diskCache, format, res.getOutputStream());
+    setResponseHeaders(res, pds.getResponseHeaders(fd, format, datasetPath));
+    pds.respond(res, fd, datasetPath, params, format);
+  }
+
+  void handleRequestDsg(HttpServletResponse res, NcssParamsBean params, String datasetPath,
+                        FeatureDataset fd) throws Exception {
+    SupportedOperation supportedOp;
+    switch (fd.getFeatureType()) {
+      case POINT:
+        supportedOp = SupportedOperation.POINT_REQUEST;
+        break;
+      case STATION:
+        supportedOp = SupportedOperation.STATION_REQUEST;
+        break;
+      default:
+        throw new UnsupportedOperationException(String.format(
+                "%s format not currently supported for DSG subset writing.", fd.getFeatureType()));
     }
+
+    SupportedFormat format = supportedOp.getSupportedFormat(params.getAccept());
+    DiskCache2 diskCache = NcssDiskCache.getInstance().getDiskCache();
+
+    NcssResponder pds = DsgSubsetWriterFactory.newInstance(
+            (FeatureDatasetPoint) fd, params, diskCache, res.getOutputStream(), format);
+    setResponseHeaders(res, pds.getResponseHeaders(fd, format, datasetPath));
+    pds.respond(res, fd, datasetPath, params, format);
+  }
 
   /*
   @RequestMapping("**")
@@ -312,12 +324,12 @@ public class NcssController extends AbstractNcssController {
 
   }  */
 
-    private void setResponseHeaders(HttpServletResponse response, HttpHeaders httpHeaders) {
-        Set<String> keySet = httpHeaders.keySet();
-        for (String key : keySet) {
-            if (httpHeaders.containsKey(key)) { // LOOK why test again?
-                response.setHeader(key, httpHeaders.get(key).get(0));  // LOOK why only first one ?
-            }
-        }
+  private void setResponseHeaders(HttpServletResponse response, HttpHeaders httpHeaders) {
+    Set<String> keySet = httpHeaders.keySet();
+    for (String key : keySet) {
+      if (httpHeaders.containsKey(key)) { // LOOK why test again?
+        response.setHeader(key, httpHeaders.get(key).get(0));  // LOOK why only first one ?
+      }
     }
+  }
 }

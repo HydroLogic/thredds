@@ -382,7 +382,7 @@ public class ServletLogTable extends JPanel {
     public boolean pass(Merge log);
   }
 
-  class DateFilter implements MergeFilter {
+  private static class DateFilter implements MergeFilter {
     long start, end;
     MergeFilter chain;
 
@@ -443,7 +443,7 @@ public class ServletLogTable extends JPanel {
   }
 
 
-  class MyClosure implements LogReader.Closure {
+  private static class MyClosure implements LogReader.Closure {
     ArrayList<ServletLogParser.ServletLog> logs;
 
     MyClosure(ArrayList<ServletLogParser.ServletLog> logs) {
@@ -451,7 +451,7 @@ public class ServletLogTable extends JPanel {
     }
 
     public void process(LogReader.Log log) {
-      if (log != null)
+      if (log != null && log instanceof ServletLogParser.ServletLog)
         logs.add((ServletLogParser.ServletLog) log);
       else
         System.out.printf("HEY NULL LOG%n");
@@ -615,8 +615,11 @@ public class ServletLogTable extends JPanel {
       last = log;
       current.add(log, miscList);
     }
-    current.finish(last, undoneList);
-    completeMerge.addAll(current.mergeList);
+
+    if (current != null) {
+      current.finish(last, undoneList);
+      completeMerge.addAll(current.mergeList);
+    }
 
     uptimeTable.setBeans(uptimeList);
     undoneTable.setBeans(undoneList);

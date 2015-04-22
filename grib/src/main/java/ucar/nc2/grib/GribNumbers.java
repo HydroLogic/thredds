@@ -54,9 +54,13 @@ public final class GribNumbers {
   public static final int[] bitmask = {128, 64, 32, 16, 8, 4, 2, 1};
 
   /**
-   * Grib uses this internal to mean missing
+   * Grib uses this internally to mean missing
    */
   public static final int MISSING = 255;
+
+  public static boolean isUndefined(double d) {
+    return Double.compare(d, UNDEFINEDD) == 0;
+  }
 
   /**
    * Convert 2 bytes into a signed integer.
@@ -270,10 +274,10 @@ public final class GribNumbers {
     int h = raf.read();
 
     return (1 - ((a & 128) >> 6))
-            * ((a & 127) << 56 | b << 48 | c << 40 | d << 32 | e << 24
+            * ((long)(a & 127) << 56 | (long) b << 48 | (long) c << 40 | (long) d << 32 | e << 24
             | f << 16 | g << 8 | h);
 
-  }  // end int8
+  }
 
   /**
    * Is the bit set in this octet

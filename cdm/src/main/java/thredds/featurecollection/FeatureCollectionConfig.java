@@ -34,14 +34,14 @@ package thredds.featurecollection;
 
 import org.jdom2.Element;
 import org.jdom2.Namespace;
-import thredds.inventory.CollectionUpdateType;
+import thredds.inventory.*;
 import ucar.nc2.time.CalendarPeriod;
 import ucar.unidata.util.StringUtil2;
 
 import java.util.*;
 
 /**
- * Beans for FeatureCollection configuration
+ * FeatureCollection configuration
  *
  * @author caron
  * @since Mar 30, 2010
@@ -64,11 +64,11 @@ public class FeatureCollectionConfig {
   }
 
   static public enum GribDatasetType {
-    TwoD, Best, Hour0, Files, Latest, LatestFile
+    TwoD, Best, Analysis, Files, Latest, LatestFile
   }
 
   static public enum PartitionType {
-    none, directory, file
+    none, directory, file, timePeriod
   }
 
   public static void setRegularizeDefault(boolean t) {
@@ -84,49 +84,69 @@ public class FeatureCollectionConfig {
 
   //////////////////////////////////////////////
 
+  public String name, path, spec, collectionName, dateFormatMark, olderThan;
+  private String rootDir, regExp;
   public FeatureCollectionType type;
-  public PartitionType ptype = PartitionType.none;
-  public String name, path, spec, dateFormatMark, olderThan;
-  public UpdateConfig tdmConfig;
-  public UpdateConfig updateConfig;
+  public PartitionType ptype = PartitionType.directory;
+  public CalendarPeriod timePeriod;
+  public UpdateConfig tdmConfig = new UpdateConfig();
+  public UpdateConfig updateConfig = new UpdateConfig();
   public ProtoConfig protoConfig = new ProtoConfig();
   public FmrcConfig fmrcConfig = new FmrcConfig();
   public PointConfig pointConfig = new PointConfig();
   public GribConfig gribConfig = new GribConfig();
   public Element innerNcml = null;
-  public boolean useIndexOnly = false;
 
   public FeatureCollectionConfig() {
   }
 
-  public FeatureCollectionConfig(String name, String path, FeatureCollectionType fcType, String spec,
-                                 String dateFormatMark, String olderThan, String recheckAfter,
-                                 String timePartition, String useIndexOnlyS, Element innerNcml) {
+  public FeatureCollectionConfig(String name, String path, FeatureCollectionType fcType, String spec, String collectionName,
+                                 String dateFormatMark, String olderThan, String timePartition, Element innerNcml) {
     this.name = name;
-    this.path = path;
+    this.path = StringUtil2.trim(path, '/');
     this.type = fcType;
     this.spec = spec;
+    this.collectionName = collectionName == null ? name : collectionName;
     this.dateFormatMark = dateFormatMark;
     this.olderThan = olderThan;
-    if (recheckAfter != null) this.updateConfig.recheckAfter = recheckAfter;
     if (null != timePartition) {
-      if (timePartition.equalsIgnoreCase("directory")) ptype = PartitionType.directory;
-      if (timePartition.equalsIgnoreCase("file")) ptype = PartitionType.file;
+      if (timePartition.equalsIgnoreCase("none")) ptype = PartitionType.none;
+      else if (timePartition.equalsIgnoreCase("directory")) ptype = PartitionType.directory;
+      else if (timePartition.equalsIgnoreCase("file")) ptype = PartitionType.file;
+      else {
+        timePeriod = CalendarPeriod.of(timePartition);
+        ptype = PartitionType.timePeriod;
+        if (timePeriod == null)
+          throw new IllegalArgumentException("Illegal timePeriod= " + timePartition);
+      }
     }
-    this.useIndexOnly = useIndexOnlyS != null && useIndexOnlyS.equalsIgnoreCase("true");
     this.innerNcml = innerNcml;
   }
 
+  public void setFilter(String rootDir, String regExp) {
+    this.rootDir = rootDir;
+    this.regExp = regExp;
+  }
+
+  public CollectionSpecParser getCollectionSpecParser(Formatter errlog) {
+    if (rootDir != null)
+      return new CollectionSpecParser(rootDir, regExp, errlog);
+    else
+      return new CollectionSpecParser(spec, errlog);
+  }
+
+
   public boolean isTrigggerOk() {
-    if (updateConfig.triggerOk) return true;
-    return (tdmConfig != null) && tdmConfig.triggerOk;
+    return updateConfig.triggerOk || (tdmConfig != null) && tdmConfig.triggerOk;
   }
 
   @Override
   public String toString() {
     Formatter f = new Formatter();
-    f.format("name ='%s' type='%s'%n", name, type);
+    f.format("FeatureCollectionConfig name ='%s' collectionName='%s' type='%s'%n", name, collectionName, type);
     f.format("  spec='%s'%n", spec);
+    if (rootDir != null)
+      f.format("  rootDir= '%s' regExp= '%s'%n", rootDir, regExp);
     if (dateFormatMark != null)
       f.format("  dateFormatMark ='%s'%n", dateFormatMark);
     if (olderThan != null)
@@ -160,22 +180,48 @@ public class FeatureCollectionConfig {
     return f.toString();
   }
 
+  public void show(Formatter f) {
+    f.format("FeatureCollectionConfig name= '%s' collectionName= '%s' type= '%s'%n", name, collectionName, type);
+    f.format("  spec= '%s'%n", spec);
+    if (rootDir != null)
+      f.format("  rootDir= '%s' regExp= '%s'%n", rootDir, regExp);
+    if (dateFormatMark != null)
+      f.format("  dateFormatMark='%s'%n", dateFormatMark);
+    if (olderThan != null)
+      f.format("  olderThan= %s%n", olderThan);
+    if (ptype == PartitionType.timePeriod)
+      f.format("  timePartition= %s %n", timePeriod);
+    else
+      f.format("  timePartition= %s%n", ptype);
+
+    if (type != null) {
+      switch (type) {
+        case GRIB1:
+        case GRIB2:
+          gribConfig.show(f);
+          break;
+        case FMRC:
+          f.format("  fmrcConfig= %s%n", fmrcConfig);
+          break;
+        case Point:
+        case Station:
+        case Station_Profile:
+          f.format("  pointConfig= %s%n", pointConfig);
+          break;
+      }
+    }
+
+  }
+
   // finished reading - do anything needed
   public void finish() {
     // if tdm element was not specified, default is test
     if (!tdmConfig.userDefined) tdmConfig.updateType = CollectionUpdateType.test;
 
-    /* if tdm was specified, turn off tds updating
-    if (tdmConfig.userDefined && tdmConfig.updateType != CollectionUpdateType.never) {
-      // if tdm is working, tds is not allowed to update
-      updateConfig.updateType = CollectionUpdateType.never;
-
-    } else */
-
-    // if update element was not specified, default is test
+    // if update element was not specified, set default
     if (!updateConfig.userDefined) {
-      // if tdm is not working, default tds is to update on startup
-      updateConfig.updateType = CollectionUpdateType.test;
+      // if tdm working, default tds is never, otherwise nocheck
+      updateConfig.updateType = tdmConfig.userDefined ? CollectionUpdateType.never : CollectionUpdateType.nocheck;
     }
 
     // startupType allows override on tdm command line
@@ -183,14 +229,25 @@ public class FeatureCollectionConfig {
     tdmConfig.startupType = tdmConfig.updateType;
   }
 
-  // <update startup="nocheck" rescan="cron expr" trigger="allow" append="true"/>
+  public DateExtractor getDateExtractor() {
+    if (dateFormatMark != null)
+      return new DateExtractorFromName(dateFormatMark, false);
+    else {
+      CollectionSpecParser sp = getCollectionSpecParser(null);
+      if (sp.getDateFormatMark() != null)
+        return new DateExtractorFromName(sp.getDateFormatMark(), true);
+    }
+    return new DateExtractorNone();
+  }
+
+  // <update startup="nocheck" rescan="cron expr" trigger="allow" recheckAfter="15 min"/>
   static public class UpdateConfig {
-    public String recheckAfter;       // LOOK remove ??
+    public String recheckAfter;       // used by non-GRIB FC
     public String rescan;
     public boolean triggerOk = true;
     public boolean userDefined = false;
-    public CollectionUpdateType startupType = CollectionUpdateType.never;
-    public CollectionUpdateType updateType = CollectionUpdateType.never;
+    public CollectionUpdateType startupType = CollectionUpdateType.nocheck;   // what to do on startup. same as updateType, except may be overridden on the command line
+    public CollectionUpdateType updateType = CollectionUpdateType.nocheck;    // what to do on rescan
     public String deleteAfter = null; // not implemented yet
 
     public UpdateConfig() { // defaults
@@ -210,8 +267,11 @@ public class FeatureCollectionConfig {
         rewriteS = rewriteS.toLowerCase();
         if (rewriteS.equalsIgnoreCase("true"))
           this.updateType = CollectionUpdateType.test;
-        else
+        else try {
           this.updateType = CollectionUpdateType.valueOf(rewriteS);
+        } catch (Throwable t) {
+          log.error("Bad updateType= {} in {}", rewriteS);
+        }
 
         // user has placed an update/tdm element in the catalog
         userDefined = true;
@@ -300,7 +360,7 @@ public class FeatureCollectionConfig {
     }
 
     public void addBestDataset(String name, double greaterEqual) {
-      if (bestDatasets == null) bestDatasets = new ArrayList<BestDataset>(2);
+      if (bestDatasets == null) bestDatasets = new ArrayList<>(2);
       bestDatasets.add(new BestDataset(name, greaterEqual));
     }
 
@@ -364,24 +424,36 @@ public class FeatureCollectionConfig {
     }
   }
 
-  static private Set<GribDatasetType> defaultGribDatasetTypes =
-          Collections.unmodifiableSet(EnumSet.of(GribDatasetType.TwoD, GribDatasetType.Best, GribDatasetType.Latest));
+  // GribConfig
 
-  static public class GribConfig {
-    public Set<GribDatasetType> datasets = defaultGribDatasetTypes;
+  static private final Set<GribDatasetType> defaultGribDatasetTypes =
+          Collections.unmodifiableSet(EnumSet.of(GribDatasetType.TwoD, GribDatasetType.Best, GribDatasetType.Files, GribDatasetType.Latest));
+
+  static public boolean useGenTypeDef = false, useTableVersionDef = false, intvMergeDef = true, useCenterDef = false;
+
+  static public class GribConfig {                                                // LOOK make Immutable
+
+    public Map<Integer, Integer> gdsHash;  // map one gds hash to another
     public Map<Integer, String> gdsNamer;  // hash, group name
-    public Map<String, Boolean> pdsHash = new HashMap<>(); // featureName, yes/no
-    public String lookupTablePath, paramTablePath;         // user defined tables
-    public String latestNamer, bestNamer;
-    public Element paramTable;
-    public Boolean filesSortIncreasing = true;
+    public boolean useGenType = useGenTypeDef;
+    public boolean useTableVersion = useTableVersionDef;
+    public boolean intvMerge = intvMergeDef;
+    public boolean useCenter = useCenterDef;
+    public boolean unionRuntimeCoord;
+
     public GribIntvFilter intvFilter;
+    public TimeUnitConverterHash tuc;
+    public CalendarPeriod userTimeUnit;
 
-    private TimeUnitConverterHash tuc;
+    // late binding
+    public String latestNamer, bestNamer;
+    public Boolean filesSortIncreasing = true;
+    public Set<GribDatasetType> datasets = defaultGribDatasetTypes;
+
+    public String lookupTablePath, paramTablePath;         // user defined tables
+    public Element paramTable;                             // ??
+
     private boolean explicitDatasets = false;
-    private Map<Integer, Integer> gdsHash;  // map one gds hash to another
-
-    public Map<String, String> params;
 
     public GribConfig() { // defaults
     }
@@ -418,12 +490,16 @@ public class FeatureCollectionConfig {
       if (configElem.getChild("bestNamer", ns) != null)
         bestNamer = configElem.getChild("bestNamer", ns).getAttributeValue("name");
 
-      List<Element> filesSortElems = configElem.getChildren("filesSort", ns);
-      if (filesSortElems != null) {
-        for (Element filesSort : filesSortElems) {
-          if (filesSort.getChild("lexigraphicByName", ns) != null) {
-            filesSortIncreasing = Boolean.valueOf(
-                    filesSort.getChild("lexigraphicByName", ns).getAttributeValue("increasing"));
+      Element filesSortElem = configElem.getChild("filesSort", ns);
+      if (filesSortElem != null) {
+        String orderByS = filesSortElem.getAttributeValue("orderBy");     // filename vs date ??
+        String increasingS = filesSortElem.getAttributeValue("increasing");
+        if (increasingS != null)
+          filesSortIncreasing = !increasingS.equalsIgnoreCase("false");   // default is true
+        else {
+          Element lexigraphicByName = filesSortElem.getChild("lexigraphicByName", ns);
+          if (lexigraphicByName != null) {
+            filesSortIncreasing = Boolean.valueOf(lexigraphicByName.getAttributeValue("increasing"));
           }
         }
       }
@@ -432,7 +508,7 @@ public class FeatureCollectionConfig {
       for (Element intvElem : intvElems) {
         if (intvFilter == null) intvFilter = new GribIntvFilter();
         String excludeZero = intvElem.getAttributeValue("excludeZero");
-        if (excludeZero != null) intvFilter.isZeroExcluded = true;
+        if (excludeZero != null) setExcludeZero( !excludeZero.equals("false"));
         String intvLengthS = intvElem.getAttributeValue("intvLength");
         if (intvLengthS == null) continue;
         int intvLength = Integer.parseInt(intvLengthS);
@@ -442,18 +518,41 @@ public class FeatureCollectionConfig {
         }
       }
 
-      List<Element> paramElems = configElem.getChildren("parameter", ns);
+      List<Element> paramElems = configElem.getChildren("option", ns);
+      if (paramElems.size() == 0)
+        paramElems = configElem.getChildren("parameter", ns);  // backwards compatible
       for (Element param : paramElems) {
-        if (params == null) params = new HashMap<>();
         String name = param.getAttributeValue("name");
         String value = param.getAttributeValue("value");
-        if (name != null && value != null) params.put(name,value);
+        if (name != null && value != null) {
+          setOption(name, value);
+        }
       }
 
       Element pdsHashElement = configElem.getChild("pdsHash", ns);
-      readValue(pdsHashElement, "intvMerge", ns, true);
-      readValue(pdsHashElement, "useGenType", ns, false);
-      readValue(pdsHashElement, "useTableVersion", ns, true);
+      useGenType = readValue(pdsHashElement, "useGenType", ns, useGenTypeDef);
+      useTableVersion = readValue(pdsHashElement, "useTableVersion", ns, useTableVersionDef);
+      intvMerge = readValue(pdsHashElement, "intvMerge", ns, intvMergeDef);
+      useCenter = readValue(pdsHashElement, "useCenter", ns, useCenterDef);
+    }
+
+    public boolean setOption(String name, String value) {
+      if (name == null || value == null) return false;
+
+      if (name.equalsIgnoreCase("timeUnit")) {
+        setUserTimeUnit(value);  // eg "10 min" or "minute"
+        return true;
+      }
+      if (name.equalsIgnoreCase("runtimeCoordinate") && value.equalsIgnoreCase("union")) {
+         unionRuntimeCoord = true;
+        return true;
+       }
+      return false;
+    }
+
+    public void setUserTimeUnit(String value) {
+      if (value != null)
+        userTimeUnit = CalendarPeriod.of(value);  // eg "10 min" or "minute
     }
 
     public void setExcludeZero(boolean val) {
@@ -461,12 +560,16 @@ public class FeatureCollectionConfig {
       intvFilter.isZeroExcluded = val;
     }
 
+    public void setUseTableVersion(boolean val) {
+      useTableVersion = val;
+    }
+
     public void setIntervalLength(int intvLength, String varId) {
       if (intvFilter == null) intvFilter = new GribIntvFilter();
       intvFilter.addVariable(intvLength, varId, null);
     }
 
-    private void readValue(Element pdsHashElement, String key, Namespace ns, boolean value) {
+    private boolean readValue(Element pdsHashElement, String key, Namespace ns, boolean value) {
       if (pdsHashElement != null) {
         Element e = pdsHashElement.getChild(key, ns);
         if (e != null) {
@@ -476,7 +579,7 @@ public class FeatureCollectionConfig {
           if (t != null && t.equalsIgnoreCase("false")) value = false;
         }
       }
-      pdsHash.put(key, value);
+      return value;
     }
 
     public void addDatasetType(String datasetTypes) {
@@ -502,7 +605,7 @@ public class FeatureCollectionConfig {
 
     public void addGdsHash(String fromS, String toS) {
       if (fromS == null || toS == null) return;
-      if (gdsHash == null) gdsHash = new HashMap<Integer, Integer>(10);
+      if (gdsHash == null) gdsHash = new HashMap<>(10);
 
       try {
         int from = Integer.parseInt(fromS);
@@ -528,7 +631,7 @@ public class FeatureCollectionConfig {
 
     public void addGdsName(String hashS, String name) {
       if (hashS == null || name == null) return;
-      if (gdsNamer == null) gdsNamer = new HashMap<Integer, String>(5);
+      if (gdsNamer == null) gdsNamer = new HashMap<>(5);
 
       try {
         int hash = Integer.parseInt(hashS);
@@ -538,10 +641,17 @@ public class FeatureCollectionConfig {
       }
     }
 
-    public String toString2() {
-      Formatter f = new Formatter();
-      f.format("GribConfig: datasetTypes=%s", datasets);
-      return f.toString();
+    public void show(Formatter f) {
+      f.format("GribConfig= ");
+      if (useGenType != useGenTypeDef) f.format(" useGenType=%s", useGenType);
+      if (useTableVersion != useTableVersionDef) f.format(" useTableVersion=%s", useTableVersion);
+      if (intvMerge != intvMergeDef) f.format(" intvMerge=%s", intvMerge);
+      if (useCenter != useCenterDef) f.format(" useCenter=%s", useCenter);
+      if (userTimeUnit != null) f.format(" userTimeUnit= %s", userTimeUnit);
+      f.format("%n");
+      if (gdsHash != null) f.format("  gdsHash=%s%n", gdsHash);
+      if (gdsNamer != null) f.format("  gdsNamer=%s%n", gdsNamer);
+      if (intvFilter != null) f.format("  intvFilter=%s%n", intvFilter);
     }
 
     @Override
@@ -550,7 +660,10 @@ public class FeatureCollectionConfig {
       sb.append("datasets=").append(datasets);
       if (gdsHash != null) sb.append(", gdsHash=").append(gdsHash);
       if (gdsNamer != null) sb.append(", gdsNamer=").append(gdsNamer);
-      if (pdsHash != null) sb.append(", pdsHash=").append(pdsHash);
+      sb.append(", useGenType=").append(useGenType);
+      sb.append(", useTableVersion=").append(useTableVersion);
+      sb.append(", intvMerge=").append(intvMerge);
+      sb.append(", useCenter=").append(useCenter);
       if (lookupTablePath != null) sb.append(", lookupTablePath='").append(lookupTablePath).append('\'');
       if (paramTablePath != null) sb.append(", paramTablePath='").append(paramTablePath).append('\'');
       if (latestNamer != null) sb.append(", latestNamer='").append(latestNamer).append('\'');
@@ -558,8 +671,7 @@ public class FeatureCollectionConfig {
       if (paramTable != null) sb.append(", paramTable=").append(paramTable);
       if (filesSortIncreasing != null) sb.append(", filesSortIncreasing=").append(filesSortIncreasing);
       if (intvFilter != null) sb.append(", intvFilter=").append(intvFilter);
-      CalendarPeriod tu = getUserTimeUnit();
-      if (tu != null) sb.append(", userTimeUnit='").append(tu).append('\'');
+      if (userTimeUnit != null) sb.append(", userTimeUnit='").append(userTimeUnit).append('\'');
       sb.append('}');
       return sb.toString();
     }
@@ -568,20 +680,6 @@ public class FeatureCollectionConfig {
       if (lookupTablePath != null) return "gribParameterTableLookup="+lookupTablePath;
       if (paramTablePath != null) return "gribParameterTable="+paramTablePath;
       return null;
-    }
-
-    public String getParameter(String name) {
-      if (params == null) return null;
-      return params.get(name);
-    }
-
-    public CalendarPeriod getUserTimeUnit() {
-      CalendarPeriod result = null;
-      String timeUnitS = getParameter("timeUnit");
-      if (timeUnitS != null) {
-        result = CalendarPeriod.of(timeUnitS);  // eg "10 min" or "minute"
-      }
-      return result;
     }
 
     public int convertGdsHash(int hashcode) {
@@ -593,12 +691,12 @@ public class FeatureCollectionConfig {
 
   } // GribConfig
 
-  static class GribIntvFilterParam {
-    int id;
-    int intvLength;
-    int prob = Integer.MIN_VALUE;
+  static public class GribIntvFilterParam {
+    public final int id;
+    public final int intvLength;
+    public final int prob; // none = Integer.MIN_VALUE;
 
-    GribIntvFilterParam(int id, int intvLength, int prob) {
+   public GribIntvFilterParam(int id, int intvLength, int prob) {
       this.id = id;
       this.intvLength = intvLength;
       this.prob = prob;
@@ -606,8 +704,8 @@ public class FeatureCollectionConfig {
   }
 
   static public class GribIntvFilter {
-    List<GribIntvFilterParam> filter;
-    boolean isZeroExcluded;
+    public List<GribIntvFilterParam> filter;
+    public boolean isZeroExcluded = true; // default is true 3/2/2015
 
     public boolean isZeroExcluded() {
       return isZeroExcluded;
@@ -627,15 +725,15 @@ public class FeatureCollectionConfig {
      */
 
     // true means use, false means discard
-    public boolean filterOk(int id, int hasLength, int prob) {
+    public boolean filterOk(int id, int intvLength, int prob) {
+      if (intvLength == 0 && isZeroExcluded()) return false;
       if (filter == null) return true;
-      if (hasLength == 0 && isZeroExcluded()) return false;
       for (GribIntvFilterParam param : filter) {
         boolean needProb = (param.prob != Integer.MIN_VALUE); // filter uses prob
         boolean hasProb = (prob != Integer.MIN_VALUE); // record has prob
         boolean isMine = !needProb || hasProb && (param.prob == prob);
         if (param.id == id && isMine) { // first match in the filter list is used
-          if (param.intvLength != hasLength)
+          if (param.intvLength != intvLength)
             return false; // remove the ones whose intervals dont match
         }
       }
@@ -656,12 +754,12 @@ public class FeatureCollectionConfig {
 
       try {
         int id;
-        if (s.length == 3) { // GRIB1
+        if (s.length == 3) { // GRIB2
           int discipline = Integer.parseInt(s[0]);
           int category = Integer.parseInt(s[1]);
           int number = Integer.parseInt(s[2]);
           id = (discipline << 16) + (category << 8) + number;
-        } else {   // GRIB2
+        } else {   // GRIB1
           int center = Integer.parseInt(s[0]);
           int subcenter = Integer.parseInt(s[1]);
           int version = Integer.parseInt(s[2]);
@@ -671,7 +769,7 @@ public class FeatureCollectionConfig {
 
         int prob = (probS == null) ? Integer.MIN_VALUE : Integer.parseInt(probS);
 
-        if (filter == null) filter = new ArrayList<GribIntvFilterParam>(10);
+        if (filter == null) filter = new ArrayList<>(10);
         filter.add(new GribIntvFilterParam(id, intvLength, prob));
 
       } catch (NumberFormatException e) {
@@ -681,8 +779,8 @@ public class FeatureCollectionConfig {
 
   }
 
-  private static class TimeUnitConverterHash implements TimeUnitConverter {
-    Map<Integer, Integer> map = new HashMap<>(5);
+  public static class TimeUnitConverterHash implements TimeUnitConverter {
+    public Map<Integer, Integer> map = new HashMap<>(5);
 
     public int convertTimeUnit(int timeUnit) {
       if (map == null) return timeUnit;
