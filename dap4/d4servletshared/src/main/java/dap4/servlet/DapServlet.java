@@ -16,6 +16,7 @@ import dap4.dap4shared.*;
 import net.jcip.annotations.NotThreadSafe;
 import org.xml.sax.SAXException;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.*;
 import java.io.*;
@@ -23,6 +24,9 @@ import java.lang.reflect.Field;
 import java.net.*;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
+
+import org.springframework.beans.factory.annotation.Autowired;
+
 
 @NotThreadSafe
 abstract public class DapServlet extends javax.servlet.http.HttpServlet

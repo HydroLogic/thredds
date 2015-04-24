@@ -45,7 +45,7 @@ public class ServletInfo
     public ServletInfo(ServletContext servletcontext)
             throws DapException
     {
-        this.servletcontext = servletconfig;
+        this.servletcontext = servletcontext;
         this.servletname = this.servletcontext.getServletContextName();
         // Look around to see where the /resources dir is located
         // relative to realpath.
