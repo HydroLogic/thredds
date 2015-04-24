@@ -33,9 +33,8 @@ public class ServletInfo
     //////////////////////////////////////////////////
     // Instance variables
 
-    protected HttpServlet servlet = null;
-    protected ServletConfig servletconfig = null;
     protected ServletContext servletcontext = null;
+
     protected String servletname = null;
     protected String server = null;
     protected String realpath = null;
@@ -43,31 +42,17 @@ public class ServletInfo
     //////////////////////////////////////////////////
     // Constructor(s)
 
-    public ServletInfo(HttpServlet sv)
+    public ServletInfo(ServletContext servletcontext)
             throws DapException
     {
-        this.servlet = sv;
-        this.servletconfig = sv.getServletConfig();
-        if(this.servletconfig == null)
-            throw new DapException("Cannot locate servlet config object");
-        this.servletcontext = this.servletconfig.getServletContext();
-        this.servletname = this.servletconfig.getServletName();
+        this.servletcontext = servletconfig;
+        this.servletname = this.servletcontext.getServletContextName();
         // Look around to see where the /resources dir is located
         // relative to realpath.
         this.realpath = DapUtil.canonicalpath(this.servletcontext.getRealPath(""));
     }
     //////////////////////////////////////////////////
     // Accessors
-
-    public HttpServlet getServlet()
-    {
-        return servlet;
-    }
-
-    public ServletConfig getServletconfig()
-    {
-        return servletconfig;
-    }
 
     public ServletContext getServletcontext()
     {

@@ -93,6 +93,9 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     transient protected ServletInfo svcinfo;
 
+    @Autowired
+    transient ServletContext servletcontext = null;
+
     //////////////////////////////////////////////////
     // Constructor(s)
 
@@ -154,7 +157,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
         org.slf4j.Logger logServerStartup = org.slf4j.LoggerFactory.getLogger("serverStartup");
         logServerStartup.info(getClass().getName() + " initialization start");
         try {
-            this.svcinfo = new ServletInfo(this);
+            this.svcinfo = new ServletInfo(this.servletcontext);
         } catch (Exception ioe) {
             throw new ServletException(ioe);
         }

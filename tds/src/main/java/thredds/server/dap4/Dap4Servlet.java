@@ -15,8 +15,8 @@ import javax.annotation.PostConstruct;
 import javax.servlet.ServletException;
 import java.io.*;
 
-//@Controller
-//@RequestMapping("/dap4")
+@Controller
+@RequestMapping("/dap4")
 public class Dap4Servlet extends DapServlet
 {
 
