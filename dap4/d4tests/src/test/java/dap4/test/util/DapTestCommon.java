@@ -63,11 +63,11 @@ public class DapTestCommon extends TestCase
             servlet.init();
         }
 
-        public byte[] execute(Mocker mocker)
+        public byte[] execute()
             throws Exception
         {
             this.servlet.service(this.req, this.resp);
-            return mocker.resp.getContentAsByteArray();
+            return this.resp.getContentAsByteArray();
         }
     }
 
@@ -381,7 +381,6 @@ public class DapTestCommon extends TestCase
     readbinaryfile(String filename)
         throws IOException
     {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         FileInputStream file = new FileInputStream(filename);
         return DapUtil.readbinaryfile(file);
     }
@@ -416,9 +415,9 @@ public class DapTestCommon extends TestCase
 
     static public String canonjoin(String prefix, String suffix)
     {
-        StringBuilder result = new StringBuilder(prefix);
         if(prefix == null) prefix = "";
         if(suffix == null) suffix = "";
+        StringBuilder result = new StringBuilder(prefix);
         if(!prefix.endsWith("/"))
             result.append("/");
         result.append(suffix.startsWith("/") ? suffix.substring(1) : suffix);

@@ -99,9 +99,9 @@ public class TestServletConstraints extends DapTestCommon
             this.xfail = xfail;
             this.extensions = extensions.split(",");
             this.template = template;
-            this.testinputpath = canonjoin(this.inputroot,dataset) + "." + id;
-            this.baselinepath = canonjoin(this.baselineroot,dataset) + "." + id;
-            this.generatepath = canonjoin(this.generateroot,dataset) + "." + id;
+            this.testinputpath = canonjoin(this.inputroot, dataset) + "." + id;
+            this.baselinepath = canonjoin(this.baselineroot, dataset) + "." + id;
+            this.generatepath = canonjoin(this.generateroot, dataset) + "." + id;
             alltests[id] = this;
         }
 
@@ -153,9 +153,9 @@ public class TestServletConstraints extends DapTestCommon
     public TestServletConstraints(String name, String[] argv)
     {
         super(name);
-        ConstraintTest.setRoots(canonjoin(getResourceDir(),TESTINPUTDIR),
-                canonjoin(getResourceDir(),BASELINEDIR),
-                canonjoin(getResourceDir(),GENERATEDIR));
+        ConstraintTest.setRoots(canonjoin(getResourceDir(), TESTINPUTDIR),
+                canonjoin(getResourceDir(), BASELINEDIR),
+                canonjoin(getResourceDir(), GENERATEDIR));
         defineAllTestcases();
         chooseTestcases();
     }
@@ -341,7 +341,7 @@ public class TestServletConstraints extends DapTestCommon
                 if(!pass) break;
             }
             if(!pass) {
-                System.err.printf("TestServletConstraint: fail: %s ext=%s\n",testcase,extension);
+                System.err.printf("TestServletConstraint: fail: %s ext=%s\n", testcase, extension);
                 System.err.flush();
                 break;
             }
@@ -356,12 +356,12 @@ public class TestServletConstraints extends DapTestCommon
         boolean pass = true;
         String url = testcase.makeurl(RequestMode.DMR);
         // Create request and response objects
-	Mocker mocker = new Mocker(url);
-	byte[] byteresult = null;
+        Mocker mocker = new Mocker(url);
+        byte[] byteresult = null;
 
         // See if the servlet can process this
         try {
-	    byteresult = mocker.execute();            
+            byteresult = mocker.execute();
         } catch (Throwable t) {
             System.out.println(testcase.xfail ? "XFail" : "Fail");
             t.printStackTrace();
@@ -393,11 +393,11 @@ public class TestServletConstraints extends DapTestCommon
         RequestMode mode = RequestMode.DAP;
         String methodurl = testcase.makeurl(mode);
         // Create request and response objects
-	Mocker mocker = new Mocker(methodurl);
-	byte[] byteresult = null;
+        Mocker mocker = new Mocker(methodurl);
+        byte[] byteresult = null;
 
         try {
-	    byteresult = mocker.execute();            
+            byteresult = mocker.execute();
         } catch (Throwable t) {
             t.printStackTrace();
             return false;
