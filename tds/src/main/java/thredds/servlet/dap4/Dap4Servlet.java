@@ -2,21 +2,24 @@
    See the LICENSE file for more information.
 */
 
-package thredds.server.dap4;
+package thredds.servlet.dap4;
 
 import dap4.servlet.*;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 import thredds.core.TdsRequestedDataset;
 import thredds.server.config.ThreddsConfig;
+import thredds.server.dap4.ThreddsDSP;
 import ucar.nc2.constants.CDM;
 
 import javax.annotation.PostConstruct;
 import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 
 @Controller
-@RequestMapping("/dap4")
+@RequestMapping("/dap4/{dataset}")
 public class Dap4Servlet extends DapServlet
 {
 
@@ -53,8 +56,8 @@ public class Dap4Servlet extends DapServlet
 
     public Dap4Servlet()
     {
-        super();
-    }
+        super("/dap4");
+    } // pass up the @RequestMapping value
 
     @PostConstruct
     public void init() throws ServletException {
@@ -62,6 +65,15 @@ public class Dap4Servlet extends DapServlet
     }
 
     //////////////////////////////////////////////////////////
+
+    @Override
+    @RequestMapping(value="{dataset}", method= RequestMethod.GET)
+    protected void
+    doGet(HttpServletRequest req, HttpServletResponse resp, @PathVariable("dataset") String dataset)
+            throws IOException, ServletException
+    {
+        super.doGet(req,resp,dataset);
+    }
 
     @Override
     protected void

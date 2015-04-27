@@ -355,29 +355,20 @@ public class TestServletConstraints extends DapTestCommon
     {
         boolean pass = true;
         String url = testcase.makeurl(RequestMode.DMR);
-
         // Create request and response objects
-        FakeServlet servlet = new FakeServlet(this.webapproot);
-        FakeServletRequest req = new FakeServletRequest(url, servlet);
-        FakeServletResponse resp = new FakeServletResponse();
-
-        servlet.init();
+	Mocker mocker = new Mocker(url);
+	byte[] byteresult = null;
 
         // See if the servlet can process this
         try {
-            servlet.doGet(req, resp);
+	    byteresult = mocker.execute();            
         } catch (Throwable t) {
             System.out.println(testcase.xfail ? "XFail" : "Fail");
             t.printStackTrace();
             return testcase.xfail;
         }
 
-        // Collect the output
-        FakeServletOutputStream fakestream = (FakeServletOutputStream) resp.getOutputStream();
-        byte[] byteresult = fakestream.toArray();
-
         // Test by converting the raw output to a string
-
         String sdmr = new String(byteresult, UTF8);
         if(prop_visual)
             visual(url, sdmr);
@@ -401,26 +392,16 @@ public class TestServletConstraints extends DapTestCommon
         String baseline;
         RequestMode mode = RequestMode.DAP;
         String methodurl = testcase.makeurl(mode);
-
         // Create request and response objects
-        FakeServlet servlet = new FakeServlet(this.webapproot);
-        FakeServletRequest req = new FakeServletRequest(methodurl, servlet);
-        FakeServletResponse resp = new FakeServletResponse();
+	Mocker mocker = new Mocker(methodurl);
+	byte[] byteresult = null;
 
-        servlet.init();
-
-        // See if the servlet can process this
         try {
-            servlet.doGet(req, resp);
+	    byteresult = mocker.execute();            
         } catch (Throwable t) {
             t.printStackTrace();
             return false;
         }
-
-        // Collect the output
-        FakeServletOutputStream fakestream
-                = (FakeServletOutputStream) resp.getOutputStream();
-        byte[] byteresult = fakestream.toArray();
         if(DEBUG) {
             DapDump.dumpbytes(ByteBuffer.wrap(byteresult).order(ByteOrder.nativeOrder()), true);
         }

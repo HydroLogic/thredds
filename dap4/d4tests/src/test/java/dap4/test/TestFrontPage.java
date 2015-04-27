@@ -64,24 +64,18 @@ public class TestFrontPage extends DapTestCommon
         throws Exception
     {
         boolean pass = true;
+        String url = FAKEURLPREFIX; // no file specified
 
         // Create request and response objects
-        FakeServlet servlet = new FakeServlet(this.datasetpath);
-        String url = FAKEURLPREFIX; // no file specified
-        FakeServletRequest req = new FakeServletRequest(url, servlet);
-        FakeServletResponse resp = new FakeServletResponse();
+	Mocker mocker = new Mocker(url);
+        byte[] byteresult = null;
 
-        // See if the servlet can process this
         try {
-            servlet.init();
-            servlet.doGet(req, resp);
+            byteresult = mocker.execute();
         } catch (Throwable t) {
             t.printStackTrace();
             assertTrue(false);
         }
-        // Collect the output
-        FakeServletOutputStream fakestream = (FakeServletOutputStream) resp.getOutputStream();
-        byte[] byteresult = fakestream.toArray();
 
         // Convert the raw output to a string
         String html = new String(byteresult,UTF8);

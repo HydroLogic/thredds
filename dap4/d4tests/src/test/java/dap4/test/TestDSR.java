@@ -63,24 +63,17 @@ public class TestDSR extends DapTestCommon
         throws Exception
     {
         boolean pass = true;
-
-        // Create request and response objects
-        FakeServlet servlet = new FakeServlet(this.datasetpath);
         String url = FAKEURL; // no file specified
-        FakeServletRequest req = new FakeServletRequest(url, servlet);
-        FakeServletResponse resp = new FakeServletResponse();
 
-        // See if the servlet can process this
+	Mocker mocker = new Mocker(url);
+	byte[] byteresult = null;
+
         try {
-            servlet.init();
-            servlet.doGet(req, resp);
+            byteresult = mocker.execute();
         } catch (Throwable t) {
             t.printStackTrace();
             assertTrue(false);
         }
-        // Collect the output
-        FakeServletOutputStream fakestream = (FakeServletOutputStream) resp.getOutputStream();
-        byte[] byteresult = fakestream.toArray();
 
         // Convert the raw output to a string
         String dsr = new String(byteresult,UTF8);

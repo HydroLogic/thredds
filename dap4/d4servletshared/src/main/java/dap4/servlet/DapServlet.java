@@ -14,19 +14,23 @@ import dap4.core.dmr.ErrorResponse;
 import dap4.core.util.*;
 import dap4.dap4shared.*;
 import net.jcip.annotations.NotThreadSafe;
+import org.springframework.context.ApplicationContext;
+import org.springframework.core.io.ResourceLoader;
 import org.xml.sax.SAXException;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.*;
 import java.io.*;
+
 import java.lang.reflect.Field;
 import java.net.*;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 
 import org.springframework.beans.factory.annotation.Autowired;
-
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 @NotThreadSafe
 abstract public class DapServlet extends javax.servlet.http.HttpServlet
@@ -51,7 +55,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     static protected final String FAVICON = "favicon.ico"; // relative to resource dir
 
-    static public final long DEFAULTBINARYWRITELIMIT = 100*1000000; // in bytes
+    static public final long DEFAULTBINARYWRITELIMIT = 100 * 1000000; // in bytes
 
     //////////////////////////////////////////////////
     // static variables
@@ -95,16 +99,19 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     transient protected DapDSR dsrbuilder = new DapDSR();
 
-    transient protected ServletInfo svcinfo;
+    transient protected String requestmapping = null;
+
+    transient protected String datasetpath = null;
 
     @Autowired
-    transient ServletContext servletcontext = null;
+    transient protected ResourceLoader resourceloader;
 
-    //////////////////////////////////////////////////
+    /////////////////////////////////////////////////
     // Constructor(s)
 
-    public DapServlet()
+    public DapServlet(String requestmapping)
     {
+        this.requestmapping = requestmapping;
     }
 
     //////////////////////////////////////////////////////////
@@ -137,6 +144,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     /**
      * Set the limit of the max amount of binary data to return to caller.
+     *
      * @return limit to the max amount to write
      */
     abstract protected long getBinaryWriteLimit();
@@ -144,10 +152,22 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
     //////////////////////////////////////////////////////////
     // Accessors
 
-    public ServletInfo
-    getInfo()
+    public ResourceLoader
+    getResourceLoader()
     {
-        return this.svcinfo;
+        return this.resourceloader;
+    }
+
+    public String
+    getServletPath()
+    {
+        return this.requestmapping;
+    }
+
+    public String
+    getDatasetPath()
+    {
+        return this.datasetpath;
     }
 
     //////////////////////////////////////////////////////////
@@ -155,16 +175,11 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     @Override
     public void init()
-            throws ServletException
+        throws ServletException
     {
         super.init();
         org.slf4j.Logger logServerStartup = org.slf4j.LoggerFactory.getLogger("serverStartup");
         logServerStartup.info(getClass().getName() + " initialization start");
-        try {
-            this.svcinfo = new ServletInfo(this.servletcontext);
-        } catch (Exception ioe) {
-            throw new ServletException(ioe);
-        }
         try {
             System.setProperty("file.encoding", "UTF-8");
             Field charset = Charset.class.getDeclaredField("defaultCharset");
@@ -180,28 +195,27 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
     //////////////////////////////////////////////////////////
     // doXXX Methods
 
-    public void  // Make public so TestServlet can access
-    doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException
+    protected void  // Make public so TestServlet can access
+    doGet(HttpServletRequest req, HttpServletResponse resp, String dataset)
+        throws ServletException, IOException
     {
         DapLog.debug("doGet(): User-Agent = " + req.getHeader("User-Agent"));
+        this.datasetpath = dataset;
+
         String url = req.getRequestURL().toString();
-
-        // This may be a tomcat under intellij thing,
-        // but for some reason, tomcat invokes this servlet
-        // both with and without the d4ts path
-        // E.g. it gets invokes with url=http://localhost:8080/
-        // and with url=http://localhost:8080/d4ts.
-        //
-
-        synchronized (this) {
-            this.svcinfo.setServer(url);
+        String query = req.getQueryString();
+        StringBuilder info = new StringBuilder("doGet():");
+        info.append(" dataset = ");
+        info.append(dataset);
+        info.append(" url = ");
+        info.append(url);
+        if(query != null && query.length() >= 0) {
+            info.append("?");
+            info.append(query);
+            DapLog.debug(info.toString());
         }
 
-        String query = req.getQueryString();
-        DapLog.debug("doGet(): url = " + url + (query == null || query.length() == 0 ? "" : "?" + query));
-
-        DapRequest drq = getRequestState(svcinfo, req, resp);
+        DapRequest drq = getRequestState(req, resp);
 
         if(DEBUG) {
             System.err.println("DAP4 Servlet: processing url: " + drq.getOriginalURL());
@@ -223,7 +237,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
                 RequestMode mode = drq.getMode();
                 if(mode == null)
                     throw new DapException("Unrecognized request extension")
-                            .setCode(HttpServletResponse.SC_BAD_REQUEST);
+                        .setCode(HttpServletResponse.SC_BAD_REQUEST);
                 switch (mode) {
                 case DMR:
                     doDMR(drq);
@@ -236,7 +250,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
                     break;
                 default:
                     throw new DapException("Unrecognized request extension")
-                            .setCode(HttpServletResponse.SC_BAD_REQUEST);
+                        .setCode(HttpServletResponse.SC_BAD_REQUEST);
                 }
             }
 
@@ -272,7 +286,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     protected void
     doDSR(DapRequest drq)
-            throws IOException
+        throws IOException
     {
         try {
             String dsr = dsrbuilder.generate(drq.getURL());
@@ -284,7 +298,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
             cw.close();
         } catch (IOException ioe) {
             throw new DapException("DSR generation error", ioe)
-                    .setCode(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                .setCode(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -296,7 +310,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     protected void
     doDMR(DapRequest drq)
-            throws IOException
+        throws IOException
     {
 
         String datasetpath = getResourcePath(drq);
@@ -345,7 +359,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     protected void
     doData(DapRequest drq)
-            throws IOException
+        throws IOException
     {
         String datasetpath = getResourcePath(drq); // dataset path is relative to resource path
         if(datasetpath == null)
@@ -394,7 +408,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     protected void
     addCommonHeaders(DapRequest drq)
-            throws IOException
+        throws IOException
     {
         // Add relevant headers
         ResponseFormat format = drq.getFormat();
@@ -418,36 +432,21 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
     }
 
     /**
-     * Extract the servlet specific info
-     *
-     * @param svc A Servlet object
-     * @return the extracted servlet info
-     */
-/*
-    protected ServletInfo
-    getRequestState(HttpServlet svc)
-        throws IOException
-    {
-        return new ServletInfo(svc);
-    }
-    */
-
-    /**
      * Merge the servlet inputs into a single object
      * for easier transport as well as adding value.
      *
      * @param rq  A Servlet request object
      * @param rsp A Servlet response object
      * @return the union of the
-     *         servlet request and servlet response arguments
-     *         from the servlet engine.
+     * servlet request and servlet response arguments
+     * from the servlet engine.
      */
 
     protected DapRequest
-    getRequestState(ServletInfo info, HttpServletRequest rq, HttpServletResponse rsp)
-            throws IOException
+    getRequestState(HttpServletRequest rq, HttpServletResponse rsp)
+        throws IOException
     {
-        return new DapRequest(info, rq, rsp);
+        return new DapRequest(this, rq, rsp);
     }
 
     //////////////////////////////////////////////////////////
@@ -469,7 +468,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
      */
     protected void
     senderror(DapRequest drq, int httpcode, Throwable t)
-            throws IOException
+        throws IOException
     {
         if(httpcode == 0) httpcode = HttpServletResponse.SC_BAD_REQUEST;
         ErrorResponse err = new ErrorResponse();
@@ -491,7 +490,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
      */
     protected CEConstraint
     buildconstraint(DapRequest drq, String sce, DapDataset dmr)
-            throws IOException
+        throws IOException
     {
         // Process any constraint
         if(sce == null || sce.length() == 0)

@@ -576,7 +576,7 @@ public class DTSServlet extends AbstractServlet
      * <p/>
      * <p>Once the DAS has been parsed it is sent to the requesting client.
      *
-     * @param rs The ReqState of this client request. Contains all kinds of
+p     * @param rs The ReqState of this client request. Contains all kinds of
      *           important stuff.
      * @see ReqState
      */

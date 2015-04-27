@@ -15,6 +15,7 @@
   <artifactId>thredds-parent</artifactId>
   <packaging>pom</packaging>
   <version>5.0.0</version>
+
   <name>Parent THREDDS and CDM modules</name>
   <description>
     The Unidata THREDDS project includes the netCDF-Java library (aka CDM) and
@@ -925,6 +926,8 @@
   </modules>
 
   <properties>
+    <project.version>5.0.0</project.version>
+
     <!-- default is to skip tests. use mvn test -DskipTests=false to override on command line -->
     <skipTests>true</skipTests>
 

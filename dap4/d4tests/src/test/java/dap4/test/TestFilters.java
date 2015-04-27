@@ -248,25 +248,16 @@ public class TestFilters extends DapTestCommon
         RequestMode mode = RequestMode.DAP;
         String methodurl = testcase.makeurl(mode);
 
-        // Create request and response objects
-        FakeServlet servlet = new FakeServlet(this.datasetpath);
-        FakeServletRequest req = new FakeServletRequest(methodurl, servlet);
-        FakeServletResponse resp = new FakeServletResponse();
+	Mocker mocker = new Mocker(methodurl);
+	byte[] byteresult = null;
 
-        servlet.init();
-
-        // See if the servlet can process this
         try {
-            servlet.doGet(req, resp);
+	    byteresult = mocker.execute();
         } catch (Throwable t) {
             t.printStackTrace();
             return false;
         }
 
-        // Collect the output
-        FakeServletOutputStream fakestream
-            = (FakeServletOutputStream) resp.getOutputStream();
-        byte[] byteresult = fakestream.toArray();
         if(prop_debug) {
             ByteOrder order = (isbigendian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
             DapDump.dumpbytes(ByteBuffer.wrap(byteresult).order(order), true);

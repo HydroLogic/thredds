@@ -5,9 +5,10 @@ package dap4.servlet;
 
 import dap4.core.util.*;
 import dap4.dap4shared.RequestMode;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.*;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
@@ -25,17 +26,18 @@ import java.util.Map;
 
 public class DapRequest
 {
+    //////////////////////////////////////////////////
+    // Constants
+
+    static public final String WEBINFPATH = "WEB-INF";
+    static public final String RESOURCEDIRNAME = "resources";
 
     //////////////////////////////////////////////////
     // Instance variables
 
-    protected ServletInfo svcinfo = null;
     protected HttpServletRequest request = null;
     protected HttpServletResponse response = null;
     protected String url = null;  // without any query  and as with any modified dataset path
-    protected String servletpath = null;
-    protected String contextpath = null;
-    protected String datasetpath = null;   // everything after the servletpath
     protected String querystring = null;
     protected String server = null; // scheme + host + port
 
@@ -44,15 +46,23 @@ public class DapRequest
 
     protected Map<String, String> queries = new HashMap<String, String>();
 
+    protected ResourceLoader resourceloader = null;
+
+    protected DapServlet servlet = null;
+
+    protected String servletpath = null;
+    protected String datasetpath = null;
+
     //////////////////////////////////////////////////
     // Constructor(s)
 
-    public DapRequest(ServletInfo svcinfo,
+    public DapRequest(DapServlet servlet,
                       HttpServletRequest request,
                       HttpServletResponse response)
-            throws DapException
+        throws DapException
     {
-        this.svcinfo = svcinfo;
+        this.servlet = servlet;
+        this.resourceloader = this.servlet.getResourceLoader();
         this.request = request;
         this.response = response;
         try {
@@ -82,9 +92,8 @@ public class DapRequest
      * We want to extract the following pieces.
      * 1. (In URI parlance) The scheme plus the authority:
      * http://host:port
-     * 2. The servlet path: should always be "d4ts".
      * 3. The return type: depending on the last extension (e.g. ".txt").
-     * 3. The requested: depending on the next to last extension (e.g. ".dap").
+     * 4. The requested value: depending on the next to last extension (e.g. ".dap").
      * 5. The suffix path specifying the actual dataset: datasetpath
      * with return and request type extensions removed.
      * 6. The url path = servletpath + datasetpath.
@@ -93,36 +102,13 @@ public class DapRequest
 
     protected void
     parse()
-            throws IOException
+        throws IOException
     {
         this.url = request.getRequestURL().toString();// does not include query
         this.querystring = request.getQueryString();
-        this.servletpath = DapUtil.absolutize(request.getServletPath());
-        this.contextpath = DapUtil.nullify(request.getContextPath());
-        this.datasetpath = request.getPathInfo();
+        this.servletpath = DapUtil.absolutize(servlet.getServletPath());
+        this.datasetpath = servlet.getDatasetPath();
         this.datasetpath = DapUtil.canonicalpath(this.datasetpath);
-        this.datasetpath = DapUtil.absolutize(this.datasetpath);
-
-        // I still do not understand what this is: this.contextpath = relpath(request.getContextPath());
-
-        // It appears that, sometimes, tomcat does not conform to the servlet spec.
-        // Specifically, we can see either of the following:
-        // 1. getServletPath() can be null.
-        // 2. getServletPath may also contain what should be the result
-        //    of calling getPathInfo().
-        // So we need to be prepared to fix.
-
-        String servletprefix = "/" + svcinfo.getServletname();
-        if(this.servletpath != null && !this.servletpath.equals(servletprefix)) {
-            if(!this.servletpath.startsWith(servletprefix)) {
-                this.servletpath = servletprefix + this.servletpath;
-                //throw new IOException("URL does not specify the servlet:" + this.url);
-            }
-            this.datasetpath = this.servletpath.substring(servletprefix.length(), this.servletpath.length());
-            this.datasetpath = DapUtil.canonicalpath(this.datasetpath);
-        }
-        this.servletpath = servletprefix; // always
-        this.datasetpath = DapUtil.nullify(this.datasetpath);
 
         // Now, construct various items
         StringBuilder buf = new StringBuilder();
@@ -136,21 +122,8 @@ public class DapRequest
         }
         this.server = buf.toString();
 
-/*
-        if(this.dataSetName == null) {
-            if(servletpath != null) {
-                // use servlet path
-		if(cxtpath!= null && servletpath.startsWith(cxtpath)) {
-		    this.dataSetName = servletpath.substring(cxtpath.length());
-		} else {
-		    this.dataSetName = servletpath;
-		}
-	    }
-        }
-*/
-
         this.mode = null;
-        if(this.datasetpath == null) {
+        if(this.datasetpath == null || this.datasetpath.length() == 0) {
             // Presume mode is a capabilities request
             this.mode = RequestMode.CAPABILITIES;
             this.format = ResponseFormat.HTML;
@@ -160,7 +133,7 @@ public class DapRequest
             // Search backward looking for the mode (dmr or databuffer)
             // meanwhile capturing the format extension
             int modepos = 0;
-            for(int i = pieces.length - 1; i >= 1; i--) {//ignore first piece
+            for(int i = pieces.length - 1;i >= 1;i--) {//ignore first piece
                 String ext = pieces[i];
                 // We assume that the set of response formats does not interset the set of request modes
                 RequestMode mode = RequestMode.modeFor(ext);
@@ -173,7 +146,7 @@ public class DapRequest
                 } else if(format != null) {
                     if(this.format != null)
                         throw new DapException("Multiple response formats specified: " + ext)
-                                .setCode(HttpServletResponse.SC_BAD_REQUEST);
+                            .setCode(HttpServletResponse.SC_BAD_REQUEST);
                     this.format = format;
                 }
             }
@@ -216,7 +189,9 @@ public class DapRequest
     } // parse()
 
     //////////////////////////////////////////////////
-    // Get/Set
+    // Accessor(s)
+
+    public String getServer() {return server;}
 
     public HttpServletRequest getRequest()
     {
@@ -229,7 +204,7 @@ public class DapRequest
     }
 
     public OutputStream getOutputStream()
-            throws IOException
+        throws IOException
     {
         return response.getOutputStream();
     }
@@ -242,7 +217,7 @@ public class DapRequest
     public String getOriginalURL()
     {
         return (this.querystring == null ? this.url
-                : this.url + "?" + this.querystring);
+            : this.url + "?" + this.querystring);
     }
 
     public String getDataset()
@@ -287,28 +262,14 @@ public class DapRequest
         return queries.get(name.toLowerCase());
     }
 
-    /**
-     * Return the absolute path for the /resources directory
-     *
-     * @return the absolute path for the /resources directory
-     */
-    public String getRealPath(String virtual)
+    public String getRealPath(String relpath)
     {
-        return this.svcinfo.getRealPath(virtual);
+        if(relpath == null) relpath = "";
+        if(relpath.startsWith("/")) relpath = relpath.substring(1);
+        String realpath = WEBINFPATH + "/" + RESOURCEDIRNAME + "/" + relpath;
+        Resource resource = resourceloader.getResource(realpath);
+        if(resource == null) return null;
+        return resource.getFilename();
     }
-
-    /**
-     * Return the path info from the request url past the servlet name
-     *
-     * @return the path
-     */
-    public String getPathInfo()
-    {
-        String path = this.request.getPathInfo();
-        if(path == null)
-            path = "";
-        return path;
-    }
-
 }
 

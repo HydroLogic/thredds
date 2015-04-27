@@ -7,13 +7,20 @@ package dap4.d4ts;
 import dap4.core.util.DapException;
 import dap4.core.util.DapUtil;
 import dap4.servlet.*;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
+import javax.annotation.PostConstruct;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+@Controller
+@RequestMapping("/d4ts/{dataset}")
 public class D4TSServlet extends DapServlet
 {
 
@@ -56,11 +63,25 @@ public class D4TSServlet extends DapServlet
 
     public D4TSServlet()
     {
-        super();
+        super("/d4ts");
+    }
+
+    @PostConstruct
+    public void init() throws ServletException
+    {
+        super.init();
     }
 
     //////////////////////////////////////////////////////////
-    // Capabilities processors
+
+    @Override
+    @RequestMapping(value="{dataset}", method= RequestMethod.GET)
+    protected void
+    doGet(HttpServletRequest req, HttpServletResponse resp, @PathVariable("dataset") String dataset)
+            throws IOException, ServletException
+    {
+        super.doGet(req,resp,dataset);
+    }
 
     @Override
     protected void
@@ -69,7 +90,7 @@ public class D4TSServlet extends DapServlet
     {
         String favfile = getResourcePath(drq);
         if(favfile != null) {
-            try (FileInputStream fav = new FileInputStream(favfile);) {
+            try (FileInputStream fav = new FileInputStream(favfile)) {
                 byte[] content = DapUtil.readbinaryfile(fav);
                 OutputStream out = drq.getOutputStream();
                 out.write(content);
@@ -91,7 +112,7 @@ public class D4TSServlet extends DapServlet
             throw new DapException("Cannot locate resources directory");
 
         // Generate the front page
-        FrontPage front = new FrontPage(dir, this.svcinfo);
+        FrontPage front = new FrontPage(dir, drq);
         String frontpage = front.buildPage();
 
         if(frontpage == null)

@@ -7,6 +7,9 @@ package dap4.test.util;
 import dap4.core.util.DapException;
 import junit.framework.TestCase;
 import dap4.core.util.DapUtil;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import thredds.servlet.dap4.Dap4Servlet;
 import ucar.httpservices.HTTPFactory;
 import ucar.httpservices.HTTPMethod;
 import ucar.httpservices.HTTPSession;
@@ -42,6 +45,33 @@ public class DapTestCommon extends TestCase
     static protected final String RESOURCEPATH = "/resources";
 
     //////////////////////////////////////////////////
+    // Type decls
+
+    static public class Mocker
+    {
+        public MockHttpServletRequest req = null;
+        public MockHttpServletResponse resp = null;
+        public Dap4Servlet servlet = null;
+
+        public Mocker(String url)
+            throws Exception
+        {
+            this.req = new MockHttpServletRequest("GET",url);
+            this.resp = new MockHttpServletResponse();
+            req.setMethod("GET");
+            this.servlet = new Dap4Servlet();
+            servlet.init();
+        }
+
+        public byte[] execute(Mocker mocker)
+            throws Exception
+        {
+            this.servlet.service(this.req, this.resp);
+            return mocker.resp.getContentAsByteArray();
+        }
+    }
+
+    //////////////////////////////////////////////////
     // Static Variables
 
     static public org.slf4j.Logger log;
@@ -69,7 +99,7 @@ public class DapTestCommon extends TestCase
         if(path.endsWith("/")) path = path.substring(0, path.length() - 1);
 
         File prefix = new File(path);
-        for(; prefix != null; prefix = prefix.getParentFile()) {//walk up the tree
+        for(;prefix != null;prefix = prefix.getParentFile()) {//walk up the tree
             int found = 0;
             String[] subdirs = prefix.list();
             for(String dirname : subdirs) {
@@ -108,7 +138,7 @@ public class DapTestCommon extends TestCase
     rebuildpath(String[] pieces, int last)
     {
         StringBuilder buf = new StringBuilder();
-        for(int i = 0; i <= last; i++) {
+        for(int i = 0;i <= last;i++) {
             buf.append("/");
             buf.append(pieces[i]);
         }
@@ -248,7 +278,7 @@ public class DapTestCommon extends TestCase
     public boolean
 
     compare(String baselinecontent, String testresult)
-            throws Exception
+        throws Exception
     {
         StringReader baserdr = new StringReader(baselinecontent);
         StringReader resultrdr = new StringReader(testresult);
@@ -262,7 +292,7 @@ public class DapTestCommon extends TestCase
 
     protected void
     findServer(String path)
-            throws DapException
+        throws DapException
     {
         if(d4tsServer.startsWith("file:")) {
             d4tsServer = FILESERVER + "/" + path;
@@ -307,7 +337,7 @@ public class DapTestCommon extends TestCase
     // Copy result into the a specified dir
     static public void
     writefile(String path, String content)
-            throws IOException
+        throws IOException
     {
         File f = new File(path);
         if(f.exists()) f.delete();
@@ -319,7 +349,7 @@ public class DapTestCommon extends TestCase
     // Copy result into the a specified dir
     static public void
     writefile(String path, byte[] content)
-            throws IOException
+        throws IOException
     {
         File f = new File(path);
         if(f.exists()) f.delete();
@@ -330,7 +360,7 @@ public class DapTestCommon extends TestCase
 
     static public String
     readfile(String filename)
-            throws IOException
+        throws IOException
     {
         StringBuilder buf = new StringBuilder();
         File xx = new File(filename);
@@ -349,7 +379,7 @@ public class DapTestCommon extends TestCase
 
     static public byte[]
     readbinaryfile(String filename)
-            throws IOException
+        throws IOException
     {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         FileInputStream file = new FileInputStream(filename);
@@ -358,7 +388,7 @@ public class DapTestCommon extends TestCase
 
     // Properly access a dataset
     static public NetcdfDataset openDataset(String url)
-            throws IOException
+        throws IOException
     {
         return NetcdfDataset.acquireDataset(null, url, ENHANCEMENT, -1, null, null);
     }
@@ -394,5 +424,6 @@ public class DapTestCommon extends TestCase
         result.append(suffix.startsWith("/") ? suffix.substring(1) : suffix);
         return result.toString();
     }
+
 }
 
