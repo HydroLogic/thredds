@@ -4,19 +4,41 @@
 
 package thredds.servlet.dap4;
 
+import dap4.ce.CEConstraint;
+import dap4.ce.parser.*;
+import dap4.core.dmr.*;
+import dap4.core.dmr.parser.Dap4Parser;
+import dap4.core.util.*;
+import dap4.dap4shared.*;
 import dap4.servlet.*;
+<<<<<<< HEAD:tds/src/main/java/thredds/server/dap4/Dap4Servlet.java
+import org.xml.sax.SAXException;
+import thredds.servlet.DataRootHandler;
+import thredds.servlet.DatasetHandler;
+import ucar.nc2.NetcdfFile;
+import ucar.nc2.dataset.NetcdfDataset;
+=======
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import thredds.core.TdsRequestedDataset;
 import thredds.server.config.ThreddsConfig;
 import thredds.server.dap4.ThreddsDSP;
 import ucar.nc2.constants.CDM;
+>>>>>>> ckp:tds/src/main/java/thredds/servlet/dap4/Dap4Servlet.java
 
-import javax.annotation.PostConstruct;
 import javax.servlet.ServletException;
+<<<<<<< HEAD:tds/src/main/java/thredds/server/dap4/Dap4Servlet.java
+import javax.servlet.http.*;
+=======
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+>>>>>>> ckp:tds/src/main/java/thredds/servlet/dap4/Dap4Servlet.java
 import java.io.*;
+import java.lang.reflect.Field;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.ByteOrder;
+import java.nio.charset.Charset;
 
 @Controller
 @RequestMapping("/dap4/{dataset}")
@@ -59,22 +81,16 @@ public class Dap4Servlet extends DapServlet
         super("/dap4");
     } // pass up the @RequestMapping value
 
-    @PostConstruct
-    public void init() throws ServletException {
-        super.init();
-    }
-
     //////////////////////////////////////////////////////////
 
     @Override
+    @RequestMapping(value="{dataset}", method= RequestMethod.GET)
     protected void
-    doGet(HttpServletRequest req, HttpServletResponse resp)
+    doGet(HttpServletRequest req, HttpServletResponse resp, @PathVariable("dataset") String dataset)
             throws IOException, ServletException
     {
-        super.doGet(req, resp);
+        super.doGet(req,resp,dataset);
     }
-
-    //////////////////////////////////////////////////////////
 
     @Override
     protected void
@@ -91,13 +107,11 @@ public class Dap4Servlet extends DapServlet
     {
         addCommonHeaders(drq);
         OutputStream out = drq.getOutputStream();
-        PrintWriter pw = new PrintWriter(new OutputStreamWriter(out,
-                CDM.utf8Charset));
+        PrintWriter pw = new PrintWriter(out);
         pw.println("Capabilities page not yet supported");
         pw.flush();
     }
 
-    @Override
     protected String
     getResourcePath(DapRequest drq)
             throws IOException
@@ -107,24 +121,8 @@ public class Dap4Servlet extends DapServlet
         String datasetpath = drq.getDataset();
         if(datasetpath.startsWith("/"))
             datasetpath = datasetpath.substring(1);
-        return TdsRequestedDataset.getLocationFromRequestPath(datasetpath);
-    }
-
-    @Override
-    protected long
-    getBinaryWriteLimit()
-    {
-        // Thredds config is hosed; it needs to be constructed statically.
-        // Work around: just use the default
-        int dfalt = (int) (DapServlet.DEFAULTBINARYWRITELIMIT / 1000000); // default
-        int mblimit = dfalt;
-        /*
-        try {
-            mblimit = ThreddsConfig.getInt("Dap4.binaryLimit",dfalt);
-        } catch (Throwable e) {//probably being used in testcase
-            mblimit = dfalt;
-        } */
-        return mblimit * 1000000;
+        datasetpath = DatasetHandler.getNetcdfFilePath(drq.getRequest(),datasetpath);
+        return datasetpath;
     }
 
 }
