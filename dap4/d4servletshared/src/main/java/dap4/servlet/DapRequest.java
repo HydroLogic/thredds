@@ -5,8 +5,6 @@ package dap4.servlet;
 
 import dap4.core.util.*;
 import dap4.dap4shared.RequestMode;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 
 import javax.servlet.ServletContext;
 import javax.servlet.http.*;
@@ -61,7 +59,7 @@ public class DapRequest
     public DapRequest(DapServlet servlet,
                       HttpServletRequest request,
                       HttpServletResponse response)
-        throws DapException
+            throws DapException
     {
         this.servlet = servlet;
         this.request = request;
@@ -104,7 +102,7 @@ public class DapRequest
 
     protected void
     parse()
-        throws IOException
+            throws IOException
     {
         this.url = request.getRequestURL().toString();// does not include query
         this.querystring = request.getQueryString();
@@ -135,7 +133,7 @@ public class DapRequest
             // Search backward looking for the mode (dmr or databuffer)
             // meanwhile capturing the format extension
             int modepos = 0;
-            for(int i = pieces.length - 1;i >= 1;i--) {//ignore first piece
+            for(int i = pieces.length - 1; i >= 1; i--) {//ignore first piece
                 String ext = pieces[i];
                 // We assume that the set of response formats does not interset the set of request modes
                 RequestMode mode = RequestMode.modeFor(ext);
@@ -148,7 +146,7 @@ public class DapRequest
                 } else if(format != null) {
                     if(this.format != null)
                         throw new DapException("Multiple response formats specified: " + ext)
-                            .setCode(HttpServletResponse.SC_BAD_REQUEST);
+                                .setCode(HttpServletResponse.SC_BAD_REQUEST);
                     this.format = format;
                 }
             }
@@ -209,7 +207,7 @@ public class DapRequest
     }
 
     public OutputStream getOutputStream()
-        throws IOException
+            throws IOException
     {
         return response.getOutputStream();
     }
@@ -222,7 +220,7 @@ public class DapRequest
     public String getOriginalURL()
     {
         return (this.querystring == null ? this.url
-            : this.url + "?" + this.querystring);
+                : this.url + "?" + this.querystring);
     }
 
     public String getDataset()

@@ -11,28 +11,14 @@ import dap4.core.dmr.parser.Dap4Parser;
 import dap4.core.util.*;
 import dap4.dap4shared.*;
 import dap4.servlet.*;
-<<<<<<< HEAD:tds/src/main/java/thredds/server/dap4/Dap4Servlet.java
 import org.xml.sax.SAXException;
 import thredds.servlet.DataRootHandler;
 import thredds.servlet.DatasetHandler;
 import ucar.nc2.NetcdfFile;
 import ucar.nc2.dataset.NetcdfDataset;
-=======
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.*;
-import thredds.core.TdsRequestedDataset;
-import thredds.server.config.ThreddsConfig;
-import thredds.server.dap4.ThreddsDSP;
-import ucar.nc2.constants.CDM;
->>>>>>> ckp:tds/src/main/java/thredds/servlet/dap4/Dap4Servlet.java
 
 import javax.servlet.ServletException;
-<<<<<<< HEAD:tds/src/main/java/thredds/server/dap4/Dap4Servlet.java
 import javax.servlet.http.*;
-=======
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
->>>>>>> ckp:tds/src/main/java/thredds/servlet/dap4/Dap4Servlet.java
 import java.io.*;
 import java.lang.reflect.Field;
 import java.net.MalformedURLException;
@@ -84,13 +70,14 @@ public class Dap4Servlet extends DapServlet
     //////////////////////////////////////////////////////////
 
     @Override
-    @RequestMapping(value="{dataset}", method= RequestMethod.GET)
     protected void
-    doGet(HttpServletRequest req, HttpServletResponse resp, @PathVariable("dataset") String dataset)
+    doGet(HttpServletRequest req, HttpServletResponse resp)
             throws IOException, ServletException
     {
-        super.doGet(req,resp,dataset);
+        super.doGet(req, resp);
     }
+
+    //////////////////////////////////////////////////////////
 
     @Override
     protected void
