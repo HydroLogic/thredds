@@ -32,7 +32,7 @@ public class TestServletConstraints extends DapTestCommon
 
 
     // constants for Fake Request
-    static String FAKEURLPREFIX = "http://localhost:8080/d4ts";
+    static String FAKEURLPREFIX = "http://localhost:8080/dap4";
 
     static final BigInteger MASK = new BigInteger("FFFFFFFFFFFFFFFF", 16);
 
@@ -356,7 +356,7 @@ public class TestServletConstraints extends DapTestCommon
         boolean pass = true;
         String url = testcase.makeurl(RequestMode.DMR);
         // Create request and response objects
-        Mocker mocker = new Mocker(url);
+        Mocker mocker = new Mocker("dap4",url);
         byte[] byteresult = null;
 
         // See if the servlet can process this
@@ -393,7 +393,7 @@ public class TestServletConstraints extends DapTestCommon
         RequestMode mode = RequestMode.DAP;
         String methodurl = testcase.makeurl(mode);
         // Create request and response objects
-        Mocker mocker = new Mocker(methodurl);
+        Mocker mocker = new Mocker("dap4",methodurl);
         byte[] byteresult = null;
 
         try {

@@ -22,7 +22,7 @@ public class TestDSR extends DapTestCommon
 
     // constants for Fake Request
     static protected final String FAKEDATASET = "test1"; 
-    static protected String FAKEURL = "http://localhost:8080/d4ts/" + FAKEDATASET;
+    static protected String FAKEURL = "http://localhost:8080/dap4/" + FAKEDATASET;
 
     //////////////////////////////////////////////////
     // Instance variables
@@ -65,7 +65,7 @@ public class TestDSR extends DapTestCommon
         boolean pass = true;
         String url = FAKEURL; // no file specified
 
-	Mocker mocker = new Mocker(url);
+	Mocker mocker = new Mocker("dap4",url);
 	byte[] byteresult = null;
 
         try {

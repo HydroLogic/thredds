@@ -23,7 +23,7 @@ public class TestFrontPage extends DapTestCommon
     static protected String TESTFILE = "test_frontpage.html";
 
     // constants for Fake Request
-    static protected String FAKEURLPREFIX = "http://localhost:8080/d4ts";
+    static protected String FAKEURLPREFIX = "http://localhost:8080/dap4";
 
     //////////////////////////////////////////////////
     // Instance variables
@@ -67,7 +67,7 @@ public class TestFrontPage extends DapTestCommon
         String url = FAKEURLPREFIX; // no file specified
 
         // Create request and response objects
-	Mocker mocker = new Mocker(url);
+	    Mocker mocker = new Mocker("dap4",url);
         byte[] byteresult = null;
 
         try {

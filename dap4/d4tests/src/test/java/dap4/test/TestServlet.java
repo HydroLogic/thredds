@@ -38,7 +38,7 @@ public class TestServlet extends DapTestCommon
     static protected final String GENERATEDIR = "/TestCDMClient/testinput";
 
     // constants for Fake Request
-    static protected final String FAKEURLPREFIX = "http://localhost:8080/d4ts";
+    static protected final String FAKEURLPREFIX = "http://localhost:8080/dap4";
 
     static protected final BigInteger MASK = new BigInteger("FFFFFFFFFFFFFFFF", 16);
 
@@ -739,7 +739,7 @@ public class TestServlet extends DapTestCommon
     {
         boolean pass = true;
         // Create request and response objects
-	    Mocker mocker = new Mocker(testcase.makeurl(RequestMode.DMR));
+	    Mocker mocker = new Mocker("dap4",testcase.makeurl(RequestMode.DMR));
 
         // See if the servlet can process this
         try {
@@ -777,7 +777,7 @@ public class TestServlet extends DapTestCommon
         boolean pass = true;
         String baseline;
         // Create request and response objects
-	Mocker mocker = new Mocker(testcase.makeurl(RequestMode.DAP));
+	    Mocker mocker = new Mocker("dap4",testcase.makeurl(RequestMode.DAP));
         byte[] byteresult = null; // output
 
         // See if the servlet can process this

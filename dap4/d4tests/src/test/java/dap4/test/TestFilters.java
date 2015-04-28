@@ -248,7 +248,7 @@ public class TestFilters extends DapTestCommon
         RequestMode mode = RequestMode.DAP;
         String methodurl = testcase.makeurl(mode);
 
-	Mocker mocker = new Mocker(methodurl);
+	Mocker mocker = new Mocker("dap4",methodurl);
 	byte[] byteresult = null;
 
         try {

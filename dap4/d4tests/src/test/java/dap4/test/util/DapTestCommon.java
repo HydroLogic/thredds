@@ -20,6 +20,8 @@ import ucar.nc2.dataset.NetcdfDataset;
 import ucar.unidata.test.util.TestDir;
 
 import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.*;
 
@@ -57,16 +59,49 @@ public class DapTestCommon extends TestCase
         public MockHttpServletRequest req = null;
         public MockHttpServletResponse resp = null;
         public Dap4Servlet servlet = null;
+        public String url = null;
+        public String servletname = null;
 
-        public Mocker(String url)
+        public Mocker(String servletname, String url)
             throws Exception
         {
-            this.req = new MockHttpServletRequest("GET",url);
+            this.url = url;
+            this.servletname = servletname;
+            this.req = new MockHttpServletRequest("GET", url);
             this.resp = new MockHttpServletResponse();
             req.setMethod("GET");
-            req.setServletPath("/dap4");
+            setup();
             this.servlet = new Dap4Servlet();
             servlet.init();
+        }
+
+        /**
+         * The spring mocker is not very smart.
+         * Given the url it should be possible
+         * to initialize a lot of its fields.
+         * Instead, it requires the user to so do.
+         */
+        protected void setup()
+            throws MalformedURLException
+        {
+            this.req.setCharacterEncoding("UTF-8");
+            this.req.setServletPath("/" + this.servletname);
+            URL url = new URL(this.url);
+            this.req.setProtocol(url.getProtocol());
+            this.req.setQueryString(url.getQuery());
+            this.req.setServerName(url.getHost());
+            this.req.setServerPort(url.getPort());
+            String path = url.getPath();
+            if(path != null) {
+                String spiece = "/" + servletname + "/";
+                String[] pieces = path.split(spiece);
+                if(pieces.length == 1)
+                    throw new IllegalStateException("split");
+                String tmp = pieces[0] + "/" + servletname;
+                this.req.setContextPath(pieces[0] + tmp);
+                tmp = path.substring(tmp.length());
+                this.req.setPathInfo(tmp);
+            }
         }
 
         public byte[] execute()
