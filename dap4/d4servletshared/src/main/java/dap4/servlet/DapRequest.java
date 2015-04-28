@@ -5,14 +5,14 @@ package dap4.servlet;
 
 import dap4.core.util.*;
 import dap4.dap4shared.RequestMode;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 
+import javax.servlet.ServletContext;
 import javax.servlet.http.*;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * User requests get cached here so that downstream code can access
@@ -46,12 +46,12 @@ public class DapRequest
 
     protected Map<String, String> queries = new HashMap<String, String>();
 
-    protected ResourceLoader resourceloader = null;
-
     protected DapServlet servlet = null;
 
     protected String servletpath = null;
     protected String datasetpath = null;
+
+    protected ServletContext servletcontext = null;
 
     //////////////////////////////////////////////////
     // Constructor(s)
@@ -59,12 +59,12 @@ public class DapRequest
     public DapRequest(DapServlet servlet,
                       HttpServletRequest request,
                       HttpServletResponse response)
-        throws DapException
+            throws DapException
     {
         this.servlet = servlet;
-        this.resourceloader = this.servlet.getResourceLoader();
         this.request = request;
         this.response = response;
+        this.servletcontext = request.getServletContext();
         try {
             parse();
         } catch (IOException ioe) {
@@ -102,12 +102,12 @@ public class DapRequest
 
     protected void
     parse()
-        throws IOException
+            throws IOException
     {
         this.url = request.getRequestURL().toString();// does not include query
         this.querystring = request.getQueryString();
-        this.servletpath = DapUtil.absolutize(servlet.getServletPath());
-        this.datasetpath = servlet.getDatasetPath();
+        this.servletpath = DapUtil.absolutize(request.getServletPath());
+        this.datasetpath = request.getPathInfo();
         this.datasetpath = DapUtil.canonicalpath(this.datasetpath);
 
         // Now, construct various items
@@ -133,7 +133,7 @@ public class DapRequest
             // Search backward looking for the mode (dmr or databuffer)
             // meanwhile capturing the format extension
             int modepos = 0;
-            for(int i = pieces.length - 1;i >= 1;i--) {//ignore first piece
+            for(int i = pieces.length - 1; i >= 1; i--) {//ignore first piece
                 String ext = pieces[i];
                 // We assume that the set of response formats does not interset the set of request modes
                 RequestMode mode = RequestMode.modeFor(ext);
@@ -146,7 +146,7 @@ public class DapRequest
                 } else if(format != null) {
                     if(this.format != null)
                         throw new DapException("Multiple response formats specified: " + ext)
-                            .setCode(HttpServletResponse.SC_BAD_REQUEST);
+                                .setCode(HttpServletResponse.SC_BAD_REQUEST);
                     this.format = format;
                 }
             }
@@ -181,7 +181,7 @@ public class DapRequest
             }
         }
 
-        DapLog.debug("DapRequest: realrootdir=" + getRealPath(""));
+        DapLog.debug("DapRequest: realrootdir=" + getRealPath("/"));
         DapLog.debug("DapRequest: extension=" + (this.mode == null ? "null" : this.mode.extension()));
         DapLog.debug("DapRequest: servletpath=" + this.servletpath);
         DapLog.debug("DapRequest: datasetpath=" + this.datasetpath);
@@ -191,7 +191,10 @@ public class DapRequest
     //////////////////////////////////////////////////
     // Accessor(s)
 
-    public String getServer() {return server;}
+    public String getServer()
+    {
+        return server;
+    }
 
     public HttpServletRequest getRequest()
     {
@@ -204,7 +207,7 @@ public class DapRequest
     }
 
     public OutputStream getOutputStream()
-        throws IOException
+            throws IOException
     {
         return response.getOutputStream();
     }
@@ -217,7 +220,7 @@ public class DapRequest
     public String getOriginalURL()
     {
         return (this.querystring == null ? this.url
-            : this.url + "?" + this.querystring);
+                : this.url + "?" + this.querystring);
     }
 
     public String getDataset()
@@ -264,12 +267,26 @@ public class DapRequest
 
     public String getRealPath(String relpath)
     {
+        String path = null;
         if(relpath == null) relpath = "";
         if(relpath.startsWith("/")) relpath = relpath.substring(1);
         String realpath = WEBINFPATH + "/" + RESOURCEDIRNAME + "/" + relpath;
-        Resource resource = resourceloader.getResource(realpath);
-        if(resource == null) return null;
-        return resource.getFilename();
+        Set<String> pathset = servletcontext.getResourcePaths(realpath);
+        if(pathset != null) {
+            String[] paths = pathset.toArray(new String[pathset.size()]);
+            switch (paths.length) {
+            case 0:
+                break;
+            case 1:
+                path = paths[0];
+                break;
+            default:
+                path = paths[0];
+                DapLog.warn("getrealpath: multiple matching paths");
+                break;
+            }
+        }
+        return path;
     }
 }
 

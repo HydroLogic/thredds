@@ -103,8 +103,7 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
 
     transient protected String datasetpath = null;
 
-    @Autowired
-    transient protected ResourceLoader resourceloader;
+    transient protected ServletContext servletcontext = null;
 
     /////////////////////////////////////////////////
     // Constructor(s)
@@ -152,12 +151,6 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
     //////////////////////////////////////////////////////////
     // Accessors
 
-    public ResourceLoader
-    getResourceLoader()
-    {
-        return this.resourceloader;
-    }
-
     public String
     getServletPath()
     {
@@ -196,17 +189,18 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
     // doXXX Methods
 
     protected void  // Make public so TestServlet can access
-    doGet(HttpServletRequest req, HttpServletResponse resp, String dataset)
+    doGet(HttpServletRequest req, HttpServletResponse resp)
         throws ServletException, IOException
     {
         DapLog.debug("doGet(): User-Agent = " + req.getHeader("User-Agent"));
-        this.datasetpath = dataset;
+        this.servletcontext = req.getServletContext();
+        this.datasetpath = req.getPathInfo();
 
         String url = req.getRequestURL().toString();
         String query = req.getQueryString();
         StringBuilder info = new StringBuilder("doGet():");
         info.append(" dataset = ");
-        info.append(dataset);
+        info.append(this.datasetpath);
         info.append(" url = ");
         info.append(url);
         if(query != null && query.length() >= 0) {

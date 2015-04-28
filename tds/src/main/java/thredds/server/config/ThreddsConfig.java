@@ -55,6 +55,7 @@ public final class ThreddsConfig {
   private static List<String> catalogRoots;   //catalogs not linked from main catalog
 
   public static void init( String filename) {
+    if(reader != null) return; //  already initialized
     reader = new ThreddsConfigReader(filename, log);
 
     catalogRoots = new ArrayList<>();

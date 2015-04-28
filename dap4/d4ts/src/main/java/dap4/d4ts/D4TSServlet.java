@@ -75,12 +75,11 @@ public class D4TSServlet extends DapServlet
     //////////////////////////////////////////////////////////
 
     @Override
-    @RequestMapping(value="{dataset}", method= RequestMethod.GET)
     protected void
-    doGet(HttpServletRequest req, HttpServletResponse resp, @PathVariable("dataset") String dataset)
+    doGet(HttpServletRequest req, HttpServletResponse resp)
             throws IOException, ServletException
     {
-        super.doGet(req,resp,dataset);
+        super.doGet(req,resp);
     }
 
     @Override

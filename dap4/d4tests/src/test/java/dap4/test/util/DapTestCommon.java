@@ -9,6 +9,9 @@ import junit.framework.TestCase;
 import dap4.core.util.DapUtil;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.web.WebAppConfiguration;
+import thredds.server.config.ThreddsConfig;
 import thredds.servlet.dap4.Dap4Servlet;
 import ucar.httpservices.HTTPFactory;
 import ucar.httpservices.HTTPMethod;
@@ -20,6 +23,8 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
 
+@ContextConfiguration
+@WebAppConfiguration("file:src/test/data")
 public class DapTestCommon extends TestCase
 {
     //////////////////////////////////////////////////
@@ -59,6 +64,7 @@ public class DapTestCommon extends TestCase
             this.req = new MockHttpServletRequest("GET",url);
             this.resp = new MockHttpServletResponse();
             req.setMethod("GET");
+            req.setServletPath("/dap4");
             this.servlet = new Dap4Servlet();
             servlet.init();
         }
@@ -211,6 +217,8 @@ public class DapTestCommon extends TestCase
         this.d4tsServer = TestDir.dap4TestServer;
         if(DEBUG)
             System.err.println("DapTestCommon: d4tsServer=" + d4tsServer);
+        // Initialize various other things
+        String threddsconfig = this.resourcedir + "/threddsConfig.xml";
     }
 
     /**

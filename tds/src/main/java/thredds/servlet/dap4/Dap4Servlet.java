@@ -67,13 +67,14 @@ public class Dap4Servlet extends DapServlet
     //////////////////////////////////////////////////////////
 
     @Override
-    @RequestMapping(value="{dataset}", method= RequestMethod.GET)
     protected void
-    doGet(HttpServletRequest req, HttpServletResponse resp, @PathVariable("dataset") String dataset)
+    doGet(HttpServletRequest req, HttpServletResponse resp)
             throws IOException, ServletException
     {
-        super.doGet(req,resp,dataset);
+        super.doGet(req, resp);
     }
+
+    //////////////////////////////////////////////////////////
 
     @Override
     protected void
@@ -113,8 +114,16 @@ public class Dap4Servlet extends DapServlet
     protected long
     getBinaryWriteLimit()
     {
-        int mblimit = ThreddsConfig.getInt("Dap4.binaryLimit",
-                (int) (DapServlet.DEFAULTBINARYWRITELIMIT / 1000000));
+        // Thredds config is hosed; it needs to be constructed statically.
+        // Work around: just use the default
+        int dfalt = (int) (DapServlet.DEFAULTBINARYWRITELIMIT / 1000000); // default
+        int mblimit = dfalt;
+        /*
+        try {
+            mblimit = ThreddsConfig.getInt("Dap4.binaryLimit",dfalt);
+        } catch (Throwable e) {//probably being used in testcase
+            mblimit = dfalt;
+        } */
         return mblimit * 1000000;
     }
 
