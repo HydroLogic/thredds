@@ -11,9 +11,11 @@ import dap4.core.dmr.parser.Dap4Parser;
 import dap4.core.util.*;
 import dap4.dap4shared.*;
 import dap4.servlet.*;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.xml.sax.SAXException;
-import thredds.servlet.DataRootHandler;
-import thredds.servlet.DatasetHandler;
+import thredds.core.TdsRequestedDataset;
+import thredds.server.dap4.ThreddsDSP;
 import ucar.nc2.NetcdfFile;
 import ucar.nc2.dataset.NetcdfDataset;
 
