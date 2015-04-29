@@ -76,14 +76,6 @@ public class D4TSServlet extends DapServlet
 
     @Override
     protected void
-    doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws IOException, ServletException
-    {
-        super.doGet(req,resp);
-    }
-
-    @Override
-    protected void
     doFavicon(DapRequest drq)
             throws IOException
     {
@@ -127,6 +119,12 @@ public class D4TSServlet extends DapServlet
     }
 
     @Override
+    protected long getBinaryWriteLimit()
+    {
+        return DEFAULTBINARYWRITELIMIT;
+    }
+
+    @Override
     protected String
     getResourcePath(DapRequest drq)
             throws IOException
@@ -134,7 +132,7 @@ public class D4TSServlet extends DapServlet
         // Using context information, we need to
         // construct a file path to the specified dataset
         String suffix = DapUtil.denullify(drq.getDataset());
-        String datasetfilepath = drq.getRealPath(TESTDATADIR + DapUtil.canonicalpath(suffix));
+        String datasetfilepath = drq.getRealPath(canonjoin(TESTDATADIR,DapUtil.canonicalpath(suffix)));
 
         // See if it really exists and is readable and of proper type
         File dataset = new File(datasetfilepath);
@@ -148,9 +146,4 @@ public class D4TSServlet extends DapServlet
         return datasetfilepath;
     }
 
-    @Override
-    protected long getBinaryWriteLimit()
-    {
-        return DEFAULTBINARYWRITELIMIT;
-    }
 }

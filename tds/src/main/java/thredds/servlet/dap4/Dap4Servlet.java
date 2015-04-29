@@ -69,15 +69,6 @@ public class Dap4Servlet extends DapServlet
 
     //////////////////////////////////////////////////////////
 
-    @Override
-    protected void
-    doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws IOException, ServletException
-    {
-        super.doGet(req, resp);
-    }
-
-    //////////////////////////////////////////////////////////
 
     @Override
     protected void
@@ -99,17 +90,35 @@ public class Dap4Servlet extends DapServlet
         pw.flush();
     }
 
+    @Override
+    protected long
+    getBinaryWriteLimit()
+    {
+        return DEFAULTBINARYWRITELIMIT;
+    }
+
+    @Override
     protected String
     getResourcePath(DapRequest drq)
             throws IOException
     {
         // Using context information, we need to
         // construct a file path to the specified dataset
-        String datasetpath = drq.getDataset();
+        String suffix = DapUtil.denullify(drq.getDataset());
+        String datasetfilepath = DapUtil.canonicalpath(suffix);
         if(datasetpath.startsWith("/"))
             datasetpath = datasetpath.substring(1);
-        datasetpath = DatasetHandler.getNetcdfFilePath(drq.getRequest(),datasetpath);
-        return datasetpath;
+        datasetpath = TdsRequestedDataset.getLocationFromRequestPath(datasetpath);
+        // See if it really exists and is readable and of proper type
+        File dataset = new File(datasetfilepath);
+        if(!dataset.exists())
+            throw new DapException("Requested file does not exist: " + datasetfilepath)
+                    .setCode(HttpServletResponse.SC_NOT_FOUND);
+
+        if(!dataset.canRead())
+            throw new DapException("Requested file not readable: " + datasetfilepath)
+                    .setCode(HttpServletResponse.SC_FORBIDDEN);
+        return datasetfilepath;
     }
 
 }
