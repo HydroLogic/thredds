@@ -29,7 +29,7 @@ public class DapRequest
     //////////////////////////////////////////////////
     // Constants
 
-    static public final String WEBINFPATH = "WEB-INF";
+    static public final String WEBINFPATH = "/WEB-INF";
     static public final String RESOURCEDIRNAME = "resources";
 
     //////////////////////////////////////////////////
@@ -269,9 +269,8 @@ public class DapRequest
     {
         String path = null;
         if(relpath == null) relpath = "";
-        if(relpath.startsWith("/")) relpath = relpath.substring(1);
-        String realpath = WEBINFPATH + "/" + RESOURCEDIRNAME + "/" + relpath;
-        Set<String> pathset = servletcontext.getResourcePaths(realpath);
+        if(!relpath.startsWith("/")) relpath = "/" + relpath;
+        Set<String> pathset = servletcontext.getResourcePaths(relpath);
         if(pathset != null) {
             String[] paths = pathset.toArray(new String[pathset.size()]);
             switch (paths.length) {

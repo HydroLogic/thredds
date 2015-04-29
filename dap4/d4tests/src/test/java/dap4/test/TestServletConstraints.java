@@ -6,6 +6,7 @@ import dap4.dap4shared.RequestMode;
 import dap4.test.servlet.*;
 import dap4.test.util.DapTestCommon;
 import dap4.test.util.Dump;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -306,7 +307,7 @@ public class TestServletConstraints extends DapTestCommon
 
     //////////////////////////////////////////////////
     // Junit test methods
-
+    @Test
     public void testServletConstraints()
             throws Exception
     {
@@ -356,7 +357,7 @@ public class TestServletConstraints extends DapTestCommon
         boolean pass = true;
         String url = testcase.makeurl(RequestMode.DMR);
         // Create request and response objects
-        Mocker mocker = new Mocker("dap4",url);
+        Mocker mocker = new Mocker("dap4",url,this);
         byte[] byteresult = null;
 
         // See if the servlet can process this
@@ -393,7 +394,7 @@ public class TestServletConstraints extends DapTestCommon
         RequestMode mode = RequestMode.DAP;
         String methodurl = testcase.makeurl(mode);
         // Create request and response objects
-        Mocker mocker = new Mocker("dap4",methodurl);
+        Mocker mocker = new Mocker("dap4",methodurl,this);
         byte[] byteresult = null;
 
         try {

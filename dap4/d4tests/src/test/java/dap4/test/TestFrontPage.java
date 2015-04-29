@@ -2,6 +2,7 @@ package dap4.test;
 
 import dap4.test.servlet.*;
 import dap4.test.util.DapTestCommon;
+import org.junit.Test;
 
 /**
  * TestFrontPage verifies the front page
@@ -23,7 +24,7 @@ public class TestFrontPage extends DapTestCommon
     static protected String TESTFILE = "test_frontpage.html";
 
     // constants for Fake Request
-    static protected String FAKEURLPREFIX = "http://localhost:8080/dap4";
+    static protected String FAKEURLPREFIX = "http://localhost:8080/thredds/d4ts";
 
     //////////////////////////////////////////////////
     // Instance variables
@@ -60,14 +61,17 @@ public class TestFrontPage extends DapTestCommon
     //////////////////////////////////////////////////
     // Junit test methods
 
+    @Test
     public void testFrontPage()
         throws Exception
     {
+	org.junit.Assume.assumeTrue(usingIntellij);
+
         boolean pass = true;
         String url = FAKEURLPREFIX; // no file specified
 
         // Create request and response objects
-	    Mocker mocker = new Mocker("dap4",url);
+	    Mocker mocker = new Mocker("d4ts",url,this);
         byte[] byteresult = null;
 
         try {

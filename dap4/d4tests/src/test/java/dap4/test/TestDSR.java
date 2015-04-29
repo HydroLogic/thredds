@@ -21,8 +21,8 @@ public class TestDSR extends DapTestCommon
     static protected String BASELINEDIR = DATADIR + "/resources/TestDSR/baseline";
 
     // constants for Fake Request
-    static protected final String FAKEDATASET = "test1"; 
-    static protected String FAKEURL = "http://localhost:8080/dap4/" + FAKEDATASET;
+    static protected final String FAKEDATASET = "test1";
+    static protected String FAKEURL = "http://localhost:8080/d4ts/" + FAKEDATASET;
 
     //////////////////////////////////////////////////
     // Instance variables
@@ -65,8 +65,8 @@ public class TestDSR extends DapTestCommon
         boolean pass = true;
         String url = FAKEURL; // no file specified
 
-	Mocker mocker = new Mocker("dap4",url);
-	byte[] byteresult = null;
+        Mocker mocker = new Mocker("d4ts", url, this);
+        byte[] byteresult = null;
 
         try {
             byteresult = mocker.execute();
@@ -76,14 +76,14 @@ public class TestDSR extends DapTestCommon
         }
 
         // Convert the raw output to a string
-        String dsr = new String(byteresult,UTF8);
+        String dsr = new String(byteresult, UTF8);
 
         if(prop_visual)
             visual("TestDSR", dsr);
 
         // Figure out the baseline
         String baselinepath = this.root + "/" + BASELINEDIR + "/" + FAKEDATASET + ".dsr";
-	
+
         if(prop_baseline) {
             writefile(baselinepath, dsr);
         } else if(prop_diff) { //compare with baseline

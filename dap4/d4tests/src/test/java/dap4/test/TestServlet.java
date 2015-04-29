@@ -14,6 +14,7 @@ import java.util.List;
 
 import dap4.test.util.DapTestCommon;
 import dap4.test.util.Dump;
+import org.junit.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import thredds.servlet.dap4.Dap4Servlet;
@@ -695,7 +696,7 @@ public class TestServlet extends DapTestCommon
 
     //////////////////////////////////////////////////
     // Junit test methods
-
+    @Test
     public void testServlet()
         throws Exception
     {
@@ -739,7 +740,7 @@ public class TestServlet extends DapTestCommon
     {
         boolean pass = true;
         // Create request and response objects
-	    Mocker mocker = new Mocker("dap4",testcase.makeurl(RequestMode.DMR));
+	    Mocker mocker = new Mocker("dap4",testcase.makeurl(RequestMode.DMR),this);
 
         // See if the servlet can process this
         try {
@@ -777,7 +778,7 @@ public class TestServlet extends DapTestCommon
         boolean pass = true;
         String baseline;
         // Create request and response objects
-	    Mocker mocker = new Mocker("dap4",testcase.makeurl(RequestMode.DAP));
+	    Mocker mocker = new Mocker("dap4",testcase.makeurl(RequestMode.DAP),this);
         byte[] byteresult = null; // output
 
         // See if the servlet can process this

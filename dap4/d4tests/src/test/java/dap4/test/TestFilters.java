@@ -7,6 +7,7 @@ import dap4.servlet.Generator;
 import dap4.test.servlet.*;
 import dap4.test.util.DapTestCommon;
 import dap4.test.util.Dump;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -214,7 +215,7 @@ public class TestFilters extends DapTestCommon
 
     //////////////////////////////////////////////////
     // Junit test methods
-
+    @Test
     public void testFilters()
         throws Exception
     {
@@ -248,7 +249,7 @@ public class TestFilters extends DapTestCommon
         RequestMode mode = RequestMode.DAP;
         String methodurl = testcase.makeurl(mode);
 
-	Mocker mocker = new Mocker("dap4",methodurl);
+	Mocker mocker = new Mocker("dap4",methodurl,this);
 	byte[] byteresult = null;
 
         try {

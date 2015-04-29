@@ -7,8 +7,7 @@ package dap4.test.util;
 import dap4.core.util.DapException;
 import junit.framework.TestCase;
 import dap4.core.util.DapUtil;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.web.WebAppConfiguration;
 import thredds.server.config.ThreddsConfig;
@@ -58,16 +57,27 @@ public class DapTestCommon extends TestCase
     {
         public MockHttpServletRequest req = null;
         public MockHttpServletResponse resp = null;
+        public MockServletContext context = null;
         public Dap4Servlet servlet = null;
         public String url = null;
         public String servletname = null;
+        public DapTestCommon parent = null;
 
-        public Mocker(String servletname, String url)
+        public Mocker(String servletname, String url, DapTestCommon parent)
             throws Exception
         {
+            this.parent = parent;
             this.url = url;
             this.servletname = servletname;
-            this.req = new MockHttpServletRequest("GET", url);
+            String resdir = parent.getResourceDir();
+            // There appears to be bug in the spring core.io code
+            // such that it assumes absolute paths start with '/'.
+            // So, check for windows drive and prepend '/' as a hack.
+            if(System.getProperty("os.name").toLowerCase().startsWith("windows")
+                && resdir.matches("[a-zA-Z][:].*"))
+                resdir = "/" + resdir;
+            this.context = new MockServletContext(resdir);
+            this.req = new MockHttpServletRequest(this.context,"GET", url);
             this.resp = new MockHttpServletResponse();
             req.setMethod("GET");
             setup();
@@ -92,15 +102,33 @@ public class DapTestCommon extends TestCase
             this.req.setServerName(url.getHost());
             this.req.setServerPort(url.getPort());
             String path = url.getPath();
-            if(path != null) {
-                String spiece = "/" + servletname + "/";
-                String[] pieces = path.split(spiece);
-                if(pieces.length == 1)
-                    throw new IllegalStateException("split");
-                String tmp = pieces[0] + "/" + servletname;
-                this.req.setContextPath(pieces[0] + tmp);
-                tmp = path.substring(tmp.length());
-                this.req.setPathInfo(tmp);
+            if(path != null) {// probably more complex than it needs to be
+                String prefix = null;
+                String suffix = null;
+                String spiece = "/" + servletname;
+                if(path.equals(spiece) || path.equals(spiece+"/")) {
+                    // path is just spiece
+                    prefix = spiece;
+                    suffix = "/";
+                } else {
+                    String[] pieces = path.split(spiece+"/"); // try this first
+                    if(pieces.length == 1 && path.endsWith(spiece))
+                        pieces = path.split(spiece);  // try this
+                    switch(pieces.length) {
+                    case 0:
+                        throw new IllegalArgumentException("DapTestCommon");
+                    case 1:
+                        prefix = pieces[0] + spiece;
+                        suffix = "";
+                        break;
+                    default: // > 1
+                        prefix = pieces[0];
+                        suffix = path.substring(prefix.length());
+                        break;
+                    }
+                }
+                this.req.setContextPath(prefix);
+                this.req.setPathInfo(suffix);
             }
         }
 
@@ -116,6 +144,10 @@ public class DapTestCommon extends TestCase
     // Static Variables
 
     static public org.slf4j.Logger log;
+
+    static public boolean usingJenkins = (System.getenv("JENKINS_URL") != null);
+    static public boolean usingTravis = (System.getenv("TRAVIS") != null);
+    static public boolean usingIntellij = !(usingJenkins | usingTravis);
 
     //////////////////////////////////////////////////
     // Static methods
