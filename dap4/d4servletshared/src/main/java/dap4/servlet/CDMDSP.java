@@ -1063,7 +1063,7 @@ public class CDMDSP extends AbstractDSP
     {
         try {
             path = DapUtil.canonicalpath(location);
-            NetcdfFile ncfile = NetcdfFile.open(location, canceltask);
+            NetcdfFile ncfile = NetcdfFile.open(path, canceltask);
             return ncfile;
         } catch (Exception e) {
             return null;

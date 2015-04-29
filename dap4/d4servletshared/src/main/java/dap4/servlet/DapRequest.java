@@ -5,11 +5,15 @@ package dap4.servlet;
 
 import dap4.core.util.*;
 import dap4.dap4shared.RequestMode;
+import org.springframework.core.io.Resource;
 
 import javax.servlet.ServletContext;
 import javax.servlet.http.*;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -270,21 +274,16 @@ public class DapRequest
         String path = null;
         if(relpath == null) relpath = "";
         if(!relpath.startsWith("/")) relpath = "/" + relpath;
-        Set<String> pathset = servletcontext.getResourcePaths(relpath);
-        if(pathset != null) {
-            String[] paths = pathset.toArray(new String[pathset.size()]);
-            switch (paths.length) {
-            case 0:
-                break;
-            case 1:
-                path = paths[0];
-                break;
-            default:
-                path = paths[0];
-                DapLog.warn("getrealpath: multiple matching paths");
-                break;
-            }
+        URL url;
+        try {
+            url = servletcontext.getResource(relpath);
+            if(url == null || !url.getProtocol().equals("file"))
+                return null;
+        } catch (MalformedURLException mue) {
+            return null;
         }
+        File res = new File(url.getPath());
+        path = res.getAbsolutePath();
         return path;
     }
 }

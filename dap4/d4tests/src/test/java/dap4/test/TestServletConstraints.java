@@ -108,7 +108,7 @@ public class TestServletConstraints extends DapTestCommon
 
         String makeurl(RequestMode ext)
         {
-            String url = FAKEURLPREFIX + "/" + dataset;
+            String url = canonjoin(FAKEURLPREFIX,canonjoin(TESTINPUTDIR,dataset));
             if(ext != null) url += "." + ext.toString();
             if(constraint != null) {
                 url += "?" + CONSTRAINTTAG + "=";

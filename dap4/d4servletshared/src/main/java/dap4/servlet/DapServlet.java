@@ -234,10 +234,10 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
                         .setCode(HttpServletResponse.SC_BAD_REQUEST);
                 switch (mode) {
                 case DMR:
-                    doDMR(drq);
+                    doDMR(drq,datasetpath);
                     break;
                 case DAP:
-                    doData(drq);
+                    doData(drq,datasetpath);
                     break;
                 case DSR:
                     doDSR(drq);
@@ -303,11 +303,12 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
      */
 
     protected void
-    doDMR(DapRequest drq)
+    doDMR(DapRequest drq, String path)
         throws IOException
     {
 
-        String datasetpath = getResourcePath(drq);
+        //String datasetpath = getResourcePath(drq);
+        String datasetpath = drq.getRealPath(path);
         if(datasetpath == null)
             throw new DapException("Not such dataset: " + drq.getOriginalURL());
         DSP dsp = DapCache.open(datasetpath);
@@ -352,10 +353,10 @@ abstract public class DapServlet extends javax.servlet.http.HttpServlet
      */
 
     protected void
-    doData(DapRequest drq)
+    doData(DapRequest drq, String path)
         throws IOException
     {
-        String datasetpath = getResourcePath(drq); // dataset path is relative to resource path
+        String datasetpath = drq.getRealPath(path);
         if(datasetpath == null)
             throw new DapException("Not such dataset: " + drq.getOriginalURL());
         DSP dsp = DapCache.open(datasetpath);

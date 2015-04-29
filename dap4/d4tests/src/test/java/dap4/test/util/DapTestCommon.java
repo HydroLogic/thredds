@@ -47,8 +47,8 @@ public class DapTestCommon extends TestCase
     static public final String CONSTRAINTTAG = "dap4.ce";
 
     // Equivalent to the path to the webapp/d4ts for testing purposes
-    static protected final String PSEUDOWEBAPPPATH = "/d4tests/src/test/data";
-    static protected final String RESOURCEPATH = "/resources";
+    static protected final String RESOURCEPATH = "/d4tests/src/test/data/resources";
+    static protected final String TESTFILES = "/d4tests/src/test/data/resources/testfiles";
 
     //////////////////////////////////////////////////
     // Type decls
@@ -72,10 +72,10 @@ public class DapTestCommon extends TestCase
             String resdir = parent.getResourceDir();
             // There appears to be bug in the spring core.io code
             // such that it assumes absolute paths start with '/'.
-            // So, check for windows drive and prepend '/' as a hack.
+            // So, check for windows drive and prepend 'file:/' as a hack.
             if(System.getProperty("os.name").toLowerCase().startsWith("windows")
                 && resdir.matches("[a-zA-Z][:].*"))
-                resdir = "/" + resdir;
+                resdir = "file:/" + resdir;
             this.context = new MockServletContext(resdir);
             this.req = new MockHttpServletRequest(this.context,"GET", url);
             this.resp = new MockHttpServletResponse();
@@ -122,7 +122,7 @@ public class DapTestCommon extends TestCase
                         suffix = "";
                         break;
                     default: // > 1
-                        prefix = pieces[0];
+                        prefix = pieces[0] + spiece;
                         suffix = path.substring(prefix.length());
                         break;
                     }
@@ -250,7 +250,6 @@ public class DapTestCommon extends TestCase
     protected String threddsroot = null;
     protected String dap4root = null;
     protected String d4tsServer = null;
-    protected String webapproot = null;
     protected String resourcedir = null;
 
     protected String title = "Testing";
@@ -278,8 +277,7 @@ public class DapTestCommon extends TestCase
         this.dap4root = locateDAP4Root(this.threddsroot);
         if(this.dap4root == null)
             System.err.println("Cannot locate /dap4 parent dir");
-        this.webapproot = this.dap4root + PSEUDOWEBAPPPATH;
-        this.resourcedir = this.webapproot + RESOURCEPATH;
+        this.resourcedir = this.dap4root + RESOURCEPATH;
         // Compute the set of SOURCES
         this.d4tsServer = TestDir.dap4TestServer;
         if(DEBUG)

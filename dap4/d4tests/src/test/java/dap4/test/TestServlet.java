@@ -102,7 +102,7 @@ public class TestServlet extends DapTestCommon
 
         String makeurl(RequestMode ext)
         {
-            return FAKEURLPREFIX + "/" + dataset + "." + ext.toString();
+            return canonjoin(FAKEURLPREFIX,canonjoin(TESTINPUTDIR,dataset)) + "." + ext.toString();
         }
 
         public String toString()
@@ -167,7 +167,7 @@ public class TestServlet extends DapTestCommon
         super(name);
         if(prop_ascii)
             Generator.setASCII(true);
-        ServletTest.setRoots(canonjoin(getResourceDir(), TESTINPUTDIR),
+            ServletTest.setRoots(canonjoin(getResourceDir(), TESTINPUTDIR),
             canonjoin(getResourceDir(), BASELINEDIR),
             canonjoin(getResourceDir(), GENERATEDIR));
         defineAllTestcases();
@@ -180,7 +180,7 @@ public class TestServlet extends DapTestCommon
     protected void
     chooseTestcases()
     {
-        if(true) {
+        if(false) {
             chosentests = locate("test_fill.nc");
             prop_visual = true;
         } else {
