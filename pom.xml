@@ -281,6 +281,11 @@
         <artifactId>d4ts</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>d4tests</artifactId>
+        <version>${project.version}</version>
+      </dependency>
 
       <!-- spring -->
       <dependency>

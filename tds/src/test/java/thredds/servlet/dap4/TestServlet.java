@@ -1,4 +1,4 @@
-package dap4.test;
+package thredds.servlet.dap4;
 
 import dap4.dap4shared.ChunkInputStream;
 import dap4.core.util.DapDump;

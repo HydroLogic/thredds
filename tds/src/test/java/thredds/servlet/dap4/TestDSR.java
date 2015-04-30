@@ -1,4 +1,4 @@
-package dap4.test;
+package thredds.servlet.dap4;
 
 import dap4.test.servlet.*;
 import dap4.test.util.DapTestCommon;
