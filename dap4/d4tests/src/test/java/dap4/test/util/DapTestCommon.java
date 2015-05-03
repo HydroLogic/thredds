@@ -10,8 +10,6 @@ import dap4.core.util.DapUtil;
 import org.springframework.mock.web.*;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.web.WebAppConfiguration;
-import thredds.server.config.ThreddsConfig;
-import thredds.servlet.dap4.Dap4Servlet;
 import ucar.httpservices.HTTPFactory;
 import ucar.httpservices.HTTPMethod;
 import ucar.httpservices.HTTPSession;
