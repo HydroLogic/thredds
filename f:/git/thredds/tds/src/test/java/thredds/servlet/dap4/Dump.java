@@ -2,8 +2,7 @@
    See the LICENSE file for more information.
 */
 
-
-package dap4.test.util;
+package thredds.servlet.dap4;
 
 import dap4.core.util.DapUtil;
 import dap4.core.util.Escape;

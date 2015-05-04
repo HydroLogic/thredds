@@ -1,11 +1,10 @@
-package dap4.test;
+package thredds.servlet.dap4;
 
 import dap4.core.util.DapUtil;
 import dap4.dap4shared.D4DSP;
 import dap4.dap4shared.DataCompiler;
 import dap4.dap4shared.HttpDSP;
 import dap4.servlet.DapCache;
-import dap4.test.util.DapTestCommon;
 import ucar.httpservices.*;
 import ucar.nc2.dataset.NetcdfDataset;
 

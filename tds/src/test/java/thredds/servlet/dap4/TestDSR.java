@@ -1,9 +1,5 @@
 package thredds.servlet.dap4;
 
-import dap4.test.servlet.*;
-import dap4.test.util.DapTestCommon;
-
-
 /**
  * TestFrontPage verifies the front page
  * generation code

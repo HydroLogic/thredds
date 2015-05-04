@@ -2,7 +2,7 @@
    See the LICENSE file for more information.
 */
 
-package dap4.test;
+package thredds.servlet.dap4;
 
 import dap4.cdm.DapNetcdfFile;
 import dap4.core.dmr.DapDataset;

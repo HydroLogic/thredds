@@ -3,9 +3,6 @@ package thredds.servlet.dap4;
 import dap4.dap4shared.ChunkInputStream;
 import dap4.core.util.*;
 import dap4.dap4shared.RequestMode;
-import dap4.test.servlet.*;
-import dap4.test.util.DapTestCommon;
-import dap4.test.util.Dump;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;

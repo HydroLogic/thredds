@@ -1,10 +1,11 @@
-package dap4.test;
+package thredds.servlet.dap4;
 
-import dap4.test.util.DapTestCommon;
 import junit.framework.TestResult;
 import junit.framework.TestSuite;
+import org.junit.Ignore;
 import org.junit.Test;
 
+@Ignore
 public class TestDap4All extends DapTestCommon
 {
 

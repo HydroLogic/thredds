@@ -1,4 +1,4 @@
-package dap4.test.util;
+package thredds.servlet.dap4;
 
 
 // Diff -- text file difference utility.

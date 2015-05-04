@@ -1,6 +1,5 @@
-package dap4.test;
+package thredds.servlet.dap4;
 
-import dap4.test.util.DapTestCommon;
 import org.junit.Test;
 import ucar.httpservices.*;
 import ucar.nc2.dataset.NetcdfDataset;
